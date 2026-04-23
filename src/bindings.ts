@@ -2174,7 +2174,7 @@ export type OnboardingStatePatch = { current_step: OnboardingStep | null; mic_pe
  * discriminated union. Keep this list, the CHECK in the migration, and the
  * `EntryStage` mapping in `EntryContext.tsx` in lockstep.
  */
-export type OnboardingStep = "welcome" | "theme" | "mic" | "accessibility" | "models" | "vault" | "done"
+export type OnboardingStep = "mic" | "accessibility" | "models" | "vault" | "done"
 export type OrtAcceleratorSetting = "auto" | "cpu" | "cuda" | "directml" | "rocm"
 export type OverlayPosition = "none" | "top" | "bottom"
 export type PaginatedHistory = { entries: HistoryEntry[]; has_more: boolean }

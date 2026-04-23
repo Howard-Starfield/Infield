@@ -1,0 +1,218 @@
+/* W0 — Onboarding overlay styles.
+ *
+ * Per Rule 18: vanilla CSS, prefixed class names, no raw colors/spacing
+ * literals (use HerOS tokens).
+ *
+ * Per spec §2.2: NO backdrop blur — atmospheric blob layer remains
+ * visible through the overlay. Dimmer is a soft radial vignette only.
+ */
+
+.onboarding-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 15000; /* above AppShell (zIndex 10), below SpotlightOverlay (20000) */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  /* Soft radial dimmer over the blobs. NO blur. */
+  background: radial-gradient(circle at center, rgba(0, 0, 0, 0.18) 0%, rgba(0, 0, 0, 0.42) 100%);
+  pointer-events: auto;
+}
+
+.onboarding-panel {
+  width: 100%;
+  max-width: 640px;
+  border-radius: 24px;
+  overflow: hidden;
+  position: relative;
+  /* Use the existing glass-card class for fill/stroke consistency. */
+}
+
+.onboarding-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 24px 28px 18px 28px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.onboarding-icon-badge {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--heros-brand);
+  flex-shrink: 0;
+}
+
+.onboarding-title {
+  flex: 1;
+  font-size: 17px;
+  font-weight: 600;
+  color: #fff;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.onboarding-step-counter {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.onboarding-body {
+  padding: 28px;
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.onboarding-body p {
+  margin: 0;
+}
+
+.onboarding-body .onboarding-muted {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 13px;
+}
+
+.onboarding-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 28px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.onboarding-dots {
+  display: flex;
+  gap: 6px;
+}
+
+.onboarding-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.onboarding-dot--active {
+  background: var(--heros-brand);
+  transform: scale(1.2);
+}
+
+.onboarding-dot--complete {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.onboarding-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+/* Inline error / warning banner reused by mic + models steps. */
+.onboarding-banner {
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.onboarding-banner--warn {
+  background: rgba(204, 76, 43, 0.12);
+  border: 1px solid rgba(204, 76, 43, 0.3);
+  color: rgba(255, 220, 210, 0.95);
+}
+
+.onboarding-banner--info {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.75);
+}
+
+/* Models step — per-file progress rows. */
+.onboarding-progress-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  align-items: center;
+}
+
+.onboarding-progress-row__bar {
+  grid-column: 1 / -1;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.onboarding-progress-row__bar-fill {
+  height: 100%;
+  background: var(--heros-brand);
+  transition: width 0.3s ease;
+}
+
+/* Whisper picker radio rows. */
+.onboarding-pick-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.onboarding-pick-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.onboarding-pick-row:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.onboarding-pick-row--active {
+  background: rgba(204, 76, 43, 0.12);
+  border-color: rgba(204, 76, 43, 0.4);
+}
+
+.onboarding-pick-row__main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.onboarding-pick-row__label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.onboarding-pick-row__sub {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+}

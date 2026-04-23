@@ -15,16 +15,15 @@ use std::sync::Arc;
 use rusqlite::{Connection, OptionalExtension, params};
 use tokio::sync::Mutex;
 
-/// Phases of the 6-step onboarding flow, plus `Done` terminal state.
+/// Phases of the 4-step Spotlight onboarding flow, plus `Done` terminal state.
 ///
-/// String values match the DB CHECK constraint and the frontend's
-/// discriminated union. Keep this list, the CHECK in the migration, and the
-/// `EntryStage` mapping in `EntryContext.tsx` in lockstep.
+/// String values match the DB CHECK constraint (a permissive superset that
+/// also accepts legacy 'welcome'/'theme' values from pre-W0 dev runs — see
+/// `get()` for the on-read self-heal). Keep this list and the
+/// frontend's discriminated union in lockstep.
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum OnboardingStep {
-    Welcome,
-    Theme,
     Mic,
     Accessibility,
     Models,
@@ -35,8 +34,6 @@ pub enum OnboardingStep {
 impl OnboardingStep {
     fn as_str(&self) -> &'static str {
         match self {
-            Self::Welcome => "welcome",
-            Self::Theme => "theme",
             Self::Mic => "mic",
             Self::Accessibility => "accessibility",
             Self::Models => "models",
@@ -45,11 +42,13 @@ impl OnboardingStep {
         }
     }
 
+    /// Parses a step string. Legacy 'welcome' and 'theme' values from any
+    /// pre-W0 dev run are coerced to `Mic` so the frontend never sees a
+    /// step it doesn't know how to render. The on-read coercion in `get()`
+    /// also patches the row so subsequent reads return 'mic' directly.
     fn from_str(s: &str) -> Result<Self, String> {
         Ok(match s {
-            "welcome" => Self::Welcome,
-            "theme" => Self::Theme,
-            "mic" => Self::Mic,
+            "mic" | "welcome" | "theme" => Self::Mic,
             "accessibility" => Self::Accessibility,
             "models" => Self::Models,
             "vault" => Self::Vault,
@@ -159,8 +158,19 @@ impl OnboardingManager {
             .map_err(|e| e.to_string())?;
 
         if let Some((step, mic, acc, models_json, vault, started, completed)) = existing {
+            let parsed_step = OnboardingStep::from_str(&step)?;
+            // Legacy self-heal: if the row had 'welcome' or 'theme', coerce
+            // it to 'mic' (parsed_step already reflects this) AND patch the
+            // row in-place so we don't re-coerce on every read.
+            if step == "welcome" || step == "theme" {
+                conn.execute(
+                    "UPDATE onboarding_state SET current_step = 'mic' WHERE id = 1",
+                    [],
+                )
+                .map_err(|e| e.to_string())?;
+            }
             return Ok(OnboardingState {
-                current_step: OnboardingStep::from_str(&step)?,
+                current_step: parsed_step,
                 mic_permission: mic
                     .map(|s| PermissionState::from_str(&s))
                     .transpose()?,
@@ -174,18 +184,18 @@ impl OnboardingManager {
             });
         }
 
-        // Row doesn't exist — create it at `welcome` and return the seed.
+        // Row doesn't exist — create it at `mic` and return the seed.
         let now = now_unix();
         conn.execute(
             "INSERT INTO onboarding_state
                 (id, current_step, started_at)
-             VALUES (1, 'welcome', ?1)",
+             VALUES (1, 'mic', ?1)",
             params![now],
         )
         .map_err(|e| e.to_string())?;
 
         Ok(OnboardingState {
-            current_step: OnboardingStep::Welcome,
+            current_step: OnboardingStep::Mic,
             mic_permission: None,
             accessibility_permission: None,
             models_downloaded: Vec::new(),
@@ -312,10 +322,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn get_on_fresh_install_seeds_welcome_row() {
+    async fn get_on_fresh_install_seeds_mic_row() {
         let m = manager();
         let state = m.get().await.expect("get");
-        assert_eq!(state.current_step, OnboardingStep::Welcome);
+        assert_eq!(state.current_step, OnboardingStep::Mic);
         assert!(state.mic_permission.is_none());
         assert!(state.vault_root.is_none());
         assert!(state.completed_at.is_none());
@@ -358,7 +368,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn reset_wipes_row_next_get_reseeds_welcome() {
+    async fn reset_wipes_row_next_get_reseeds_mic() {
         let m = manager();
         let _ = m
             .patch(OnboardingStatePatch {
@@ -369,7 +379,48 @@ mod tests {
             .expect("advance");
         m.reset().await.expect("reset");
         let state = m.get().await.expect("reseed");
-        assert_eq!(state.current_step, OnboardingStep::Welcome);
+        assert_eq!(state.current_step, OnboardingStep::Mic);
+    }
+
+    #[tokio::test]
+    async fn legacy_welcome_row_self_heals_to_mic_on_read() {
+        // Simulate a row written by pre-W0 code (when 'welcome' was the seed).
+        ensure_vec_extension();
+        let mut conn = Connection::open_in_memory().expect("open mem db");
+        WorkspaceManager::migrations()
+            .to_latest(&mut conn)
+            .expect("apply migrations");
+        conn.execute(
+            "INSERT INTO onboarding_state (id, current_step, started_at)
+             VALUES (1, 'welcome', 0)",
+            [],
+        )
+        .expect("seed legacy row");
+        let m = OnboardingManager::new(Arc::new(Mutex::new(conn)));
+        // First read coerces + patches in-place.
+        let s1 = m.get().await.expect("first read");
+        assert_eq!(s1.current_step, OnboardingStep::Mic);
+        // Second read sees 'mic' directly (no coercion needed).
+        let s2 = m.get().await.expect("second read");
+        assert_eq!(s2.current_step, OnboardingStep::Mic);
+    }
+
+    #[tokio::test]
+    async fn legacy_theme_row_self_heals_to_mic_on_read() {
+        ensure_vec_extension();
+        let mut conn = Connection::open_in_memory().expect("open mem db");
+        WorkspaceManager::migrations()
+            .to_latest(&mut conn)
+            .expect("apply migrations");
+        conn.execute(
+            "INSERT INTO onboarding_state (id, current_step, started_at)
+             VALUES (1, 'theme', 0)",
+            [],
+        )
+        .expect("seed legacy theme row");
+        let m = OnboardingManager::new(Arc::new(Mutex::new(conn)));
+        let s = m.get().await.expect("read");
+        assert_eq!(s.current_step, OnboardingStep::Mic);
     }
 
     #[tokio::test]
