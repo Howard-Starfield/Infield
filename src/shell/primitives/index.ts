@@ -53,3 +53,5 @@ export type {
 
 export { VirtualList } from './VirtualList'
 export type { VirtualListProps } from './VirtualList'
+
+export { AppCrashBoundary } from './AppCrashBoundary'

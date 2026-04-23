@@ -1,21 +1,17 @@
 /**
  * AppCrashBoundary — isolates the main `<App />` tree so an uncaught error
- * inside it doesn't unmount the sibling `<ThemeEditorRoot />` or other
- * recovery UI.
+ * inside it doesn't unmount sibling recovery UI.
  *
- * Without this boundary, React 18 unmounts the entire root on any uncaught
- * render/commit error, including any sibling components meant specifically
- * to survive such errors (the theme editor is the user's way back to a
- * readable UI after they pick a bad color combo).
+ * Without this boundary, React unmounts the entire root on any uncaught
+ * render/commit error. Keeping it as a sibling-friendly boundary preserves
+ * the option to mount diagnostic surfaces alongside `<App />`.
  *
  * Intentionally minimal:
- *   - No retry button (the user fixes the underlying issue externally or
- *     reverts the theme).
+ *   - No retry button (user fixes underlying issue or reverts state).
  *   - Renders a small diagnostic string so the window isn't fully blank.
  *   - Logs the full error + component stack to the console for debugging.
- *   - Uses inline styles + theme tokens so the fallback itself respects the
- *     user's theme (colors, fonts) — failing gracefully when the theme is
- *     the thing that's broken (tokens cascade fallbacks in the CSS).
+ *   - Uses inline styles + CSS tokens so the fallback respects current
+ *     theming when available, falling back to literal colors otherwise.
  */
 
 import { Component, type ErrorInfo, type ReactNode } from 'react'
@@ -36,7 +32,6 @@ export class AppCrashBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
-    // Keep this verbose — a crashed app is a diagnostic emergency.
     // eslint-disable-next-line no-console
     console.error('[AppCrashBoundary] captured error:', error, info.componentStack)
   }
@@ -50,8 +45,8 @@ export class AppCrashBoundary extends Component<Props, State> {
             padding: 32,
             fontFamily:
               'var(--font-ui, Inter, system-ui, sans-serif)',
-            color: 'var(--on-surface, #ffffff)',
-            background: 'var(--heros-bg-foundation, #1a1a1a)',
+            color: 'var(--heros-text-premium, #ffffff)',
+            background: 'var(--heros-bg-foundation, #0a0b0f)',
             minHeight: '100vh',
             display: 'flex',
             flexDirection: 'column',
@@ -63,20 +58,7 @@ export class AppCrashBoundary extends Component<Props, State> {
             Infield hit an error and can't render the workspace.
           </h1>
           <p style={{ margin: 0, opacity: 0.75, maxWidth: 600, lineHeight: 1.5 }}>
-            The details are in the developer console. Press{' '}
-            <kbd
-              style={{
-                padding: '2px 6px',
-                borderRadius: 4,
-                background:
-                  'color-mix(in srgb, var(--on-surface, #ffffff) 10%, transparent)',
-                fontFamily: 'var(--font-mono, monospace)',
-              }}
-            >
-              Cmd/Ctrl + ,
-            </kbd>{' '}
-            to open Appearance settings — you can revert to the default theme
-            or reset overrides there even while the main app is unavailable.
+            The details are in the developer console. Restart the app to recover.
           </p>
           <details
             style={{

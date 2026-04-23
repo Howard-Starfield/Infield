@@ -28,7 +28,8 @@ import {
   type OnboardingStepId,
 } from "./onboardingBridge";
 import { OnboardingStepWelcome } from "./OnboardingStepWelcome";
-import { OnboardingStepTheme } from "./OnboardingStepTheme";
+// OnboardingStepTheme deleted in H1 Task 3 (theme module removed). The
+// "theme" step is stubbed below to auto-advance; H2 redesigns onboarding.
 import { OnboardingStepMic } from "./OnboardingStepMic";
 import { OnboardingStepAccessibility } from "./OnboardingStepAccessibility";
 import { OnboardingStepModels } from "./OnboardingStepModels";
@@ -192,7 +193,7 @@ function renderStep(step: OnboardingStepId, props: StepProps) {
     case "welcome":
       return <OnboardingStepWelcome {...props} />;
     case "theme":
-      return <OnboardingStepTheme {...props} />;
+      return <OnboardingStepThemeStub {...props} />;
     case "mic":
       return <OnboardingStepMic {...props} />;
     case "accessibility":
@@ -209,4 +210,15 @@ function renderStep(step: OnboardingStepId, props: StepProps) {
       // ever does render, keep it silent rather than flashing stale copy.
       return null;
   }
+}
+
+// H1 Task 3 stub: theme module deleted, so the legacy "theme" step has no
+// component to render. Auto-advance on mount so existing onboarding state
+// machines that still pass through "theme" don't get stuck. H2 redesigns
+// onboarding and removes "theme" from STEP_ORDER + OnboardingStepId.
+function OnboardingStepThemeStub({ advance }: StepProps) {
+  useEffect(() => {
+    void advance();
+  }, [advance]);
+  return null;
 }
