@@ -90,20 +90,45 @@ const BASE_WINDOW = { width: 2016, height: 1200 }
  *  a tiny scale on a small base. */
 const MIN_WINDOW = { width: 900, height: 540 }
 
-/** Apply scale to both CSS custom properties (--app-zoom +
- *  --ui-scale) AND resize the OS window proportionally. Single
- *  source of write for everything scale-related. */
+/** Apply scale via THREE channels: native webview zoom (the real
+ *  browser-level zoom via src-tauri set_app_zoom command, handles
+ *  every pixel including inline px literals with proper reflow),
+ *  the --ui-scale token (for token-aware surfaces), and localStorage
+ *  persistence. Also resizes the OS window per asymmetric policy
+ *  (scale >= 1.0 → window grows; scale < 1.0 → window stays so
+ *  zoom-out actually gives more visible content). */
 function applyUiScale(scale: number) {
   const clamped = clampScale(scale)
-  const root = document.documentElement
-  root.style.setProperty('--app-zoom', String(clamped))
-  root.style.setProperty('--ui-scale', String(clamped))
+  // Keep --ui-scale CSS var in sync for any token-driven consumers.
+  // --app-zoom is no longer used as a CSS `zoom` driver; kept as an
+  // informational token in case future CSS rules want to read it.
+  document.documentElement.style.setProperty('--ui-scale', String(clamped))
+  document.documentElement.style.setProperty('--app-zoom', String(clamped))
   try {
     localStorage.setItem('ui-scale', String(clamped))
   } catch {
     /* private browsing / quota — silent */
   }
+  void setWebviewZoom(clamped)
   void resizeWindowToScale(clamped)
+}
+
+/** Invokes the Rust-side `set_app_zoom` Tauri command which calls
+ *  the webview's native browser zoom (WebView2 SetZoomFactor /
+ *  WebKit setPageZoom / webkit2gtk set_zoom_level). This is the
+ *  CORRECT global zoom — matches Ctrl/Cmd + = / - behaviour in any
+ *  Chromium browser, reflows layout, handles every pixel including
+ *  inline px literals copy/'s components author verbatim. */
+async function setWebviewZoom(scale: number) {
+  try {
+    const { invoke } = await import('@tauri-apps/api/core')
+    await invoke('set_app_zoom', { scale })
+  } catch (e) {
+    // Tauri API unavailable (vite preview) or Rust command not
+    // registered yet (before rebuild) — silent fail; --ui-scale
+    // token still scales token-aware surfaces as a partial fallback.
+    console.warn('[VaultContext] set_app_zoom failed:', e)
+  }
 }
 
 /** Resize the Tauri window ASYMMETRICALLY with UI scale per user

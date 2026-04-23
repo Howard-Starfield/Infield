@@ -867,6 +867,7 @@ pub fn run(cli_args: CliArgs) {
             commands::vault_sync::export_database_to_vault,
             commands::vault_sync::export_all_databases_to_vault,
             commands::vault_sync::import_database_from_vault,
+            commands::ui::set_app_zoom,
         ])
         .events(collect_events![
             managers::history::HistoryUpdatePayload,

@@ -10,6 +10,7 @@ pub mod onboarding;
 pub mod search;
 pub mod system_audio;
 pub mod transcription;
+pub mod ui;
 pub mod vault_sync;
 pub mod workspace_nodes;
 
