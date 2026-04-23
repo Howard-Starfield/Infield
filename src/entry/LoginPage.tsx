@@ -1,325 +1,315 @@
 /**
- * Presentation-only entry gate — matches the HerOS kit panel visual DNA:
- *   - Atmospheric mesh + grain behind everything
- *   - Centered glass panel (48px / 40px padding, 24px radius)
- *   - Lock icon in a rounded glass badge at top
- *   - Thin oversized wordmark
- *   - Wide-tracked uppercase subtitle
- *   - Tall primary button with brand-glass finish
- *   - Small uppercase "protected by" footer tag
+ * LoginPage — verbatim port of copy/src/App.tsx login section
+ * (lines 169-240). Uses H2.1's HerOS primitives (HerOSPanel,
+ * HerOSInput, HerOSButton). Per D-H1, Handy renders this only as
+ * the Cmd/Ctrl+L lock surface — it is NOT a boot password gate
+ * (no encrypted vault).
  *
- * Copy is brand-neutral per frontendplan.md Phase 2 locked constraints
- * (no passphrase gate, no secure-volume messaging). The visual structure
- * is the kit's — colour/shape/geometry all drive from theme tokens.
+ * Cosmetic-port discipline (CLAUDE.md):
+ *   - Biometric button is dormant (no Tauri biometric API wired);
+ *     onBiometric callback optional, no-op toast if absent.
+ *   - "Forgot Password?" / "Create New Vault" footer links are
+ *     dormant (preventDefault on click); included for visual parity
+ *     with copy/. H6 wires them to real flows.
+ *   - Master password is opaque to the lock layer here — caller
+ *     decides what to do with it (Handy's no-encryption default
+ *     accepts any value and unlocks).
+ *
+ * Atmosphere (Handy three-layer split — copy/ bundles in HerOSBackground):
+ *   - AtmosphericBackground (blobs, z 0)
+ *   - GrainOverlay (film grain, z 1)
+ *   - RadiantGlow (centred bloom, z 5, behind the panel)
+ *
+ * The `.login-mode` class on the outer wrapper applies copy/'s
+ * brightness/saturation shift to the blob field (defined in
+ * src/styles/heros.css per H1).
  */
-import { useState, type CSSProperties, type FormEvent } from 'react'
+import { useState, type FormEvent } from 'react'
 import { motion } from 'motion/react'
-import { Lock, Key } from 'lucide-react'
+import { Lock as LockIcon, Key, ArrowRight, Loader, Fingerprint } from 'lucide-react'
 import { AtmosphericBackground } from '../shell/primitives/AtmosphericBackground'
 import { GrainOverlay } from '../shell/primitives/GrainOverlay'
-import { GlassWell } from '../shell/primitives/GlassWell'
 import { RadiantGlow } from '../shell/primitives/RadiantGlow'
+import { HerOSPanel, HerOSInput, HerOSButton } from '../shell/primitives'
 import { WindowControls } from '../shell/WindowControls'
 
 export interface LoginPageProps {
-  /**
-   * Called when the user submits the form. Receives the passphrase string
-   * so real auth can be wired in a later phase. Currently the value is
-   * accepted and discarded — this screen remains presentation-only until
-   * backend passphrase validation ships.
-   */
-  onEnter: (passphrase: string) => void
-  /** Eyebrow above the title. Default "Welcome to". */
-  greeting?: string
-  /** Tag under the title. Default "Local-first workspace". */
-  tagline?: string
-  /** Brand name in the footer. Default "Infield". */
-  brandName?: string
+  /** Called when the user submits the unlock form. Receives the password
+   *  string. Caller decides validation; Handy's no-encryption default
+   *  accepts any value. */
+  onUnlock: (password: string) => Promise<void> | void
+  /** Optional inline error displayed above the form. */
+  error?: string | null
+  /** Optional biometric handler. Dormant (no-op) if absent. */
+  onBiometric?: () => void
+  /** Optional "Forgot Password?" handler. Dormant (no-op) if absent. */
+  onForgotPassword?: () => void
+  /** Optional "Create New Vault" handler. Dormant (no-op) if absent. */
+  onCreateNewVault?: () => void
+
+  /** Backward-compat alias for callers that pre-date H2.4. Maps onEnter -> onUnlock. */
+  onEnter?: (passphrase: string) => void
 }
 
 export function LoginPage({
+  onUnlock,
   onEnter,
-  greeting = 'Welcome to',
-  tagline = 'Local-first workspace',
-  brandName = 'Infield',
+  error = null,
+  onBiometric,
+  onForgotPassword,
+  onCreateNewVault,
 }: LoginPageProps) {
-  const [passphrase, setPassphrase] = useState('')
-  const [entering, setEntering] = useState(false)
+  const [password, setPassword] = useState('')
+  const [isUnlockingLocal, setIsUnlockingLocal] = useState(false)
 
-  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    if (entering) return
-    setEntering(true)
-    // Small delay so the pressed-state animation reads before the app
-    // mounts its main shell.
-    window.setTimeout(() => onEnter(passphrase), 180)
-  }
-
-  const rootStyle: CSSProperties = {
-    position: 'fixed',
-    inset: 0,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    color: 'var(--on-surface)',
-    zIndex: 1000,
-    overflow: 'hidden',
-  }
-
-  // Kit drag-region is a top-edge strip so Tauri window stays draggable.
-  const dragRegionStyle: CSSProperties = {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 'calc(var(--shell-titlebar-height, 36px) + 12px)',
-    zIndex: 30,
-  }
-
-  // Tighter container — 340px max instead of 400px so the panel doesn't
-  // dominate small app windows. `86vw` ceiling keeps it usable on very
-  // narrow windows without edge-clipping.
-  const mainStyle: CSSProperties = {
-    position: 'relative',
-    zIndex: 10,
-    width: 'min(340px, 86vw)',
-    padding: '0 calc(20px * var(--ui-scale, 1))',
-  }
-
-  // Panel — 32/28px padding (was 48/40), 22px radius. Proportionally
-  // compact so it reads as a floating lockup, not a dialog.
-  const panelStyle: CSSProperties = {
-    background: 'var(--heros-glass-fill, color-mix(in srgb, var(--on-surface) 8%, transparent))',
-    backdropFilter:
-      'blur(var(--heros-glass-blur, 24px)) saturate(var(--heros-glass-saturate, 120%))',
-    WebkitBackdropFilter:
-      'blur(var(--heros-glass-blur, 24px)) saturate(var(--heros-glass-saturate, 120%))',
-    borderRadius: 'calc(var(--radius-scale, 8px) + 14px)',
-    padding: 'calc(32px * var(--ui-scale, 1)) calc(28px * var(--ui-scale, 1))',
-    border: '1px solid color-mix(in srgb, var(--on-surface) 15%, transparent)',
-    boxShadow:
-      '0 12px 40px 0 color-mix(in srgb, black 15%, transparent), inset 0 1px 0 color-mix(in srgb, var(--on-surface) 20%, transparent)',
-    position: 'relative',
-  }
-
-  // ─── Branding block (top of panel) ────────────────────────────────
-  const brandingStyle: CSSProperties = {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    marginBottom: 'calc(26px * var(--ui-scale, 1))',
-  }
-  // Lock icon badge — 52px (was 64) to match the tighter overall panel.
-  const iconBadgeStyle: CSSProperties = {
-    width: 'calc(52px * var(--ui-scale, 1))',
-    height: 'calc(52px * var(--ui-scale, 1))',
-    borderRadius: 'calc(var(--radius-scale, 8px) + 6px)',
-    background: 'color-mix(in srgb, var(--on-surface) 8%, transparent)',
-    border: '1px solid color-mix(in srgb, var(--on-surface) 15%, transparent)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 'calc(18px * var(--ui-scale, 1))',
-    boxShadow:
-      '0 8px 24px color-mix(in srgb, black 10%, transparent), inset 0 1px 0 color-mix(in srgb, var(--on-surface) 18%, transparent)',
-    backdropFilter: 'blur(12px)',
-    WebkitBackdropFilter: 'blur(12px)',
-    color: 'var(--heros-text-premium, #fdf9f3)',
-  }
-  // Title — 22px (was 28). Still thin, still proportional.
-  const titleStyle: CSSProperties = {
-    fontFamily: "'Inter', system-ui, sans-serif",
-    fontStyle: 'normal',
-    fontSize: 'calc(22px * var(--ui-scale, 1))',
-    fontWeight: 300,
-    letterSpacing: '0.02em',
-    color: 'var(--on-surface)',
-    margin: 0,
-    marginBottom: 'calc(6px * var(--ui-scale, 1))',
-    textAlign: 'center',
-  }
-  // Eyebrow
-  const greetingStyle: CSSProperties = {
-    fontFamily: "'Inter', system-ui, sans-serif",
-    fontStyle: 'normal',
-    fontSize: 'calc(10px * var(--ui-scale, 1))',
-    fontWeight: 600,
-    letterSpacing: '0.28em',
-    textTransform: 'uppercase',
-    color: 'color-mix(in srgb, var(--on-surface) 50%, transparent)',
-    margin: 0,
-    marginBottom: 'calc(14px * var(--ui-scale, 1))',
-    textAlign: 'center',
-  }
-  // Subtitle — tiny, EXTRA wide-tracked
-  const subtitleStyle: CSSProperties = {
-    fontFamily: "'Inter', system-ui, sans-serif",
-    fontStyle: 'normal',
-    fontSize: 'calc(10px * var(--ui-scale, 1))',
-    fontWeight: 700,
-    letterSpacing: '0.4em',
-    textTransform: 'uppercase',
-    color: 'color-mix(in srgb, var(--heros-text-premium, var(--on-surface)) 80%, transparent)',
-    textAlign: 'center',
-    margin: 0,
-  }
-
-  // Button — 11px vertical padding (was 14). Tighter but still tappable;
-  // all hover / active / disabled behavior comes from `.infield-btn-brand`
-  // in semantic.css (Kinetic Neumorphism).
-  const buttonStyle: CSSProperties = {
-    fontFamily: "'Inter', system-ui, sans-serif",
-    fontStyle: 'normal',
-    marginTop: 'calc(10px * var(--ui-scale, 1))',
-    padding: 'calc(11px * var(--ui-scale, 1)) calc(18px * var(--ui-scale, 1))',
-    borderRadius: 'calc(var(--radius-scale, 8px) + 6px)',
-    fontWeight: 700,
-    fontSize: 'calc(13px * var(--ui-scale, 1))',
-    letterSpacing: '0.1em',
-    textTransform: 'uppercase',
-    width: '100%',
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 'calc(8px * var(--ui-scale, 1))',
-  }
-
-  // Footer — small uppercase, very low opacity. Single line instead of
-  // two to save vertical space.
-  const footerStyle: CSSProperties = {
-    marginTop: 'calc(22px * var(--ui-scale, 1))',
-    textAlign: 'center',
-  }
-  const footerTextStyle: CSSProperties = {
-    fontFamily: "'Inter', system-ui, sans-serif",
-    fontStyle: 'normal',
-    fontSize: 'calc(9px * var(--ui-scale, 1))',
-    fontWeight: 800,
-    letterSpacing: '0.2em',
-    color: 'color-mix(in srgb, var(--on-surface) 22%, transparent)',
-    textTransform: 'uppercase',
-    margin: 0,
+    if (isUnlockingLocal) return
+    setIsUnlockingLocal(true)
+    try {
+      if (onUnlock) {
+        await onUnlock(password)
+      } else if (onEnter) {
+        onEnter(password)
+      }
+    } finally {
+      setIsUnlockingLocal(false)
+    }
   }
 
   return (
-    <div style={rootStyle}>
+    <motion.div
+      key="lock"
+      className="login-mode"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.6, ease: 'easeOut' }}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1000,
+        overflow: 'hidden',
+      }}
+    >
+      {/* Three-layer atmosphere (Handy split — copy/ bundles all three) */}
       <AtmosphericBackground style={{ position: 'absolute', inset: 0, zIndex: 0 }} />
       <GrainOverlay zIndex={1} />
 
-      {/* Tauri drag region + window controls at top edge */}
-      <div data-tauri-drag-region style={dragRegionStyle} />
+      {/* Tauri drag region + window controls (verbatim copy/'s height: 48 strip) */}
+      <div
+        data-tauri-drag-region
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 48,
+          zIndex: 9999,
+          cursor: 'grab',
+        }}
+      />
       <div
         style={{
           position: 'absolute',
           top: 0,
           right: 0,
-          height: 'calc(var(--shell-titlebar-height, 36px) + 8px)',
+          height: 48,
           display: 'flex',
           alignItems: 'center',
-          zIndex: 31,
+          zIndex: 10000,
         }}
       >
         <WindowControls />
       </div>
 
-      <main style={mainStyle}>
-        {/* Radiant bloom behind the panel — third layer of the HerOS
-            atmospheric recipe. Driven by `--heros-bloom-*` tokens so
-            theme presets can retint or disable without touching this
-            component. See semantic.css → "Radiant bloom backdrop". */}
+      <main
+        style={{
+          position: 'relative',
+          zIndex: 10,
+          width: '100%',
+          maxWidth: '400px',
+          padding: '0 24px',
+        }}
+      >
+        {/* Bloom backdrop (copy/'s central light bloom — Handy uses RadiantGlow primitive) */}
         <RadiantGlow
           centered={false}
           style={{
-            inset: 'calc(-12% * var(--ui-scale, 1))',
+            inset: '-16%',
             zIndex: 5,
           }}
         />
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 1.2, ease: [0.4, 0, 0.2, 1] }}
-          style={{ position: 'relative', zIndex: 10 }}
-        >
-          <div style={panelStyle}>
-            {/* Branding */}
-            <div style={brandingStyle}>
-              <div style={iconBadgeStyle} aria-hidden>
-                <Lock size={28} strokeWidth={1.6} />
-              </div>
-              <p style={greetingStyle}>{greeting}</p>
-              <h1 style={titleStyle}>Infield</h1>
-              <p style={subtitleStyle}>{tagline}</p>
-            </div>
 
-            <form
-              onSubmit={handleSubmit}
+        <div style={{ position: 'relative', zIndex: 10 }}>
+          <HerOSPanel>
+            {/* Branding block — verbatim from copy/ */}
+            <div
               style={{
                 display: 'flex',
                 flexDirection: 'column',
-                gap: 'calc(20px * var(--ui-scale, 1))',
+                alignItems: 'center',
+                marginBottom: '40px',
               }}
             >
-              {/* Passphrase field — cosmetic for now. Renders the kit's
-                  pressed/carved input pattern via GlassWell. When real
-                  auth ships, the value already flows up through onEnter. */}
-              <GlassWell
+              <div
                 style={{
-                  padding:
-                    'calc(14px * var(--ui-scale, 1)) calc(16px * var(--ui-scale, 1))',
-                  gap: 'calc(12px * var(--ui-scale, 1))',
+                  width: '64px',
+                  height: '64px',
+                  borderRadius: '16px',
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginBottom: '24px',
+                  boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
                 }}
               >
-                <Key
-                  size={18}
-                  strokeWidth={1.6}
-                  // `infield-input-icon` class drives the -15° rotation +
-                  // brightening on the well's :focus-within, defined in
-                  // semantic.css. No JS state needed.
-                  className="infield-input-icon"
-                  color="color-mix(in srgb, var(--heros-text-premium, var(--on-surface)) 50%, transparent)"
-                  style={{ flexShrink: 0 }}
-                />
-                <input
-                  type="password"
-                  placeholder="Passphrase"
-                  value={passphrase}
-                  autoComplete="current-password"
-                  onChange={(e) => setPassphrase(e.target.value)}
-                  style={{
-                    flex: 1,
-                    background: 'transparent',
-                    border: 'none',
-                    outline: 'none',
-                    color: 'var(--heros-text-premium, var(--on-surface))',
-                    fontSize: 'calc(15px * var(--ui-scale, 1))',
-                    fontFamily: 'inherit',
-                    width: '100%',
-                    padding: 0,
-                  }}
-                />
-              </GlassWell>
-
-            <button
-              type="submit"
-              disabled={entering}
-              autoFocus
-              className="infield-btn-brand"
-              style={buttonStyle}
-            >
-              {entering ? 'Entering…' : 'Enter Infield'}
-            </button>
-            </form>
-
-            <div style={footerStyle}>
-              <p style={footerTextStyle}>
-                {brandName === 'Infield'
-                  ? 'Local · Private · Yours'
-                  : brandName.toUpperCase()}
+                <LockIcon color="#f0d8d0" size={28} />
+              </div>
+              <h1
+                style={{
+                  fontSize: '28px',
+                  fontWeight: 300,
+                  letterSpacing: '0.02em',
+                  color: '#fff',
+                  marginBottom: '8px',
+                  margin: 0,
+                }}
+              >
+                OS<sup style={{ fontSize: '16px' }}>1</sup>
+              </h1>
+              <p
+                style={{
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  letterSpacing: '0.4em',
+                  textTransform: 'uppercase',
+                  color: 'rgba(240, 216, 208, 0.8)',
+                  textAlign: 'center',
+                  margin: 0,
+                }}
+              >
+                Secure Volume
               </p>
             </div>
-          </div>
-        </motion.div>
+
+            {/* Error banner (verbatim) */}
+            {error && (
+              <div
+                style={{
+                  color: '#fff',
+                  fontSize: '13px',
+                  textAlign: 'center',
+                  marginBottom: '16px',
+                  padding: '10px',
+                  background: 'rgba(255, 0, 0, 0.2)',
+                  border: '1px solid rgba(255,0,0,0.3)',
+                  borderRadius: '8px',
+                }}
+              >
+                {error}
+              </div>
+            )}
+
+            {/* Unlock form (verbatim) */}
+            <form
+              onSubmit={handleSubmit}
+              style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}
+            >
+              <HerOSInput
+                type="password"
+                placeholder="Master Password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                icon={<Key color="rgba(240, 216, 208, 0.5)" size={18} />}
+              />
+
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <HerOSButton
+                  type="submit"
+                  loading={isUnlockingLocal}
+                  icon={
+                    isUnlockingLocal ? (
+                      <Loader className="spin" size={18} />
+                    ) : (
+                      <ArrowRight size={18} />
+                    )
+                  }
+                  style={{
+                    flex: 1,
+                    padding: '16px',
+                    borderRadius: '12px',
+                    fontWeight: 600,
+                    fontSize: '15px',
+                    letterSpacing: '0.05em',
+                  }}
+                >
+                  Unlock
+                </HerOSButton>
+                <HerOSButton
+                  type="button"
+                  title="Use Biometric Unlock"
+                  onClick={() => onBiometric?.()}
+                  style={{
+                    width: '54px',
+                    height: '54px',
+                    borderRadius: '12px',
+                    padding: 0,
+                  }}
+                >
+                  <Fingerprint size={20} />
+                </HerOSButton>
+              </div>
+            </form>
+
+            {/* Footer links (dormant — verbatim layout from copy/) */}
+            <div
+              style={{
+                marginTop: '36px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                fontSize: '14px',
+                fontWeight: 500,
+              }}
+            >
+              <a
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault()
+                  onForgotPassword?.()
+                }}
+                style={{
+                  color: 'rgba(255, 255, 255, 0.75)',
+                  textDecoration: 'none',
+                  transition: 'color 0.2s',
+                }}
+              >
+                Forgot Password?
+              </a>
+              <a
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault()
+                  onCreateNewVault?.()
+                }}
+                style={{
+                  color: 'rgba(255, 255, 255, 0.75)',
+                  textDecoration: 'none',
+                  transition: 'color 0.2s',
+                }}
+              >
+                Create New Vault
+              </a>
+            </div>
+          </HerOSPanel>
+        </div>
       </main>
-    </div>
+    </motion.div>
   )
 }
