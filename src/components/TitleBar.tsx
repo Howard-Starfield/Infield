@@ -104,27 +104,34 @@ export function TitleBar({ currentPath }: TitleBarProps) {
   const timeStr = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
   const isUrgent = secondsLeft < 60;
 
+  // Tauri 2: use the imported getCurrentWindow() directly. The
+  // previous handlers used `window.__TAURI__` (Tauri 1 global) which
+  // is undefined in Tauri 2 unless withGlobalTauri is enabled — so
+  // every click was a silent no-op.
   const minimize = async () => {
-    const tauri = (window as any).__TAURI__;
-    if (tauri) {
-      await tauri.window.getCurrentWindow().minimize();
+    try {
+      await getCurrentWindow().minimize();
+    } catch (err) {
+      console.warn('[TitleBar] minimize failed:', err);
     }
   };
   const maximize = async () => {
-    const tauri = (window as any).__TAURI__;
-    if (tauri) {
-      const win = tauri.window.getCurrentWindow();
+    try {
+      const win = getCurrentWindow();
       if (await win.isMaximized()) {
         await win.unmaximize();
       } else {
         await win.maximize();
       }
+    } catch (err) {
+      console.warn('[TitleBar] maximize toggle failed:', err);
     }
   };
   const close = async () => {
-    const tauri = (window as any).__TAURI__;
-    if (tauri) {
-      await tauri.window.getCurrentWindow().close();
+    try {
+      await getCurrentWindow().close();
+    } catch (err) {
+      console.warn('[TitleBar] close failed:', err);
     }
   };
 

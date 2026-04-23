@@ -1047,24 +1047,29 @@ pub fn run(cli_args: CliArgs) {
                     let _ = apply_acrylic(&main_window, None);
                 }
 
-                // Force rounded window corners via DWM. Windows 11 defaults
-                // borderless (decorations:false) windows to DWMWCP_DEFAULT,
-                // which picks sharp corners for custom-drawn windows. Mica
-                // does NOT round corners on its own — we have to tell DWM
-                // explicitly. Without this call the `#root` 18px CSS radius
-                // is drawn inside the DOM but the window silhouette itself
-                // is a rectangle, so the interior rounding is masked by a
-                // rectangular window frame.
+                // Disable Windows 11 DWM corner rounding so ONLY the
+                // frontend's `#root { border-radius: 18px }` defines the
+                // visible curve. Previously we used DWMWCP_ROUND, which
+                // makes DWM draw its default ~8px rounding on the window
+                // silhouette — that didn't match `#root`'s 18px and
+                // produced a visible double-curve (inner frontend
+                // clipped at 18px, outer window at ~8px showing
+                // transparent pixels in the gap).
+                //
+                // With DWMWCP_DONOTROUND the OS window is rectangular
+                // and transparent; #root's 18px radius is the only
+                // curve you see. To change the visible corner radius,
+                // edit `#root { border-radius: ... }` in src/app.css.
                 //
                 // No-op on Windows 10 / older (the attribute is ignored).
                 if let Ok(hwnd) = main_window.hwnd() {
                     use windows::Win32::Foundation::HWND;
                     use windows::Win32::Graphics::Dwm::{
                         DwmSetWindowAttribute, DWMWA_WINDOW_CORNER_PREFERENCE,
-                        DWMWCP_ROUND,
+                        DWMWCP_DONOTROUND,
                     };
                     let hwnd = HWND(hwnd.0 as *mut _);
-                    let preference = DWMWCP_ROUND;
+                    let preference = DWMWCP_DONOTROUND;
                     unsafe {
                         let _ = DwmSetWindowAttribute(
                             hwnd,
