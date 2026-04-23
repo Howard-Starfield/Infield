@@ -13,6 +13,7 @@ import { CaptureView } from './CaptureView';
 import { SearchView } from './SearchView';
 import { ImportView } from './ImportView';
 import { AudioView } from './AudioView';
+import { SystemAudioView } from './SystemAudioView';
 import { NotesView } from './NotesView';
 import { DatabasesView } from './DatabasesView';
 
@@ -65,6 +66,7 @@ export default function AppShell({ currentPage, onNavigate }: AppShellProps) {
               {currentPage === 'search' && <SearchView />}
               {currentPage === 'import' && <ImportView />}
               {currentPage === 'audio' && <AudioView />}
+              {currentPage === 'system-audio' && <SystemAudioView />}
               {currentPage === 'notes' && <NotesView />}
               {currentPage === 'databases' && <DatabasesView />}
               {currentPage === 'inbox' && <InboxView onNavigate={onNavigate} />}

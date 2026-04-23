@@ -34,6 +34,7 @@ import {
   type ReactNode,
 } from 'react'
 import type { VaultData, VaultEnvelope, UiPreferences } from '../types'
+import { commands, type OnboardingState, type OnboardingStep, type OnboardingStatePatch } from '../bindings'
 
 interface VaultContextType {
   isLocked: boolean
@@ -62,6 +63,11 @@ interface VaultContextType {
     notes?: string,
   ) => Promise<void>
   updateUiPreferences: (preferences: UiPreferences) => Promise<void>
+  // Onboarding (W0) — additive. Null while initial state loads from Rust.
+  onboardingStep: OnboardingStep | null
+  onboardingState: OnboardingState | null
+  completeStep: (patch: OnboardingStatePatch) => Promise<void>
+  refreshOnboarding: () => Promise<void>
 }
 
 const VaultContext = createContext<VaultContextType | undefined>(undefined)
@@ -203,6 +209,34 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     uiPreferences: { ...DEFAULT_UI_PREFERENCES, uiScale: initialScale } as UiPreferences,
   })
   const [error, setError] = useState<string | null>(null)
+  const [onboardingState, setOnboardingState] = useState<OnboardingState | null>(null)
+  const onboardingStep = onboardingState?.current_step ?? null
+
+  const refreshOnboarding = useCallback(async () => {
+    const result = await commands.getOnboardingState()
+    if (result.status === 'ok') {
+      setOnboardingState(result.data)
+    } else {
+      console.error('[VaultContext] getOnboardingState failed:', result.error)
+    }
+  }, [])
+
+  const completeStep = useCallback(async (patch: OnboardingStatePatch) => {
+    const result = await commands.updateOnboardingState(patch)
+    if (result.status === 'ok') {
+      setOnboardingState(result.data)
+    } else {
+      console.error('[VaultContext] updateOnboardingState failed:', result.error)
+      throw new Error(result.error)
+    }
+  }, [])
+
+  // Load initial onboarding state once on mount. Runs in parallel with
+  // the 2.5s boot timer; the overlay won't mount until both isBooting
+  // is false and onboardingStep is non-null and !== 'done'.
+  useEffect(() => {
+    void refreshOnboarding()
+  }, [refreshOnboarding])
 
   // Whenever uiScale changes (slider, keybinding, programmatic), apply
   // to CSS vars + persist. Source of truth = vaultData.uiPreferences.uiScale.
@@ -282,6 +316,10 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       storeMedia,
       storeEvidence,
       updateUiPreferences,
+      onboardingStep,
+      onboardingState,
+      completeStep,
+      refreshOnboarding,
     }),
     [
       isLocked,
@@ -295,6 +333,10 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       storeMedia,
       storeEvidence,
       updateUiPreferences,
+      onboardingStep,
+      onboardingState,
+      completeStep,
+      refreshOnboarding,
     ],
   )
 

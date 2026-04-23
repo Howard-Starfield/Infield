@@ -821,6 +821,22 @@ async getClamshellMicrophone() : Promise<Result<string, string>> {
 async isRecording() : Promise<boolean> {
     return await TAURI_INVOKE("is_recording");
 },
+async startUiRecording() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("start_ui_recording") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async stopUiRecording() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("stop_ui_recording") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async setModelUnloadTimeout(timeout: ModelUnloadTimeout) : Promise<void> {
     await TAURI_INVOKE("set_model_unload_timeout", { timeout });
 },
@@ -2174,7 +2190,7 @@ export type OnboardingStatePatch = { current_step: OnboardingStep | null; mic_pe
  * discriminated union. Keep this list, the CHECK in the migration, and the
  * `EntryStage` mapping in `EntryContext.tsx` in lockstep.
  */
-export type OnboardingStep = "welcome" | "theme" | "mic" | "accessibility" | "models" | "vault" | "done"
+export type OnboardingStep = "mic" | "accessibility" | "models" | "vault" | "done"
 export type OrtAcceleratorSetting = "auto" | "cpu" | "cuda" | "directml" | "rocm"
 export type OverlayPosition = "none" | "top" | "bottom"
 export type PaginatedHistory = { entries: HistoryEntry[]; has_more: boolean }

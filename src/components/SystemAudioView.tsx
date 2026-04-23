@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { motion } from 'motion/react'
-import { Mic, Square, Sparkles, Trash2, Download, Shield } from 'lucide-react'
+import { Headphones, Square, Sparkles, Trash2, Download, Volume2 } from 'lucide-react'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { toast } from 'sonner'
 import { commands } from '../bindings'
@@ -9,7 +9,7 @@ import { ScrollShadow } from './ScrollShadow'
 interface Line {
   id: string
   ts: string
-  speaker: 'You' | 'System'
+  speaker: 'System Audio'
   text: string
 }
 
@@ -24,11 +24,6 @@ interface TranscriptionSyncedPayload {
   source: string
 }
 
-interface RecordingErrorPayload {
-  error_type: string
-  detail: string | null
-}
-
 const formatTime = (s: number) => {
   const mins = Math.floor(s / 60)
   const secs = s % 60
@@ -36,33 +31,49 @@ const formatTime = (s: number) => {
 }
 
 /**
- * Pull the latest voice-memo block from a workspace doc body. The Rust side
- * appends `::voice_memo_recording{...}\n<transcript>` per Rule 9; we surface
- * just the transcript text after the most recent directive line.
+ * Mirror of AudioView's transcript extractor — system_audio uses the same
+ * `::voice_memo_recording{...}` directive when appending to a workspace doc
+ * (per the existing transcription_workspace pipeline; the directive name is
+ * shared because the storage shape is identical, only the source tag differs).
  */
 function extractLatestTranscript(body: string): string {
   const marker = '::voice_memo_recording'
   const idx = body.lastIndexOf(marker)
   if (idx === -1) return ''
-  // Skip past the directive line ({...} closing brace + newline).
   const closeIdx = body.indexOf('}', idx)
   if (closeIdx === -1) return ''
   return body.slice(closeIdx + 1).trimStart()
 }
 
-export function AudioView() {
-  const [isRecording, setIsRecording] = useState(false)
+export function SystemAudioView() {
+  const [isCapturing, setIsCapturing] = useState(false)
   const [timer, setTimer] = useState(0)
   const [transcript, setTranscript] = useState<Line[]>([])
   const [activeNodeId, setActiveNodeId] = useState<string | null>(null)
-  const [selectedMic, setSelectedMic] = useState<string>('—')
+  const [renderDevice, setRenderDevice] = useState<string>('—')
   const scrollRef = useRef<HTMLDivElement>(null)
   const startRef = useRef<number | null>(null)
 
-  // Timer.
+  // Poll capturing state on mount (capture persists across React tab changes).
+  useEffect(() => {
+    const init = async () => {
+      const result = await commands.isSystemAudioCapturing()
+      if (result.status === 'ok' && result.data) {
+        setIsCapturing(true)
+        const elapsed = await commands.getSystemAudioCaptureElapsedSecs()
+        if (elapsed.status === 'ok' && elapsed.data != null) {
+          setTimer(Math.floor(elapsed.data))
+          startRef.current = Date.now() - elapsed.data * 1000
+        }
+      }
+    }
+    void init()
+  }, [])
+
+  // Local timer (avoids round-tripping to Rust every second).
   useEffect(() => {
     let interval: number | undefined
-    if (isRecording) {
+    if (isCapturing) {
       interval = window.setInterval(() => setTimer((t) => t + 1), 1000)
     } else {
       setTimer(0)
@@ -70,25 +81,26 @@ export function AudioView() {
     return () => {
       if (interval) clearInterval(interval)
     }
-  }, [isRecording])
+  }, [isCapturing])
 
-  // Auto-scroll to bottom on new lines.
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
   }, [transcript])
 
-  // Load selected mic name once.
+  // Display the default render device name. Full device list lands when
+  // get_render_devices grows beyond the MVP single-entry surface.
   useEffect(() => {
     const load = async () => {
-      const result = await commands.getSelectedMicrophone()
-      if (result.status === 'ok') setSelectedMic(result.data || 'Default')
+      const result = await commands.getRenderDevices()
+      if (result.status === 'ok' && result.data.length > 0) {
+        setRenderDevice(result.data[0].name)
+      }
     }
     void load()
   }, [])
 
-  // Subscribe to Tauri events for the lifetime of the component.
   useEffect(() => {
     const unlisteners: UnlistenFn[] = []
 
@@ -96,19 +108,18 @@ export function AudioView() {
       unlisteners.push(
         await listen<BodyUpdatedPayload>('workspace-node-body-updated', (event) => {
           const { node_id, body } = event.payload
-          if (activeNodeId && node_id !== activeNodeId) return
-          if (!activeNodeId) setActiveNodeId(node_id)
+          // Only render when we know this node is our system-audio session.
+          if (!activeNodeId || node_id !== activeNodeId) return
           const text = extractLatestTranscript(body)
           if (!text) return
           setTranscript((prev) => {
-            // Replace the live partial line if last is partial-from-this-node, else append.
             const next = prev.filter((l) => l.id !== `live-${node_id}`)
             next.push({
               id: `live-${node_id}`,
               ts: startRef.current
                 ? formatTime(Math.floor((Date.now() - startRef.current) / 1000))
                 : '00:00',
-              speaker: 'You',
+              speaker: 'System Audio',
               text,
             })
             return next
@@ -118,9 +129,9 @@ export function AudioView() {
 
       unlisteners.push(
         await listen<TranscriptionSyncedPayload>('workspace-transcription-synced', (event) => {
-          if (event.payload.source !== 'voice_memo') return
+          // This view only cares about the system_audio source.
+          if (event.payload.source !== 'system_audio') return
           setActiveNodeId(event.payload.node_id)
-          // Lock in the live partial as a final entry by stripping the live- prefix.
           setTranscript((prev) =>
             prev.map((l) =>
               l.id === `live-${event.payload.node_id}`
@@ -128,25 +139,6 @@ export function AudioView() {
                 : l,
             ),
           )
-        }),
-      )
-
-      unlisteners.push(
-        await listen<RecordingErrorPayload>('recording-error', (event) => {
-          const { error_type, detail } = event.payload
-          if (error_type === 'microphone_permission_denied') {
-            toast.error('Microphone permission denied', {
-              description: 'Open Settings → Privacy to grant microphone access.',
-            })
-          } else if (error_type === 'no_input_device') {
-            toast.error('No microphone detected', {
-              description: 'Connect a microphone and try again.',
-            })
-          } else {
-            toast.error('Recording failed', { description: detail ?? error_type })
-          }
-          setIsRecording(false)
-          startRef.current = null
         }),
       )
     }
@@ -157,23 +149,23 @@ export function AudioView() {
     }
   }, [activeNodeId])
 
-  const startRecording = async () => {
-    const result = await commands.startUiRecording()
+  const startCapture = async () => {
+    const result = await commands.startSystemAudioCapture()
     if (result.status !== 'ok') {
-      toast.error('Could not start recording', { description: result.error })
+      toast.error('Could not start system audio capture', { description: result.error })
       return
     }
     startRef.current = Date.now()
-    setIsRecording(true)
+    setIsCapturing(true)
   }
 
-  const stopRecording = async () => {
-    const result = await commands.stopUiRecording()
+  const stopCapture = async () => {
+    const result = await commands.stopSystemAudioCapture()
     if (result.status !== 'ok') {
-      toast.error('Could not stop recording', { description: result.error })
+      toast.error('Could not stop system audio capture', { description: result.error })
       return
     }
-    setIsRecording(false)
+    setIsCapturing(false)
     startRef.current = null
   }
 
@@ -204,8 +196,8 @@ export function AudioView() {
                 width: 12,
                 height: 12,
                 borderRadius: '50%',
-                background: isRecording ? '#ff4b3e' : 'rgba(255,255,255,0.1)',
-                boxShadow: isRecording ? '0 0 16px rgba(255,75,62,0.7)' : 'none',
+                background: isCapturing ? '#3eb8ff' : 'rgba(255,255,255,0.1)',
+                boxShadow: isCapturing ? '0 0 16px rgba(62,184,255,0.7)' : 'none',
               }}
             />
             <span
@@ -217,7 +209,7 @@ export function AudioView() {
                 color: '#fff',
               }}
             >
-              {isRecording ? 'Recording' : 'Idle'}
+              {isCapturing ? 'Capturing system audio' : 'Idle'}
             </span>
           </div>
           <div
@@ -252,10 +244,10 @@ export function AudioView() {
                 margin: '0 auto',
               }}
             >
-              {transcript.length === 0 && !isRecording && (
+              {transcript.length === 0 && !isCapturing && (
                 <p style={{ color: 'rgba(255,255,255,0.3)', textAlign: 'center', marginTop: 64 }}>
-                  Press the mic button to start recording. Transcripts append to today's
-                  Voice Memos doc.
+                  Press the headphones button to capture system audio. Transcripts append to
+                  today's System Audio doc.
                 </p>
               )}
               {transcript.map((line) => (
@@ -282,7 +274,7 @@ export function AudioView() {
                         fontWeight: 800,
                         letterSpacing: '0.15em',
                         textTransform: 'uppercase',
-                        color: 'rgba(255,255,255,0.4)',
+                        color: 'rgba(62,184,255,0.6)',
                         marginBottom: 6,
                       }}
                     >
@@ -302,7 +294,7 @@ export function AudioView() {
                 </motion.div>
               ))}
 
-              {isRecording && transcript.length === 0 && (
+              {isCapturing && transcript.length === 0 && (
                 <motion.div
                   animate={{ opacity: [0.3, 0.7, 0.3] }}
                   transition={{ duration: 1.5, repeat: Infinity }}
@@ -325,7 +317,7 @@ export function AudioView() {
                       fontStyle: 'italic',
                     }}
                   >
-                    Listening…
+                    Listening to system output…
                   </div>
                 </motion.div>
               )}
@@ -360,28 +352,28 @@ export function AudioView() {
             </button>
 
             <button
-              onClick={() => void (isRecording ? stopRecording() : startRecording())}
+              onClick={() => void (isCapturing ? stopCapture() : startCapture())}
               style={{
                 width: 80,
                 height: 80,
                 borderRadius: '50%',
-                background: isRecording ? 'var(--heros-brand)' : '#fff',
-                color: isRecording ? '#fff' : '#7a2e1a',
+                background: isCapturing ? '#3eb8ff' : '#fff',
+                color: isCapturing ? '#fff' : '#1a4f6b',
                 border: 'none',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                boxShadow: isRecording
-                  ? '0 12px 40px rgba(204, 76, 43, 0.4)'
+                boxShadow: isCapturing
+                  ? '0 12px 40px rgba(62,184,255,0.4)'
                   : '0 8px 32px rgba(0,0,0,0.25)',
                 transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
-                transform: isRecording ? 'scale(1.1)' : 'scale(1)',
+                transform: isCapturing ? 'scale(1.1)' : 'scale(1)',
               }}
               className="hover-glow"
-              aria-label={isRecording ? 'Stop recording' : 'Start recording'}
+              aria-label={isCapturing ? 'Stop system audio capture' : 'Start system audio capture'}
             >
-              {isRecording ? <Square size={24} fill="currentColor" /> : <Mic size={32} />}
+              {isCapturing ? <Square size={24} fill="currentColor" /> : <Headphones size={32} />}
             </button>
 
             <button
@@ -415,8 +407,8 @@ export function AudioView() {
             style={{
               padding: '16px',
               borderRadius: 12,
-              background: 'rgba(204, 76, 43, 0.08)',
-              border: '1px solid rgba(204, 76, 43, 0.18)',
+              background: 'rgba(62,184,255,0.08)',
+              border: '1px solid rgba(62,184,255,0.18)',
             }}
           >
             <div
@@ -424,7 +416,7 @@ export function AudioView() {
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
-                color: 'var(--heros-brand)',
+                color: '#3eb8ff',
                 fontSize: '12px',
                 fontWeight: 700,
                 marginBottom: 8,
@@ -460,8 +452,8 @@ export function AudioView() {
                 color: 'rgba(255,255,255,0.5)',
               }}
             >
-              <span>Microphone</span>
-              <span style={{ color: '#fff' }}>{selectedMic}</span>
+              <span>Render output</span>
+              <span style={{ color: '#fff' }}>{renderDevice}</span>
             </div>
             <div
               style={{
@@ -471,16 +463,16 @@ export function AudioView() {
                 color: 'rgba(255,255,255,0.5)',
               }}
             >
-              <span>Storage</span>
+              <span>Method</span>
               <span
                 style={{
-                  color: 'var(--success, #fff)',
+                  color: 'rgba(62,184,255,0.9)',
                   display: 'flex',
                   alignItems: 'center',
                   gap: 4,
                 }}
               >
-                <Shield size={12} /> Local vault
+                <Volume2 size={12} /> WASAPI loopback
               </span>
             </div>
           </div>

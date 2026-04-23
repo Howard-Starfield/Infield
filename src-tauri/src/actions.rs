@@ -1055,6 +1055,31 @@ impl ShortcutAction for TranscribeAction {
     }
 }
 
+/// Synthetic binding id used by UI-initiated recordings (W1).
+///
+/// The full TranscribeAction pipeline (history, voice-session,
+/// cancel-shortcut register/unregister, voice-memo doc append per
+/// CLAUDE.md Rule 9) is keyed by `binding_id`. UI recordings re-use
+/// the pipeline by passing this fixed id.
+pub const UI_RECORDING_BINDING_ID: &str = "ui-mic";
+
+/// Start a UI-initiated mic recording. Reuses TranscribeAction so
+/// every behaviour the keybinding path provides — model load, audio
+/// feedback, recording overlay, voice-memo doc per Rule 9 — happens
+/// identically here.
+pub fn trigger_ui_recording_start(app: &AppHandle) {
+    let action = TranscribeAction { post_process: false };
+    action.start(app, UI_RECORDING_BINDING_ID, "");
+}
+
+/// Stop a UI-initiated mic recording started via
+/// [`trigger_ui_recording_start`]. Drives the same finalisation path
+/// as the keybinding stop.
+pub fn trigger_ui_recording_stop(app: &AppHandle) {
+    let action = TranscribeAction { post_process: false };
+    action.stop(app, UI_RECORDING_BINDING_ID, "");
+}
+
 // Cancel Action
 struct CancelAction;
 

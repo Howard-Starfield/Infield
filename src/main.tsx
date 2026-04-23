@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
 import './app.css' // We will keep the kinetic vault styles here
+import './styles/onboarding.css'
 
 // Initialize UI Scale from localStorage BEFORE React mounts so the
 // first paint is at the user's chosen scale (no FOUT). VaultContext

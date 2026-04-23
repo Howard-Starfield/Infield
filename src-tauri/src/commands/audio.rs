@@ -310,3 +310,23 @@ pub fn is_recording(app: AppHandle) -> bool {
     let audio_manager = app.state::<Arc<AudioRecordingManager>>();
     audio_manager.is_recording()
 }
+
+/// W1 — UI-initiated mic recording start.
+///
+/// Drives the same `TranscribeAction` pipeline used by the keybinding
+/// path, including voice-memo doc append per CLAUDE.md Rule 9.
+#[tauri::command]
+#[specta::specta]
+pub fn start_ui_recording(app: AppHandle) -> Result<(), String> {
+    crate::actions::trigger_ui_recording_start(&app);
+    Ok(())
+}
+
+/// W1 — UI-initiated mic recording stop. Pairs with
+/// [`start_ui_recording`].
+#[tauri::command]
+#[specta::specta]
+pub fn stop_ui_recording(app: AppHandle) -> Result<(), String> {
+    crate::actions::trigger_ui_recording_stop(&app);
+    Ok(())
+}

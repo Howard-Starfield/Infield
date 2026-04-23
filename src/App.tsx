@@ -17,11 +17,12 @@ import { HerOSBackground, HerOSPanel, HerOSInput, HerOSButton, HerOSViewport } f
 import { SettingsView } from './components/SettingsView';
 import { SpotlightOverlay } from './components/SpotlightOverlay';
 import { CartoonBuddy } from './components/CartoonBuddy';
+import { OnboardingOverlay } from './components/OnboardingOverlay';
 import { LandingPage as ResumeSite } from './Resume_site/LandingPage';
 
 function AppContent() {
   const [currentPage, setCurrentPage] = useState('inbox');
-  const { isLocked, isBooting, unlock, error, vaultData, updateUiPreferences } = useVault();
+  const { isLocked, isBooting, unlock, error, vaultData, updateUiPreferences, onboardingStep } = useVault();
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isUnlockingLocal, setIsUnlockingLocal] = useState(false);
@@ -336,6 +337,17 @@ function AppContent() {
 
               </HerOSPanel>
             </main>
+          </motion.div>
+        ) : (onboardingStep != null && onboardingStep !== 'done') ? (
+          <motion.div
+            key="onboarding"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.4, ease: "easeOut" }}
+            style={{ position: 'absolute', inset: 0, zIndex: 10 }}
+          >
+            <OnboardingOverlay />
           </motion.div>
         ) : (
           <motion.div
