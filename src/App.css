@@ -84,28 +84,13 @@
   }
 }
 
+/* HerOS is dark-only — no runtime theme switching (theme module deleted
+ * in H1, see CLAUDE.md → Invariant #3). Native form controls, scrollbars,
+ * and system popovers render in dark mode by default. The
+ * `data-theme-mode` attribute the deleted ThemeProvider used to write is
+ * obsolete; consumers that still toggle styles on it are H5-delete scope. */
 html {
-  color-scheme: light;
-}
-
-/* ─── Theme mode hint for native UI (scrollbars, form controls) ─────────────
- *
- * ThemeProvider writes `data-theme-mode="dark"` or `"light"` on the <html>
- * element whenever the active theme is flushed. These rules set `color-scheme`
- * accordingly so native scrollbars, `<input>` controls, and system popover
- * surfaces match the user's theme without us styling each one individually.
- *
- * This is the only rule in App.css that switches on theme mode in Step 3.
- * Component-level light/dark variants ride the semantic cascade added in
- * Step 6; we deliberately keep Step 3 minimal so plumbing is verifiable
- * without a giant refactor of every existing consumer.
- * ─────────────────────────────────────────────────────────────────────────── */
-
-html[data-theme-mode="dark"] {
   color-scheme: dark;
-}
-html[data-theme-mode="light"] {
-  color-scheme: light;
 }
 
 :root {
@@ -509,7 +494,7 @@ body {
      14px controls read as "contained within" the 24px panel. */
   border-radius: 18px;
   overflow: hidden;
-  background-color: var(--heros-bg-foundation, #cc4c2b);
+  background-color: var(--heros-bg-foundation, #0a0b0f);
   border: 1px solid color-mix(in srgb, var(--on-surface) 10%, transparent);
   /* Three-layer shadow stack:
        0 0 0 1px         — crisp outer black rim, defines the window edge
@@ -528,7 +513,10 @@ body {
     "Segoe UI Variable Text",
     "Segoe UI",
     sans-serif;
-  color: var(--workspace-text);
+  /* H1: HerOS Cloud Pearl. The previous --workspace-text (#1c1c19,
+   * dark text for the IRS cream theme) rendered as invisible dark-on-
+   * dark over the HerOS charcoal foundation. */
+  color: var(--heros-text-premium, #ffffff);
 }
 
 /* ─── Focus/blur vibrancy ──────────────────────────────────────────────
