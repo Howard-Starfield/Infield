@@ -1,0 +1,93 @@
+<h2>View Colors + Multi-level Sort</h2>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+
+<div>
+<h3>View tabs with color coding — right-click menu</h3>
+<div class="mockup">
+  <div class="mockup-body" style="font-family: system-ui; background: #f7f6f3; padding: 12px; border-radius: 6px;">
+    <div style="background: white; border: 1px solid #e0e0e0; border-radius: 6px; padding: 8px 12px; display: flex; align-items: center; gap: 4px; max-width: 380px;">
+      <div style="display: flex; gap: 4px; background: #f0f0f0; padding: 3px; border-radius: 6px;">
+        <div style="background: white; padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 600; border-bottom: 2px solid #e57373;">● Board</div>
+        <div style="padding: 3px 10px; border-radius: 4px; font-size: 11px; color: #666;">● Grid</div>
+        <div style="padding: 3px 10px; border-radius: 4px; font-size: 11px; color: #666;">● Calendar</div>
+        <button style="background: #f0f0f0; border: none; border-radius: 4px; padding: 3px 8px; font-size: 12px; cursor: pointer;">+</button>
+      </div>
+    </div>
+    <!-- Right-click context menu -->
+    <div style="position: absolute; margin-top: 4px; background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 6px; min-width: 180px; box-shadow: 0 4px 16px rgba(0,0,0,0.15); z-index: 100;">
+      <div style="font-size: 11px; color: #888; padding: 4px 8px; margin-bottom: 4px;">TAB OPTIONS</div>
+      <div style="padding: 6px 8px; font-size: 12px; cursor: pointer; border-radius: 4px;" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background='transparent'">✏️ Rename</div>
+      <div style="padding: 6px 8px; font-size: 12px; cursor: pointer; border-radius: 4px;" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background='transparent'">📋 Duplicate</div>
+      <div style="padding: 6px 8px; font-size: 12px; cursor: pointer; border-radius: 4px; display: flex; align-items: center; justify-content: space-between;" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background='transparent'">
+        🎨 Color
+        <span style="color: #aaa; font-size: 10px;">▶</span>
+        <!-- Color sub-menu -->
+        <div style="position: absolute; left: 100%; top: 0; margin-left: 4px; background: white; border: 1px solid #e0e0e0; border-radius: 6px; padding: 6px; display: flex; gap: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+          <div style="width: 20px; height: 20px; border-radius: 50%; background: #e57373; cursor: pointer;" title="Red"></div>
+          <div style="width: 20px; height: 20px; border-radius: 50%; background: #ffb74d; cursor: pointer;" title="Orange"></div>
+          <div style="width: 20px; height: 20px; border-radius: 50%; background: #fff176; cursor: pointer;" title="Yellow"></div>
+          <div style="width: 20px; height: 20px; border-radius: 50%; background: #81c784; cursor: pointer;" title="Green"></div>
+          <div style="width: 20px; height: 20px; border-radius: 50%; background: #64b5f6; cursor: pointer;" title="Blue"></div>
+          <div style="width: 20px; height: 20px; border-radius: 50%; background: #ba68c8; cursor: pointer;" title="Purple"></div>
+          <div style="width: 20px; height: 20px; border-radius: 50%; background: #90a4ae; cursor: pointer;" title="Gray"></div>
+        </div>
+      </div>
+      <div style="border-top: 1px solid #eee; margin: 4px 0;"></div>
+      <div style="padding: 6px 8px; font-size: 12px; cursor: pointer; color: #e57373; border-radius: 4px;" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background='transparent'">🗑️ Delete</div>
+    </div>
+  </div>
+</div>
+</div>
+
+<div>
+<h3>Multi-level sort — sort dropdown</h3>
+<div class="mockup">
+  <div class="mockup-body" style="font-family: system-ui; background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 14px; box-shadow: 0 4px 16px rgba(0,0,0,0.12);">
+    <div style="font-size: 12px; font-weight: 600; margin-bottom: 10px;">SORT BY</div>
+    <!-- Sort level 1 -->
+    <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 8px;">
+      <div style="width: 16px; height: 16px; background: #e8f0fe; border: 1px solid #1a73e8; border-radius: 3px; display: flex; align-items: center; justify-content: center; font-size: 9px; color: #1a73e8; cursor: pointer;">1</div>
+      <select style="flex: 1; padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 11px;">
+        <option selected>Status</option>
+        <option>Priority</option>
+        <option>Due date</option>
+        <option>Name</option>
+      </select>
+      <button style="padding: 2px 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 11px; cursor: pointer;">↑</button>
+      <button style="background: none; border: none; color: #aaa; cursor: pointer; font-size: 11px; padding: 2px;">✕</button>
+    </div>
+    <!-- Sort level 2 -->
+    <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 8px;">
+      <div style="width: 16px; height: 16px; background: #f5f5f5; border: 1px solid #ddd; border-radius: 3px; display: flex; align-items: center; justify-content: center; font-size: 9px; color: #888; cursor: pointer;">2</div>
+      <select style="flex: 1; padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 11px;">
+        <option>Status</option>
+        <option selected>Due date</option>
+        <option>Priority</option>
+        <option>Name</option>
+      </select>
+      <button style="padding: 2px 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 11px; cursor: pointer;">↑</button>
+      <button style="background: none; border: none; color: #aaa; cursor: pointer; font-size: 11px; padding: 2px;">✕</button>
+    </div>
+    <!-- Sort level 3 -->
+    <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 10px;">
+      <div style="width: 16px; height: 16px; background: #f5f5f5; border: 1px solid #ddd; border-radius: 3px; display: flex; align-items: center; justify-content: center; font-size: 9px; color: #888; cursor: pointer;">3</div>
+      <select style="flex: 1; padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 11px;">
+        <option>Status</option>
+        <option>Priority</option>
+        <option>Due date</option>
+        <option selected>Name</option>
+      </select>
+      <button style="padding: 2px 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 11px; cursor: pointer;">↑</button>
+      <button style="background: none; border: none; color: #aaa; cursor: pointer; font-size: 11px; padding: 2px;">✕</button>
+    </div>
+    <button style="width: 100%; padding: 5px; background: none; border: 1px dashed #ccc; border-radius: 4px; font-size: 11px; color: #888; cursor: pointer;">+ Add sort level</button>
+    <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #eee;">
+      <button style="padding: 5px 12px; background: #2563eb; color: white; border: none; border-radius: 4px; font-size: 11px; cursor: pointer; margin-right: 6px;">Apply</button>
+      <button style="padding: 5px 12px; background: white; color: #333; border: 1px solid #ddd; border-radius: 4px; font-size: 11px; cursor: pointer;">Clear all</button>
+    </div>
+  </div>
+</div>
+</div>
+
+</div>

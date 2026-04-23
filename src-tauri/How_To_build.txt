@@ -1,0 +1,9 @@
+cd Handy-main/src-tauri
+cargo build
+
+Test:
+cargo install tauri-cli --version "^2"
+
+
+npm run tauri dev
+

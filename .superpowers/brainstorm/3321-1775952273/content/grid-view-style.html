@@ -1,0 +1,102 @@
+<h2>Grid/Table view — modern spreadsheet style</h2>
+<p class="subtitle">Based on AppFlowy: clean grid, emoji column headers, formula support, no side border outline</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Modern clean grid — AppFlowy style</h3>
+      <p>No outer border/outline. Column headers with emoji + name. Clean cell borders. Formula support in cells. Compact rows.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Classic bordered spreadsheet</h3>
+      <p>Strong gridlines, clear cell boundaries, more "Excel-like" visual separation. More structured but heavier look.</p>
+    </div>
+  </div>
+</div>
+
+<br>
+
+<div class="mockup">
+  <div class="mockup-header">Option A — Modern clean grid (AppFlowy style)</div>
+  <div class="mockup-body" style="font-family: system-ui; background: #f7f6f3; padding: 12px; border-radius: 6px;">
+    <div style="background: white; border-radius: 6px; overflow: hidden;">
+      <!-- Header row -->
+      <div style="display: flex; background: #f8f8f8; border-bottom: 1px solid #e0e0e0; font-size: 11px; font-weight: 600; color: #333;">
+        <div style="width: 40px; flex-shrink: 0; border-right: 1px solid #e0e0e0; padding: 8px 4px;"></div>
+        <div style="flex: 1; padding: 8px 10px; border-right: 1px solid #e8e8e8;">📝 Name</div>
+        <div style="width: 100px; padding: 8px 10px; border-right: 1px solid #e8e8e8;">🔢 Qty</div>
+        <div style="width: 120px; padding: 8px 10px; border-right: 1px solid #e8e8e8;">💰 Price</div>
+        <div style="width: 100px; padding: 8px 10px;">📊 Total</div>
+      </div>
+      <!-- Row 1 -->
+      <div style="display: flex; border-bottom: 1px solid #f0f0f0; font-size: 12px;">
+        <div style="width: 40px; flex-shrink: 0; border-right: 1px solid #e0e0e0; padding: 8px 4px; color: #aaa; text-align: center;">1</div>
+        <div style="flex: 1; padding: 8px 10px; border-right: 1px solid #f0f0f0; color: #333;">Widget A</div>
+        <div style="width: 100px; padding: 8px 10px; border-right: 1px solid #f0f0f0; color: #333;">10</div>
+        <div style="width: 120px; padding: 8px 10px; border-right: 1px solid #f0f0f0; color: #333;">$25.00</div>
+        <div style="width: 100px; padding: 8px 10px; background: #f8f8f8; color: #1a73e8; font-weight: 500;">=10*25</div>
+      </div>
+      <!-- Row 2 -->
+      <div style="display: flex; border-bottom: 1px solid #f0f0f0; font-size: 12px;">
+        <div style="width: 40px; flex-shrink: 0; border-right: 1px solid #e0e0e0; padding: 8px 4px; color: #aaa; text-align: center;">2</div>
+        <div style="flex: 1; padding: 8px 10px; border-right: 1px solid #f0f0f0; color: #333;">Gadget B</div>
+        <div style="width: 100px; padding: 8px 10px; border-right: 1px solid #f0f0f0; color: #333;">5</div>
+        <div style="width: 120px; padding: 8px 10px; border-right: 1px solid #f0f0f0; color: #333;">$89.99</div>
+        <div style="width: 100px; padding: 8px 10px; background: #f8f8f8; color: #1a73e8; font-weight: 500;">=5*89.99</div>
+      </div>
+      <!-- Row 3 -->
+      <div style="display: flex; font-size: 12px;">
+        <div style="width: 40px; flex-shrink: 0; border-right: 1px solid #e0e0e0; padding: 8px 4px; color: #aaa; text-align: center;">3</div>
+        <div style="flex: 1; padding: 8px 10px; border-right: 1px solid #f0f0f0; color: #333;">Gizmo C</div>
+        <div style="width: 100px; padding: 8px 10px; border-right: 1px solid #f0f0f0; color: #333;">20</div>
+        <div style="width: 120px; padding: 8px 10px; border-right: 1px solid #f0f0f0; color: #333;">$12.50</div>
+        <div style="width: 100px; padding: 8px 10px; background: #f8f8f8; color: #1a73e8; font-weight: 500;">=20*12.5</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="mockup">
+  <div class="mockup-header">Option B — Classic bordered spreadsheet</div>
+  <div class="mockup-body" style="font-family: system-ui; background: #f7f6f3; padding: 12px; border-radius: 6px;">
+    <div style="background: white; border: 2px solid #ccc; border-radius: 4px; overflow: hidden;">
+      <!-- Header row -->
+      <div style="display: flex; background: #f0f0f0; border-bottom: 2px solid #ccc; font-size: 11px; font-weight: 600; color: #333;">
+        <div style="width: 40px; flex-shrink: 0; border-right: 2px solid #ccc; padding: 8px 4px; text-align: center;">#</div>
+        <div style="flex: 1; padding: 8px 10px; border-right: 2px solid #ccc;">Name</div>
+        <div style="width: 100px; padding: 8px 10px; border-right: 2px solid #ccc;">Qty</div>
+        <div style="width: 120px; padding: 8px 10px; border-right: 2px solid #ccc;">Price</div>
+        <div style="width: 100px; padding: 8px 10px;">Total</div>
+      </div>
+      <!-- Row 1 -->
+      <div style="display: flex; border-bottom: 1px solid #ddd; font-size: 12px;">
+        <div style="width: 40px; flex-shrink: 0; border-right: 2px solid #ccc; padding: 8px 4px; color: #aaa; text-align: center;">1</div>
+        <div style="flex: 1; padding: 8px 10px; border-right: 1px solid #ddd; color: #333;">Widget A</div>
+        <div style="width: 100px; padding: 8px 10px; border-right: 1px solid #ddd; color: #333; text-align: right;">10</div>
+        <div style="width: 120px; padding: 8px 10px; border-right: 1px solid #ddd; color: #333; text-align: right;">$25.00</div>
+        <div style="width: 100px; padding: 8px 10px; color: #1a73e8;">=10*25</div>
+      </div>
+      <!-- Row 2 -->
+      <div style="display: flex; border-bottom: 1px solid #ddd; font-size: 12px;">
+        <div style="width: 40px; flex-shrink: 0; border-right: 2px solid #ccc; padding: 8px 4px; color: #aaa; text-align: center;">2</div>
+        <div style="flex: 1; padding: 8px 10px; border-right: 1px solid #ddd; color: #333;">Gadget B</div>
+        <div style="width: 100px; padding: 8px 10px; border-right: 1px solid #ddd; color: #333; text-align: right;">5</div>
+        <div style="width: 120px; padding: 8px 10px; border-right: 1px solid #ddd; color: #333; text-align: right;">$89.99</div>
+        <div style="width: 100px; padding: 8px 10px; color: #1a73e8;">=5*89.99</div>
+      </div>
+      <!-- Row 3 -->
+      <div style="display: flex; font-size: 12px;">
+        <div style="width: 40px; flex-shrink: 0; border-right: 2px solid #ccc; padding: 8px 4px; color: #aaa; text-align: center;">3</div>
+        <div style="flex: 1; padding: 8px 10px; border-right: 1px solid #ddd; color: #333;">Gizmo C</div>
+        <div style="width: 100px; padding: 8px 10px; border-right: 1px solid #ddd; color: #333; text-align: right;">20</div>
+        <div style="width: 120px; padding: 8px 10px; border-right: 1px solid #ddd; color: #333; text-align: right;">$12.50</div>
+        <div style="width: 100px; padding: 8px 10px; color: #1a73e8;">=20*12.5</div>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,214 @@
+<h2>Calendar Data Format & Storage — Options</h2>
+<p class="subtitle">Where to store calendar data, what format, and should we support iCal/Google import/export?</p>
+
+<div class="mockup-header">Current Handy Database Schema (relevant fields)</div>
+<div class="mockup-body">
+  <div style="background:#fff;border:1px solid #e0e0e0;border-radius:10px;padding:20px;font-family:system-ui,sans-serif">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:16px">
+      <div style="border:1px solid #eee;border-radius:8px;padding:10px;text-align:center;background:#f8f8f8">
+        <div style="font-size:10px;color:#aaa;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Exists</div>
+        <div style="font-size:12px;font-weight:600;color:#333">rich_text</div>
+        <div style="font-size:10px;color:#888">Title field</div>
+      </div>
+      <div style="border:1px solid #eee;border-radius:8px;padding:10px;text-align:center;background:#f8f8f8">
+        <div style="font-size:10px;color:#aaa;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Exists</div>
+        <div style="font-size:12px;font-weight:600;color:#333">single_select</div>
+        <div style="font-size:10px;color:#888">Status / columns</div>
+      </div>
+      <div style="border:2px solid #6366f1;border-radius:8px;padding:10px;text-align:center;background:#f0f0ff">
+        <div style="font-size:10px;color:#6366f1;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">New</div>
+        <div style="font-size:12px;font-weight:600;color:#4338ca">date</div>
+        <div style="font-size:10px;color:#6366f1">ISO 8601 timestamp</div>
+      </div>
+      <div style="border:2px solid #6366f1;border-radius:8px;padding:10px;text-align:center;background:#f0f0ff">
+        <div style="font-size:10px;color:#6366f1;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">New</div>
+        <div style="font-size:12px;font-weight:600;color:#4338ca">time</div>
+        <div style="font-size:10px;color:#6366f1">HH:MM string</div>
+      </div>
+    </div>
+
+    <div style="border:1px solid #eee;border-radius:8px;padding:14px;background:#fafafa">
+      <div style="font-size:11px;color:#888;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">Decision: Single date field vs separate date + time fields?</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div id="date-option-a" style="border:2px solid #6366f1;border-radius:8px;padding:12px;background:#fff;cursor:pointer" onclick="selectDateOption('a')">
+          <div style="font-size:12px;font-weight:600;color:#4338ca;margin-bottom:6px">Option A — Single date field (recommended)</div>
+          <div style="font-size:11px;color:#555;margin-bottom:8px">
+            One <code style="background:#f0f0ff;padding:1px 4px;border-radius:3px">date</code> field stores full ISO 8601 timestamp (e.g. <code style="background:#f0f0ff;padding:1px 4px;border-radius:3px">2026-04-15T09:30:00+10:00</code>). "All day" = <code style="background:#f0f0ff;padding:1px 4px;border-radius:3px">2026-04-15T00:00:00</code>. Simpler schema. Consistent with SQLite date storage.
+          </div>
+          <div style="font-size:10px;color:#888">Apple Calendar uses this internally. No separate time field needed.</div>
+        </div>
+        <div id="date-option-b" style="border:1px solid #eee;border-radius:8px;padding:12px;background:#fff;cursor:pointer" onclick="selectDateOption('b')">
+          <div style="font-size:12px;font-weight:600;color:#333;margin-bottom:6px">Option B — Separate date + time fields</div>
+          <div style="font-size:11px;color:#555;margin-bottom:8px">
+            <code style="background:#f5f5f5;padding:1px 4px;border-radius:3px">date</code> = <code style="background:#f5f5f5;padding:1px 4px;border-radius:3px">2026-04-15</code> (YYYY-MM-DD string). <code style="background:#f5f5f5;padding:1px 4px;border-radius:3px">time</code> = <code style="background:#f5f5f5;padding:1px 4px;border-radius:3px">09:30</code> (HH:MM string). Explicit separation.
+          </div>
+          <div style="font-size:10px;color:#888">Google Calendar often separates these in their API.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="height:16px"></div>
+
+<div class="mockup-header">Storage Location — where does the calendar data live?</div>
+<div class="mockup-body">
+  <div style="background:#fff;border:1px solid #e0e0e0;border-radius:10px;padding:20px;font-family:system-ui,sans-serif">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+      <div>
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:#aaa;margin-bottom:10px">Phase B (SQLite only)</div>
+        <div style="border:1px solid #eee;border-radius:8px;padding:14px;background:#fafafa;margin-bottom:10px">
+          <div style="font-size:12px;font-weight:600;color:#333;margin-bottom:6px">Database row = calendar event</div>
+          <div style="font-size:11px;color:#555;margin-bottom:8px">No new tables needed. Calendar events are just database rows where one field is the <code style="background:#f0f0ff;padding:1px 4px;border-radius:3px">date</code> field.</div>
+          <div style="background:#f0f0ff;border-radius:6px;padding:10px">
+            <div style="font-size:10px;color:#6366f1;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">db_rows</div>
+            <div style="font-size:11px;color:#4338ca">id, database_id, position, created_at, updated_at</div>
+            <div style="font-size:10px;color:#aaa;margin-top:4px">↑ rows exist already</div>
+          </div>
+          <div style="background:#f0f0ff;border-radius:6px;padding:10px;margin-top:8px">
+            <div style="font-size:10px;color:#6366f1;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">db_fields</div>
+            <div style="font-size:11px;color:#4338ca">date field: stores ISO 8601 timestamp</div>
+          </div>
+          <div style="background:#f0f0ff;border-radius:6px;padding:10px;margin-top:8px">
+            <div style="font-size:10px;color:#6366f1;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">db_views</div>
+            <div style="font-size:11px;color:#4338ca">calendar view config: group_by_field_id, calendar_layout, etc.</div>
+          </div>
+        </div>
+        <div style="font-size:11px;color:#888">Phase B: SQLite at <code style="background:#f5f5f5;padding:1px 4px;border-radius:3px">%APPDATA%/com.pais.handy/database.db</code></div>
+      </div>
+
+      <div>
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:#aaa;margin-bottom:10px">Phase C (JSON — already planned)</div>
+        <div style="border:1px solid #eee;border-radius:8px;padding:14px;background:#fafafa;margin-bottom:10px">
+          <div style="font-size:12px;font-weight:600;color:#333;margin-bottom:6px">`.db.json` sidecar — already in Phase C plan</div>
+          <div style="font-size:11px;color:#555;margin-bottom:8px">Phase C already specifies <code style="background:#f0f0ff;padding:1px 4px;border-radius:3px">{vault_dir}/databases/{db_id}.db.json</code>. Calendar data (rows, date field values, view config) flows into this automatically.</div>
+          <div style="background:#f5f5f5;border-radius:6px;padding:10px;font-family:monospace;font-size:11px;color:#374151;white-space:pre">{
+  "fields": [
+    {"id":"f1","name":"Date",
+     "field_type":"date",
+     "type_option":"..."}
+  ],
+  "rows": [...],
+  "views": [
+    {"id":"v1","type":"calendar",
+     "config":{"group_field":"f1"}}
+  ]
+}</div>
+        </div>
+        <div style="font-size:11px;color:#888">Phase C: <code style="background:#f5f5f5;padding:1px 4px;border-radius:3px">vault/databases/{name}.db.json</code> — vault-portable</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="height:16px"></div>
+
+<div class="mockup-header">Import / Export — ICS (.ics) support</div>
+<div class="mockup-body">
+  <div style="background:#fff;border:1px solid #e0e0e0;border-radius:10px;padding:20px;font-family:system-ui,sans-serif">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:20px">
+
+      <div style="border:1px solid #eee;border-radius:8px;padding:14px;background:#f8f8f8">
+        <div style="font-size:11px;font-weight:600;color:#333;margin-bottom:8px">📄 ICS (.ics)</div>
+        <div style="font-size:11px;color:#555;margin-bottom:8px">
+          <strong>Universal standard.</strong> Every calendar app supports it — Apple Calendar, Google Calendar, Outlook, Thunderbird, Notion, Linear.
+        </div>
+        <div style="font-size:11px;color:#555;margin-bottom:8px">
+          <strong>Text format.</strong> Human-readable. Easy to debug. Version 2.0 is the current standard (RFC 5545).
+        </div>
+        <div style="font-size:10px;color:#888;background:#fff;border-radius:6px;padding:8px;font-family:monospace;white-space:pre">BEGIN:VCALENDAR
+BEGIN:VEVENT
+DTSTART:20260415T093000
+DTEND:20260415T110000
+SUMMARY:Write API docs
+RRULE:FREQ=WEEKLY
+END:VEVENT
+END:VCALENDAR</div>
+      </div>
+
+      <div style="border:1px solid #eee;border-radius:8px;padding:14px;background:#f8f8f8">
+        <div style="font-size:11px;font-weight:600;color:#333;margin-bottom:8px">🌐 CalDAV (WebDAV)</div>
+        <div style="font-size:11px;color:#555;margin-bottom:8px">
+          <strong>Two-way sync.</strong> Real sync protocol — not just import/export. Changes propagate both ways.
+        </div>
+        <div style="font-size:11px;color:#555;margin-bottom:8px">
+          <strong>Complex.</strong> Requires a CalDAV server (Apple iCloud, FastMail, ownCloud, Baïkal). Harder to implement. Overkill for simple import/export.
+        </div>
+        <div style="font-size:10px;color:#888;background:#fff;border-radius:6px;padding:8px">
+          <strong>Use case:</strong> If users want Handy to sync directly with Apple Calendar or Google Calendar in real-time.
+        </div>
+      </div>
+
+      <div style="border:1px solid #eee;border-radius:8px;padding:14px;background:#f8f8f8">
+        <div style="font-size:11px;font-weight:600;color:#333;margin-bottom:8px">🗓️ Google Calendar API</div>
+        <div style="font-size:11px;color:#555;margin-bottom:8px">
+          <strong>One-way or two-way.</strong> Google Calendar API for direct push/sync to Google Calendar. OAuth required.
+        </div>
+        <div style="font-size:11px;color:#555;margin-bottom:8px">
+          <strong>Proprietary.</strong> Only works with Google. App-specific. Good for "Export to Google Calendar" button.
+        </div>
+        <div style="font-size:10px;color:#888;background:#fff;border-radius:6px;padding:8px">
+          <strong>Use case:</strong> "Sync to Google Calendar" with one-click OAuth.
+        </div>
+      </div>
+    </div>
+
+    <!-- Field mapping -->
+    <div style="border-top:1px solid #eee;padding-top:20px">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:#aaa;margin-bottom:12px">Handy → ICS field mapping</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr;gap:6px">
+        <div style="background:#f0f0ff;border-radius:6px;padding:8px;text-align:center">
+          <div style="font-size:10px;color:#6366f1;text-transform:uppercase;margin-bottom:4px">Handy</div>
+          <div style="font-size:11px;font-weight:600;color:#4338ca">Title (rich_text)</div>
+          <div style="font-size:9px;color:#888">→ SUMMARY</div>
+        </div>
+        <div style="background:#f0f0ff;border-radius:6px;padding:8px;text-align:center">
+          <div style="font-size:10px;color:#6366f1;text-transform:uppercase;margin-bottom:4px">Handy</div>
+          <div style="font-size:11px;font-weight:600;color:#4338ca">Date field</div>
+          <div style="font-size:9px;color:#888">→ DTSTART/DTEND</div>
+        </div>
+        <div style="background:#f0f0ff;border-radius:6px;padding:8px;text-align:center">
+          <div style="font-size:10px;color:#6366f1;text-transform:uppercase;margin-bottom:4px">Handy</div>
+          <div style="font-size:11px;font-weight:600;color:#4338ca">All-day flag</div>
+          <div style="font-size:9px;color:#888">→ VALUE=DATE</div>
+        </div>
+        <div style="background:#f0f0ff;border-radius:6px;padding:8px;text-align:center">
+          <div style="font-size:10px;color:#6366f1;text-transform:uppercase;margin-bottom:4px">Handy</div>
+          <div style="font-size:11px;font-weight:600;color:#4338ca">Status (select)</div>
+          <div style="font-size:9px;color:#888">→ CATEGORIES</div>
+        </div>
+        <div style="background:#f0f0ff;border-radius:6px;padding:8px;text-align:center">
+          <div style="font-size:10px;color:#6366f1;text-transform:uppercase;margin-bottom:4px">Handy</div>
+          <div style="font-size:11px;font-weight:600;color:#4338ca">Status = Done</div>
+          <div style="font-size:9px;color:#888">→ STATUS:COMPLETED</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="height:16px"></div>
+
+<div class="options">
+  <div class="option" data-choice="ics-phase2" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>ICS import/export — defer to Phase D</h3>
+      <p>Phase B/C = calendar view works. Phase D = "Export as .ics" and "Import .ics" buttons in toolbar. No OAuth, just file-based. Works with Apple Calendar, Google (import only), everything.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="ics-now" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Include ICS in Phase B or C</h3>
+      <p>Build the export/import pipeline alongside the calendar view. Toolbar button: "Export ICS" / "Import ICS". File picker handles the rest.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="caldav-later" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>CalDAV sync — Phase E or beyond</h3>
+      <p>Real-time two-way sync with Apple Calendar / Google Calendar via CalDAV. Much more complex. Plan separately.</p>
+    </div>
+  </div>
+</div>

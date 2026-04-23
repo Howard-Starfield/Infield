@@ -1,0 +1,1 @@
+{"nodes": [{"id": "searchtab", "label": "SearchTab.tsx", "file_type": "code", "source_file": "src\\components\\search\\SearchTab.tsx", "source_location": "L1"}], "edges": [{"source": "searchtab", "target": "react", "relation": "imports_from", "confidence": "EXTRACTED", "source_file": "src\\components\\search\\SearchTab.tsx", "source_location": "L1", "weight": 1.0}]}

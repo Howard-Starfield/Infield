@@ -1,0 +1,81 @@
+<h2>ViewSwitcher: Where should the tab bar live?</h2>
+<p class="subtitle">The ViewSwitcher is the main UX innovation — it changes everything about the header</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Integrated in DatabaseShell header</h3>
+      <p>ViewSwitcher tabs sit directly inside the database note's header area, replacing the per-view title bar. Toolbar below tabs.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Floating above view content</h3>
+      <p>ViewSwitcher floats as a sticky bar above the view. Tabs + toolbar merge into one horizontal strip. View content scrolls beneath.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Separate top-level row</h3>
+      <p>ViewSwitcher gets its own dedicated row above everything — like Notion. Below it: toolbar, then view content. Most breathing room.</p>
+    </div>
+  </div>
+</div>
+
+<br>
+
+<div class="mockup">
+  <div class="mockup-header">Option A — Integrated header</div>
+  <div class="mockup-body" style="font-family: system-ui; background: #f7f6f3; padding: 12px; border-radius: 6px;">
+    <div style="background: white; border: 1px solid #e0e0e0; border-radius: 6px; padding: 12px;">
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+        <span style="font-size: 14px;">📄 My Tasks</span>
+        <div style="margin-left: auto; display: flex; gap: 4px; background: #f0f0f0; padding: 3px; border-radius: 6px;">
+          <div style="background: white; padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 600; border-bottom: 2px solid #2563eb;">Board</div>
+          <div style="padding: 3px 10px; border-radius: 4px; font-size: 11px; color: #666;">Grid</div>
+          <div style="padding: 3px 10px; border-radius: 4px; font-size: 11px; color: #666;">Calendar</div>
+        </div>
+      </div>
+      <div style="font-size: 11px; color: #888; border-top: 1px solid #eee; padding-top: 8px;">[Filter ▼]  [Sort ▼]  [Group by: Status ▼]  [+ New]</div>
+    </div>
+    <div style="background: white; border: 1px solid #e0e0e0; border-radius: 6px; margin-top: 8px; padding: 16px; text-align: center; color: #aaa; font-size: 12px;">Board View Content</div>
+  </div>
+</div>
+
+<div class="mockup">
+  <div class="mockup-header">Option B — Floating sticky bar</div>
+  <div class="mockup-body" style="font-family: system-ui; background: #f7f6f3; padding: 12px; border-radius: 6px;">
+    <div style="background: white; border: 1px solid #e0e0e0; border-radius: 6px; padding: 10px 12px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+      <div style="display: flex; gap: 4px; background: #f0f0f0; padding: 3px; border-radius: 6px;">
+        <div style="background: white; padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 600; border-bottom: 2px solid #2563eb;">Board</div>
+        <div style="padding: 3px 10px; border-radius: 4px; font-size: 11px; color: #666;">Grid</div>
+        <div style="padding: 3px 10px; border-radius: 4px; font-size: 11px; color: #666;">Calendar</div>
+      </div>
+      <div style="margin-left: auto; font-size: 11px; color: #888;">[Filter ▼]  [Sort ▼]  [+ New]</div>
+    </div>
+    <div style="background: white; border: 1px solid #e0e0e0; border-radius: 6px; margin-top: 8px; padding: 16px; text-align: center; color: #aaa; font-size: 12px;">Board View Content (scrolls under)</div>
+  </div>
+</div>
+
+<div class="mockup">
+  <div class="mockup-header">Option C — Dedicated top row (Notion style)</div>
+  <div class="mockup-body" style="font-family: system-ui; background: #f7f6f3; padding: 12px; border-radius: 6px;">
+    <div style="background: white; border: 1px solid #e0e0e0; border-radius: 6px; padding: 12px; display: flex; align-items: center; gap: 8px;">
+      <span style="font-size: 14px; font-weight: 600;">📄 My Tasks</span>
+    </div>
+    <div style="background: white; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 6px 6px; padding: 8px 12px; display: flex; gap: 4px;">
+      <div style="background: white; padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 600; border-bottom: 2px solid #2563eb;">Board</div>
+      <div style="padding: 3px 10px; border-radius: 4px; font-size: 11px; color: #666;">Grid</div>
+      <div style="padding: 3px 10px; border-radius: 4px; font-size: 11px; color: #666;">Calendar</div>
+      <div style="padding: 3px 10px; border-radius: 4px; font-size: 11px; color: #666;">List</div>
+      <div style="padding: 3px 10px; border-radius: 4px; font-size: 11px; color: #666;">Table</div>
+    </div>
+    <div style="background: white; border: 1px solid #e0e0e0; border-radius: 6px; margin-top: 8px; padding: 8px 12px; font-size: 11px; color: #888;">[Filter ▼]  [Sort ▼]  [Group by: Status ▼]  [Fields ▼]  [+ New]  [⋮]</div>
+    <div style="background: white; border: 1px solid #e0e0e0; border-radius: 6px; margin-top: 8px; padding: 16px; text-align: center; color: #aaa; font-size: 12px;">Board View Content</div>
+  </div>
+</div>

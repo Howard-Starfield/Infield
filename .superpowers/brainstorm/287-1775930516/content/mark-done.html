@@ -1,0 +1,279 @@
+<h2>Mark Done — How Professional Software Handles It</h2>
+<p class="subtitle">Google Calendar, Linear, and Notion all handle "completed" events differently — here's the pattern</p>
+
+<div class="mockup-header">The core insight: completed ≠ deleted</div>
+<div class="mockup-body">
+  <div style="background:#fff;border:1px solid #e0e0e0;border-radius:12px;padding:24px;font-family:system-ui,sans-serif;margin-bottom:20px">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start">
+      <!-- Before: clean calendar with all tasks -->
+      <div>
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:#aaa;margin-bottom:12px">Before — everything active</div>
+        <div style="border:1px solid #ddd;border-radius:8px;padding:12px;background:#fafafa">
+          <div style="font-size:12px;font-weight:600;color:#333;margin-bottom:10px;border-bottom:1px solid #eee;padding-bottom:8px">Today, Apr 8</div>
+          <div style="margin-bottom:6px">
+            <div style="background:#10b981;border-radius:5px;padding:8px 10px">
+              <div style="font-size:12px;font-weight:500;color:#fff">Write API docs</div>
+              <div style="font-size:10px;color:rgba(255,255,255,0.8)">9:30 AM</div>
+            </div>
+          </div>
+          <div style="margin-bottom:6px">
+            <div style="background:#dddde0;border-radius:5px;padding:8px 10px">
+              <div style="font-size:12px;font-weight:500;color:#555">Team standup</div>
+              <div style="font-size:10px;color:#888">9:00 AM</div>
+            </div>
+          </div>
+          <div>
+            <div style="background:#f97316;border-radius:5px;padding:8px 10px">
+              <div style="font-size:12px;font-weight:500;color:#fff">Design review</div>
+              <div style="font-size:10px;color:rgba(255,255,255,0.8)">2:00 PM</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- After: completed events dimmed, still visible -->
+      <div>
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:#aaa;margin-bottom:12px">After marking "Write API docs" done</div>
+        <div style="border:1px solid #ddd;border-radius:8px;padding:12px;background:#fafafa">
+          <div style="font-size:12px;font-weight:600;color:#333;margin-bottom:10px;border-bottom:1px solid #eee;padding-bottom:8px">Today, Apr 8</div>
+
+          <!-- Done event: dimmed, strikethrough, shows undo -->
+          <div style="margin-bottom:6px;position:relative;cursor:pointer" onmouseenter="showDoneHover(this)" onmouseleave="hideDoneHover(this)">
+            <div style="background:#d1d5db;border-radius:5px;padding:8px 10px;opacity:0.65">
+              <div style="font-size:12px;font-weight:500;color:#9ca3af;text-decoration:line-through">Write API docs</div>
+              <div style="font-size:10px;color:#bbb">9:30 AM</div>
+            </div>
+            <!-- Undo chip on hover -->
+            <div id="undo-chip" style="display:none;position:absolute;top:-12px;right:8px;background:#fff;border:1px solid #ddd;border-radius:20px;padding:3px 10px;box-shadow:0 2px 8px rgba(0,0,0,0.1);font-size:10px;z-index:5">
+              <span style="color:#6b7280">✓ Done</span>
+              <span style="color:#6366f1;cursor:pointer;margin-left:6px;font-weight:500">Undo</span>
+            </div>
+          </div>
+
+          <div style="margin-bottom:6px">
+            <div style="background:#dddde0;border-radius:5px;padding:8px 10px">
+              <div style="font-size:12px;font-weight:500;color:#555">Team standup</div>
+              <div style="font-size:10px;color:#888">9:00 AM</div>
+            </div>
+          </div>
+          <div>
+            <div style="background:#f97316;border-radius:5px;padding:8px 10px">
+              <div style="font-size:12px;font-weight:500;color:#fff">Design review</div>
+              <div style="font-size:10px;color:rgba(255,255,255,0.8)">2:00 PM</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Why keep it visible? -->
+    <div style="margin-top:16px;padding-top:16px;border-top:1px solid #eee;display:flex;flex-wrap:wrap;gap:12px">
+      <div style="flex:1;min-width:200px;background:#f0f9f0;border:1px solid #d1fae5;border-radius:8px;padding:12px">
+        <div style="font-size:12px;font-weight:600;color:#166;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">✓ Confirmed on time</div>
+        <div style="font-size:11px;color:#555">User sees what they finished — good for end-of-day review</div>
+      </div>
+      <div style="flex:1;min-width:200px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:12px">
+        <div style="font-size:12px;font-weight:600;color:#92400e;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">⚠️ Mistake happens</div>
+        <div style="font-size:11px;color:#555">Wrong item marked, or wrong date. Undo is instant — no data loss.</div>
+      </div>
+      <div style="flex:1;min-width:200px;background:#f0f0ff;border:1px solid #ddddf0;border-radius:8px;padding:12px">
+        <div style="font-size:12px;font-weight:600;color:#4338ca;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">🔄 Reviewable</div>
+        <div style="font-size:11px;color:#555">Open event later to check details, add notes, or reschedule if needed.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function showDoneHover(el) {
+  var chip = el.querySelector('#undo-chip');
+  if (chip) chip.style.display = 'block';
+}
+function hideDoneHover(el) {
+  var chip = el.querySelector('#undo-chip');
+  if (chip) chip.style.display = 'none';
+}
+</script>
+
+<div style="height:16px"></div>
+
+<div class="mockup-header">How each tool handles completed events</div>
+<div class="mockup-body">
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
+
+    <!-- Google Calendar -->
+    <div style="background:#fff;border:1px solid #e0e0e0;border-radius:10px;padding:16px;font-family:system-ui,sans-serif">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        <div style="width:24px;height:24px;background:#4285f4;border-radius:6px;display:flex;align-items:center;justify-content:center">
+          <span style="font-size:14px">📅</span>
+        </div>
+        <span style="font-size:13px;font-weight:600;color:#333">Google Calendar</span>
+      </div>
+      <div style="background:#f5f5f5;border-radius:8px;padding:12px;margin-bottom:10px">
+        <div style="background:#e8eaed;border-radius:4px;padding:8px;opacity:0.6;margin-bottom:6px">
+          <div style="font-size:11px;color:#9ca3af;text-decoration:line-through">Sprint Review ✓</div>
+        </div>
+        <div style="background:#4285f4;border-radius:4px;padding:8px">
+          <div style="font-size:11px;color:#fff">Design review</div>
+        </div>
+      </div>
+      <div style="font-size:11px;color:#555">
+        <div style="margin-bottom:4px"><strong>Dim + strikethrough</strong> — completed events show at 40% opacity with strikethrough title</div>
+        <div style="color:#888">Click → "Delete or restore"</div>
+      </div>
+    </div>
+
+    <!-- Linear -->
+    <div style="background:#fff;border:1px solid #e0e0e0;border-radius:10px;padding:16px;font-family:system-ui,sans-serif">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        <div style="width:24px;height:24px;background:#5e6ad2;border-radius:6px;display:flex;align-items:center;justify-content:center">
+          <span style="font-size:14px">⚡</span>
+        </div>
+        <span style="font-size:13px;font-weight:600;color:#333">Linear</span>
+      </div>
+      <div style="background:#f5f5f5;border-radius:8px;padding:12px;margin-bottom:10px">
+        <div style="display:flex;align-items:center;gap:8px;background:#e8eaed;border-radius:4px;padding:8px;opacity:0.6;margin-bottom:6px">
+          <div style="width:16px;height:16px;border-radius:4px;border:1.5px solid #9ca3af;background:#9ca3af;flex-shrink:0"></div>
+          <div style="font-size:11px;color:#9ca3af;text-decoration:line-through;flex:1">Write API docs</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;background:#5e6ad2;border-radius:4px;padding:8px">
+          <div style="width:16px;height:16px;border-radius:4px;border:1.5px solid #fff;flex-shrink:0"></div>
+          <div style="font-size:11px;color:#fff;flex:1">Design review</div>
+        </div>
+      </div>
+      <div style="font-size:11px;color:#555">
+        <div style="margin-bottom:4px"><strong>Checkbox in list</strong> — tick the box, item dims. Hover shows "Mark incomplete" to undo.</div>
+        <div style="color:#888">No strikethrough on calendar card</div>
+      </div>
+    </div>
+
+    <!-- Apple Calendar -->
+    <div style="background:#fff;border:1px solid #e0e0e0;border-radius:10px;padding:16px;font-family:system-ui,sans-serif">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        <div style="width:24px;height:24px;background:#ff3b30;border-radius:6px;display:flex;align-items:center;justify-content:center">
+          <span style="font-size:14px">📆</span>
+        </div>
+        <span style="font-size:13px;font-weight:600;color:#333">Apple Calendar</span>
+      </div>
+      <div style="background:#f5f5f5;border-radius:8px;padding:12px;margin-bottom:10px">
+        <div style="background:#e5e5ea;border-radius:4px;padding:8px;opacity:0.5;margin-bottom:6px">
+          <div style="font-size:11px;color:#8e8e93;text-decoration:line-through">Sprint Review ✓</div>
+          <div style="font-size:9px;color:#adadad">10:00 AM – 11:00 AM</div>
+        </div>
+        <div style="background:#007aff;border-radius:4px;padding:8px">
+          <div style="font-size:11px;color:#fff">Design review</div>
+          <div style="font-size:9px;color:rgba(255,255,255,0.8)">2:00 PM</div>
+        </div>
+      </div>
+      <div style="font-size:11px;color:#555">
+        <div style="margin-bottom:4px"><strong>Dim + strikethrough</strong> — completed events stay visible at low opacity. Click → popover shows "Mark as not done" option.</div>
+        <div style="color:#888">No undo chip on hover — goes through editor</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="height:24px"></div>
+
+<div class="mockup-header">Recommended approach for Handy — Hybrid</div>
+<div class="mockup-body">
+  <div style="background:#fff;border:1px solid #e0e0e0;border-radius:12px;padding:24px;font-family:system-ui,sans-serif">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start">
+
+      <!-- Done state: how it looks -->
+      <div>
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:#aaa;margin-bottom:12px">Hover to reveal undo</div>
+        <div style="border:1px solid #ddd;border-radius:8px;padding:12px;background:#fafafa">
+          <div style="font-size:12px;font-weight:600;color:#333;margin-bottom:10px">Sprint Review</div>
+          <div style="margin-bottom:10px;position:relative;cursor:pointer" onmouseenter="showDoneHover2(this)" onmouseleave="hideDoneHover2(this)">
+            <div style="background:#d1d5db;border-radius:5px;padding:8px 10px;opacity:0.6">
+              <div style="font-size:12px;font-weight:500;color:#9ca3af;text-decoration:line-through">Apr 7 · 9:00 AM – 10:00 AM</div>
+            </div>
+            <div id="undo2" style="display:none;position:absolute;top:-32px;left:50%;transform:translateX(-50%);white-space:nowrap;background:#fff;border:1px solid #ddd;border-radius:8px;padding:5px 12px;box-shadow:0 4px 16px rgba(0,0,0,0.12);font-size:11px;z-index:20">
+              <span style="color:#16a34a">✓ Completed</span>
+              <span style="color:#6366f1;cursor:pointer;margin-left:8px;font-weight:500">Undo</span>
+            </div>
+          </div>
+          <div style="background:#10b981;border-radius:5px;padding:8px 10px">
+            <div style="font-size:12px;font-weight:500;color:#fff">Write API docs</div>
+            <div style="font-size:10px;color:rgba(255,255,255,0.8)">Apr 8 · 9:30 AM</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Click to view / edit done events -->
+      <div>
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:#aaa;margin-bottom:12px">Click done event → editor with restore option</div>
+        <div style="border:1px solid #ddd;border-radius:8px;padding:14px;box-shadow:0 4px 16px rgba(0,0,0,0.08)">
+          <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Edit Event</div>
+          <div style="margin-bottom:12px">
+            <div style="font-size:11px;color:#aaa;margin-bottom:3px">Title</div>
+            <div style="font-size:13px;color:#9ca3af;text-decoration:line-through">Sprint Review</div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+            <div>
+              <div style="font-size:11px;color:#aaa;margin-bottom:3px">Date</div>
+              <div style="font-size:12px;color:#555">Apr 7, 2026</div>
+            </div>
+            <div>
+              <div style="font-size:11px;color:#aaa;margin-bottom:3px">Status</div>
+              <div style="font-size:12px;color:#16a34a;display:flex;align-items:center;gap:4px">✓ Completed</div>
+            </div>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding-top:10px;border-top:1px solid #eee">
+            <button style="font-size:12px;color:#ef4444;background:none;border:none;cursor:pointer;padding:4px 0">Delete</button>
+            <button style="font-size:12px;color:#6366f1;background:#f0f0ff;border:1px solid #ddddf0;border-radius:6px;padding:6px 14px;cursor:pointer;font-weight:500">Restore</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:16px;padding-top:16px;border-top:1px solid #eee">
+      <div style="font-size:12px;font-weight:600;color:#333;margin-bottom:8px">Key principles:</div>
+      <div style="display:flex;flex-wrap:wrap;gap:12px">
+        <div style="font-size:12px;color:#555;flex:1;min-width:200px">
+          1. <strong>Hover → undo chip</strong> appears inline. No need to open editor for quick fixes.
+        </div>
+        <div style="font-size:12px;color:#555;flex:1;min-width:200px">
+          2. <strong>Click → editor</strong> shows full context. "Restore" button brings it back to active state.
+        </div>
+        <div style="font-size:12px;color:#555;flex:1;min-width:200px">
+          3. <strong>Dim, don't hide</strong> — completed events stay in their calendar position for context and review.
+        </div>
+        <div style="font-size:12px;color:#555;flex:1;min-width:200px">
+          4. <strong>Board ↔ Calendar sync</strong> — if a card is marked done in Board, it dims in Calendar too.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function showDoneHover2(el) {
+  var chip = el.querySelector('#undo2');
+  if (chip) chip.style.display = 'block';
+}
+function hideDoneHover2(el) {
+  var chip = el.querySelector('#undo2');
+  if (chip) chip.style.display = 'none';
+}
+</script>
+
+<div style="height:24px"></div>
+
+<div class="options">
+  <div class="option" data-choice="yes-hover" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Yes — hover preview + mark done</h3>
+      <p>Hover shows preview tooltip (month & week). Events dim with strikethrough when marked done. Hover reveals undo chip. Click opens editor with Restore option. Board ↔ Calendar status stays in sync.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="no-hover" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>No hover preview — just mark done</h3>
+      <p>Skip the hover tooltip. Click event → editor with done/restore. Simpler to build but less fluid.</p>
+    </div>
+  </div>
+</div>

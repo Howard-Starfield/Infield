@@ -1,0 +1,101 @@
+<h2>New Feature: Relations & Rollups</h2>
+<p class="subtitle">Link rows across databases, aggregate related data — with full UI hooks</p>
+
+<h3>Field type picker — Relation</h3>
+<div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 24px;">
+  <div style="background: #f0f0f0; border-radius: 6px; padding: 6px 12px; font-size: 12px;">📎 Relation</div>
+  <div style="background: #f0f0f0; border-radius: 6px; padding: 6px 12px; font-size: 12px;">🔢 Number</div>
+  <div style="background: #f0f0f0; border-radius: 6px; padding: 6px 12px; font-size: 12px;">✔ Checkbox</div>
+  <div style="background: #f0f0f0; border-radius: 6px; padding: 6px 12px; font-size: 12px;">📅 Date</div>
+  <div style="background: #e8f0fe; color: #1a73e8; border: 1px solid #1a73e8; border-radius: 6px; padding: 6px 12px; font-size: 12px;">🔗 Rollup</div>
+</div>
+
+<h3>Relation field config popover</h3>
+<div class="mockup" style="max-width: 400px;">
+  <div class="mockup-body" style="font-family: system-ui; background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 16px; box-shadow: 0 4px 16px rgba(0,0,0,0.12);">
+    <div style="font-size: 13px; font-weight: 600; margin-bottom: 12px;">Configure Relation</div>
+    <div style="margin-bottom: 12px;">
+      <div style="font-size: 11px; color: #888; margin-bottom: 4px;">TARGET DATABASE</div>
+      <select style="width: 100%; padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;">
+        <option>Select a database...</option>
+        <option selected>Projects</option>
+        <option>Contacts</option>
+        <option>Tasks</option>
+      </select>
+    </div>
+    <div style="margin-bottom: 12px;">
+      <div style="font-size: 11px; color: #888; margin-bottom: 4px;">SHOW RELATED ROWS AS</div>
+      <div style="display: flex; gap: 6px;">
+        <label style="display: flex; align-items: center; gap: 4px; font-size: 12px; cursor: pointer;">
+          <input type="radio" name="showas" checked> Chips
+        </label>
+        <label style="display: flex; align-items: center; gap: 4px; font-size: 12px; cursor: pointer;">
+          <input type="radio" name="showas"> Inline list
+        </label>
+      </div>
+    </div>
+    <div style="font-size: 11px; color: #888; margin-bottom: 4px;">LINKED ROWS</div>
+    <div style="background: #f9f9f9; border-radius: 4px; padding: 10px; margin-bottom: 8px;">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+        <span style="font-size: 12px;">Project Alpha</span>
+        <button style="background: none; border: none; color: #aaa; cursor: pointer; font-size: 12px;">✕</button>
+      </div>
+      <div style="display: flex; align-items: center; justify-content: space-between;">
+        <span style="font-size: 12px;">Project Beta</span>
+        <button style="background: none; border: none; color: #aaa; cursor: pointer; font-size: 12px;">✕</button>
+      </div>
+    </div>
+    <button style="width: 100%; padding: 6px; background: none; border: 1px dashed #ccc; border-radius: 4px; font-size: 11px; color: #888; cursor: pointer;">+ Link existing row</button>
+  </div>
+</div>
+
+<h3>Rollup field config popover</h3>
+<div class="mockup" style="max-width: 400px;">
+  <div class="mockup-body" style="font-family: system-ui; background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 16px; box-shadow: 0 4px 16px rgba(0,0,0,0.12);">
+    <div style="font-size: 13px; font-weight: 600; margin-bottom: 12px;">Configure Rollup</div>
+    <div style="margin-bottom: 12px;">
+      <div style="font-size: 11px; color: #888; margin-bottom: 4px;">RELATION SOURCE</div>
+      <select style="width: 100%; padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;">
+        <option selected>Projects</option>
+      </select>
+    </div>
+    <div style="margin-bottom: 12px;">
+      <div style="font-size: 11px; color: #888; margin-bottom: 4px;">FIELD TO ROLLUP</div>
+      <select style="width: 100%; padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;">
+        <option selected>Budget (Number)</option>
+      </select>
+    </div>
+    <div style="margin-bottom: 12px;">
+      <div style="font-size: 11px; color: #888; margin-bottom: 4px;">AGGREGATION</div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px;">
+        <button style="padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 11px; background: #e8f0fe; color: #1a73e8; cursor: pointer;">Sum</button>
+        <button style="padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 11px; cursor: pointer;">Average</button>
+        <button style="padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 11px; cursor: pointer;">Count</button>
+        <button style="padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 11px; cursor: pointer;">Min</button>
+        <button style="padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 11px; cursor: pointer;">Max</button>
+        <button style="padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 11px; cursor: pointer;">Check</button>
+      </div>
+    </div>
+    <div style="font-size: 11px; color: #888;">RESULT: <strong style="color: #1a73e8;">$125,000</strong> (Sum of Budget)</div>
+  </div>
+</div>
+
+<h3>How relation chips look on a card (Board/Grid)</h3>
+<div class="mockup">
+  <div class="mockup-body" style="font-family: system-ui; background: #f7f6f3; padding: 12px; border-radius: 6px;">
+    <div style="background: white; border: 1px solid #e0e0e0; border-radius: 6px; padding: 10px; max-width: 260px;">
+      <div style="font-size: 12px; font-weight: 600; color: #333; margin-bottom: 8px;">Q2 Campaign planning</div>
+      <div style="margin-bottom: 6px;">
+        <span style="font-size: 10px; color: #888;">Projects:</span>
+        <div style="display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px;">
+          <span style="background: #e8f0fe; color: #1a73e8; font-size: 10px; padding: 2px 6px; border-radius: 3px; cursor: pointer;">→ Project Alpha</span>
+          <span style="background: #e8f0fe; color: #1a73e8; font-size: 10px; padding: 2px 6px; border-radius: 3px; cursor: pointer;">→ Project Beta</span>
+        </div>
+      </div>
+      <div style="margin-bottom: 4px;">
+        <span style="font-size: 10px; color: #888;">Total Budget:</span>
+        <span style="font-size: 11px; font-weight: 600; color: #1a73e8; margin-left: 4px;">$125,000</span>
+      </div>
+    </div>
+  </div>
+</div>

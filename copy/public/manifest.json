@@ -1,0 +1,10 @@
+{
+  "name": "Third-Party Selling Shell",
+  "short_name": "SellingShell",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#fdf9f3",
+  "theme_color": "#b72301",
+  "description": "Offline-first encrypted local workspace for third-party selling records.",
+  "icons": []
+}

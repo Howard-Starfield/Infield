@@ -1,0 +1,32 @@
+<h2>Unified Database — Complete Design Spec</h2>
+<p class="subtitle">All decisions compiled from brainstorming session 2026-04-12</p>
+
+<div style="max-width: 700px; margin: 0 auto; font-family: system-ui; font-size: 12px;">
+  <table style="width: 100%; border-collapse: collapse;">
+    <thead>
+      <tr style="background: #f5f5f5;"><th style="text-align:left;padding:10px 12px;border:1px solid #e0e0e0;">Decision</th><th style="text-align:left;padding:10px 12px;border:1px solid #e0e0e0;">Choice</th></tr>
+    </thead>
+    <tbody>
+      <tr><td style="padding:8px 12px;border:1px solid #e0e0e0;">ViewSwitcher placement</td><td style="padding:8px 12px;border:1px solid #e0e0e0;"><strong>Floating sticky bar</strong> above view content, scrolls with page</td></tr>
+      <tr><td style="padding:8px 12px;border:1px solid #e0e0e0;">Row editing</td><td style="padding:8px 12px;border:1px solid #e0e0e0;"><strong>Centered modal dialog</strong> with backdrop overlay</td></tr>
+      <tr><td style="padding:8px 12px;border:1px solid #e0e0e0;">Board grouping control</td><td style="padding:8px 12px;border:1px solid #e0e0e0;"><strong>Pill/chip</strong> in board header ("Grouped by: Status ✕")</td></tr>
+      <tr><td style="padding:8px 12px;border:1px solid #e0e0e0;">AddViewPopup</td><td style="padding:8px 12px;border:1px solid #e0e0e0;"><strong>Popover</strong> below [+], dynamically positioned at end of tab row</td></tr>
+      <tr><td style="padding:8px 12px;border:1px solid #e0e0e0;">Toolbar layout</td><td style="padding:8px 12px;border:1px solid #e0e0e0;"><strong>Two rows</strong> — action buttons top, active state chips below</td></tr>
+      <tr><td style="padding:8px 12px;border:1px solid #e0e0e0;">Board [+ Add card]</td><td style="padding:8px 12px;border:1px solid #e0e0e0;">Dashed-border button <strong>inside each column</strong> at bottom</td></tr>
+      <tr><td style="padding:8px 12px;border:1px solid #e0e0e0;">Board [+ Add column]</td><td style="padding:8px 12px;border:1px solid #e0e0e0;"><strong>Separate button</strong> at right edge of column strip</td></tr>
+      <tr><td style="padding:8px 12px;border:1px solid #e0e0e0;">Board cards</td><td style="padding:8px 12px;border:1px solid #e0e0e0;"><strong>Classic</strong> — title + up to 2 secondary field chips</td></tr>
+      <tr><td style="padding:8px 12px;border:1px solid #e0e0e0;">Grid/Table style</td><td style="padding:8px 12px;border:1px solid #e0e0e0;"><strong>Classic bordered</strong> — Excel-like, outer border, strong gridlines</td></tr>
+      <tr><td style="padding:8px 12px;border:1px solid #e0e0e0;">Grid column headers</td><td style="padding:8px 12px;border:1px solid #e0e0e0;"><strong>Emoji + text name</strong>, customizable via right-click</td></tr>
+      <tr><td style="padding:8px 12px;border:1px solid #e0e0e0;">Grid formula support</td><td style="padding:8px 12px;border:1px solid #e0e0e0;"><strong>Yes</strong> — formula cells with = prefix, read-only display</td></tr>
+      <tr><td style="padding:8px 12px;border:1px solid #e0e0e0; background: #f0fff0;">Relations</td><td style="padding:8px 12px;border:1px solid #e0e0e0;"><strong>New field type</strong> — pick target database, show linked rows as chips, click to open related row</td></tr>
+      <tr><td style="padding:8px 12px;border:1px solid #e0e0e0; background: #f0fff0;">Rollups</td><td style="padding:8px 12px;border:1px solid #e0e0e0;"><strong>New field type</strong> — aggregate relation data (Sum, Average, Count, Min, Max, Check)</td></tr>
+      <tr><td style="padding:8px 12px;border:1px solid #e0e0e0; background: #f0fff0;">Row comments</td><td style="padding:8px 12px;border:1px solid #e0e0e0;"><strong>Comment icon + badge</strong> on each row, thread panel slides in from right</td></tr>
+      <tr><td style="padding:8px 12px;border:1px solid #e0e0e0; background: #f0fff0;">Column freezing</td><td style="padding:8px 12px;border:1px solid #e0e0e0;"><strong>Toolbar dropdown</strong> — freeze first N columns, frozen cols stay fixed on scroll</td></tr>
+      <tr><td style="padding:8px 12px;border:1px solid #e0e0e0; background: #f0fff0;">Filter AND/OR groups</td><td style="padding:8px 12px;border:1px solid #e0e0e0;"><strong>Grouped filter UI</strong> — AND within groups, OR between groups, click group label to toggle</td></tr>
+      <tr><td style="padding:8px 12px;border:1px solid #e0e0e0; background: #f0fff0;">Row templates</td><td style="padding:8px 12px;border:1px solid #e0e0e0;"><strong>+ button menu</strong> — list of saved templates, blank row, save current as template</td></tr>
+      <tr><td style="padding:8px 12px;border:1px solid #e0e0e0; background: #f0fff0;">Database icon + cover</td><td style="padding:8px 12px;border:1px solid #e0e0e0;"><strong>DatabaseShell header</strong> — emoji icon (clickable to change), cover image at top</td></tr>
+      <tr><td style="padding:8px 12px;border:1px solid #e0e0e0; background: #f0fff0;">View tab colors</td><td style="padding:8px 12px;border:1px solid #e0e0e0;"><strong>Right-click tab</strong> → color picker submenu → colored dot on tab</td></tr>
+      <tr><td style="padding:8px 12px;border:1px solid #e0e0e0; background: #f0fff0;">Multi-level sort</td><td style="padding:8px 12px;border:1px solid #e0e0e0;"><strong>Sort dropdown</strong> — numbered sort levels, add/remove/reorder, asc/desc per level</td></tr>
+    </tbody>
+  </table>
+</div>

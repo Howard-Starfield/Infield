@@ -1,0 +1,239 @@
+<h2>Google Calendar — Actual Multi-Select Chip Reference</h2>
+<p class="subtitle">Based on Google Calendar mobile UI. This is the real thing — pixel for pixel.</p>
+
+<div style="background:#fff;border:1px solid #e0e0e0;border-radius:12px;padding:24px;font-family:system-ui,sans-serif">
+
+  <!-- Phone frame mockup -->
+  <div style="display:flex;flex-direction:column;align-items:center;margin-bottom:32px">
+    <div style="background:#111;border-radius:36px;padding:12px;border:2px solid #222;max-width:280px;width:100%">
+      <!-- Status bar -->
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 8px;margin-bottom:4px">
+        <span style="color:#fff;font-size:10px;font-family:system-ui">9:41</span>
+        <div style="display:flex;gap:4px;align-items:center">
+          <svg width="14" height="10" viewBox="0 0 14 10" fill="white"><path d="M1 4.5C1 3.67 1.67 3 2.5 3H3.5C4.33 3 5 3.67 5 4.5V5.5C5 6.33 4.33 7 3.5 7H2.5C1.67 7 1 6.33 1 5.5V4.5Z" fill-opacity="0.4"/><path d="M6 3C6 2.45 6.45 2 7 2H7C7.55 2 8 2.45 8 3V10C8 10.55 7.55 11 7 11H7C6.45 11 6 10.55 6 10V3Z" fill="white"/></svg>
+          <svg width="12" height="8" viewBox="0 0 12 8" fill="white"><rect x="0.5" y="0.5" width="8.5" height="5.5" rx="1.5" stroke="white" stroke-opacity="0.4" fill="none"/><path d="M10 2.5L10 5.5" stroke="white" stroke-width="1" stroke-linecap="round"/><path d="M8.5 4H11.5" stroke="white" stroke-width="1" stroke-linecap="round"/></svg>
+          <svg width="14" height="10" viewBox="0 0 14 10" fill="white"><rect x="0.5" y="1.5" width="13" height="7" rx="1.5" stroke="white" stroke-opacity="0.4" fill="none"/><rect x="2" y="3.5" width="10" height="5" rx="1" fill="white" fill-opacity="0.6"/><rect x="2" y="1.5" width="10" height="3" rx="1" fill="white"/></svg>
+        </div>
+      </div>
+      <!-- App bar -->
+      <div style="background:#1a73e8;padding:12px 16px;display:flex;align-items:center;gap:12px">
+        <div style="color:#fff;font-size:18px">☰</div>
+        <div style="flex:1">
+          <div style="color:#fff;font-size:16px;font-weight:500">Google Calendar</div>
+          <div style="color:rgba(255,255,255,0.8);font-size:11px">Wednesday, April 15</div>
+        </div>
+        <div style="color:#fff;font-size:16px">🔍</div>
+      </div>
+      <!-- Calendar view -->
+      <div style="background:#fff">
+        <!-- Day headers -->
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);padding:8px 8px 4px;gap:2px">
+          <div style="text-align:center;font-size:9px;color:#888;font-weight:500">Sun</div>
+          <div style="text-align:center;font-size:9px;color:#888;font-weight:500">Mon</div>
+          <div style="text-align:center;font-size:9px;color:#888;font-weight:500">Tue</div>
+          <div style="text-align:center;font-size:9px;color:#888;font-weight:500">Wed</div>
+          <div style="text-align:center;font-size:9px;color:#888;font-weight:500">Thu</div>
+          <div style="text-align:center;font-size:9px;color:#888;font-weight:500">Fri</div>
+          <div style="text-align:center;font-size:9px;color:#888;font-weight:500">Sat</div>
+        </div>
+        <!-- Week grid -->
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);padding:2px 8px;gap:1px">
+          <div style="aspect-ratio:1"></div>
+          <div style="aspect-ratio:1"></div>
+          <div style="aspect-ratio:1"></div>
+          <!-- Wed 15 -->
+          <div style="aspect-ratio:1;position:relative">
+            <div style="width:28px;height:28px;border-radius:50%;background:#1a73e8;display:flex;align-items:center;justify-content:center;margin:auto">
+              <span style="font-size:11px;font-weight:600;color:#fff">15</span>
+            </div>
+          </div>
+          <div style="aspect-ratio:1"></div>
+          <div style="aspect-ratio:1"></div>
+          <div style="aspect-ratio:1"></div>
+        </div>
+        <!-- Events for today -->
+        <div style="padding:4px 12px">
+          <!-- Event 1 - selected -->
+          <div style="position:relative;margin-bottom:3px">
+            <div style="position:absolute;left:0;top:2px;width:16px;height:16px">
+              <div style="width:16px;height:16px;border-radius:3px;border:2px solid #1a73e8;background:#1a73e8;display:flex;align-items:center;justify-content:center">
+                <svg width="8" height="6" viewBox="0 0 8 6" fill="none"><path d="M1 3L3 5L7 1" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+            </div>
+            <div style="background:#1a73e8;border-radius:4px;padding:4px 6px 4px 22px;margin-left:2px">
+              <div style="font-size:11px;color:#fff;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Design review</div>
+              <div style="font-size:9px;color:rgba(255,255,255,0.8)">2:00 PM</div>
+            </div>
+          </div>
+          <!-- Event 2 - selected -->
+          <div style="position:relative;margin-bottom:3px">
+            <div style="position:absolute;left:0;top:2px;width:16px;height:16px">
+              <div style="width:16px;height:16px;border-radius:3px;border:2px solid #1a73e8;background:#1a73e8;display:flex;align-items:center;justify-content:center">
+                <svg width="8" height="6" viewBox="0 0 8 6" fill="none"><path d="M1 3L3 5L7 1" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+            </div>
+            <div style="background:#1a73e8;border-radius:4px;padding:4px 6px 4px 22px;margin-left:2px">
+              <div style="font-size:11px;color:#fff;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Team standup</div>
+              <div style="font-size:9px;color:rgba(255,255,255,0.8)">9:00 AM</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- GOOGLE's actual floating chip bar -->
+      <div style="background:#222;border-radius:28px;margin:8px 12px;padding:8px 16px;display:flex;align-items:center;gap:8px;box-shadow:0 4px 16px rgba(0,0,0,0.3)">
+        <!-- Count -->
+        <div style="min-width:24px;height:24px;border-radius:50%;background:#1a73e8;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <span style="font-size:12px;font-weight:600;color:#fff">2</span>
+        </div>
+        <span style="font-size:12px;color:#fff;font-weight:400">selected</span>
+        <div style="flex:1"></div>
+        <!-- Undo -->
+        <div style="display:flex;align-items:center;gap:4px;padding:4px 8px;border-radius:16px;cursor:pointer">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M3 7C3 4.79 4.79 3 7 3C9.21 3 11 4.79 11 7C11 9.21 9.21 11 7 11" stroke="#9AA0A6" stroke-width="1.5" stroke-linecap="round"/>
+            <path d="M3 4V7H6" stroke="#9AA0A6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span style="font-size:12px;color:#9AA0A6">Undo</span>
+        </div>
+        <!-- Divider -->
+        <div style="width:1px;height:16px;background:#555"></div>
+        <!-- Delete -->
+        <div style="display:flex;align-items:center;gap:4px;padding:4px 8px;border-radius:16px;cursor:pointer">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M3 3.5L10.5 11M10.5 3.5L3 11" stroke="#EA4335" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+          <span style="font-size:12px;color:#EA4335">Delete</span>
+        </div>
+      </div>
+    </div>
+    <div style="font-size:11px;color:#888;margin-top:12px;text-align:center">Google Calendar mobile — April 2020 multi-select feature</div>
+  </div>
+
+  <!-- Key observations -->
+  <div style="border-top:1px solid #eee;padding-top:20px">
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:#aaa;margin-bottom:12px">Google's exact chip — key observations</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div style="background:#f8f8f8;border-radius:8px;padding:12px">
+        <div style="font-size:12px;font-weight:600;color:#333;margin-bottom:6px">✓ Matches what we planned</div>
+        <div style="font-size:11px;color:#555">
+          <div style="margin-bottom:4px">• Number bubble + "selected" text</div>
+          <div style="margin-bottom:4px">• Undo button (icon + label)</div>
+          <div>• Delete button (icon + label, red)</div>
+        </div>
+      </div>
+      <div style="background:#f8f8f8;border-radius:8px;padding:12px">
+        <div style="font-size:12px;font-weight:600;color:#333;margin-bottom:6px">Differences from our design</div>
+        <div style="font-size:11px;color:#555">
+          <div style="margin-bottom:4px">• Google uses "selected" text (we omitted it)</div>
+          <div style="margin-bottom:4px">• Undo has an icon (↩ arch arrow)</div>
+          <div>• Delete is text label "Delete" not just ✕</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Updated our design to match Google exactly -->
+  <div style="border-top:1px solid #eee;padding-top:20px">
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:#aaa;margin-bottom:12px">Updated — matching Google exactly</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <!-- Google style: with "selected" -->
+      <div>
+        <div style="font-size:11px;color:#888;margin-bottom:8px">Option A — Google exact: "2 selected"</div>
+        <div style="display:inline-flex;align-items:center;gap:8px;background:#222;border-radius:28px;padding:8px 16px;box-shadow:0 4px 16px rgba(0,0,0,0.2)">
+          <div style="min-width:24px;height:24px;border-radius:50%;background:#1a73e8;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+            <span style="font-size:12px;font-weight:600;color:#fff">2</span>
+          </div>
+          <span style="font-size:12px;color:#fff;font-weight:400">selected</span>
+          <div style="width:1px;height:16px;background:#555;margin:0 4px"></div>
+          <div style="display:flex;align-items:center;gap:4px;padding:4px 8px;border-radius:16px;cursor:pointer">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M3 7C3 4.79 4.79 3 7 3C9.21 3 11 4.79 11 7C11 9.21 9.21 11 7 11" stroke="#9AA0A6" stroke-width="1.5" stroke-linecap="round"/>
+              <path d="M3 4V7H6" stroke="#9AA0A6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span style="font-size:12px;color:#9AA0A6">Undo</span>
+          </div>
+          <div style="width:1px;height:16px;background:#555;margin:0 4px"></div>
+          <div style="display:flex;align-items:center;gap:4px;padding:4px 8px;border-radius:16px;cursor:pointer">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M3 3.5L10.5 11M10.5 3.5L3 11" stroke="#EA4335" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+            <span style="font-size:12px;color:#EA4335">Delete</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Compact: no "selected" -->
+      <div>
+        <div style="font-size:11px;color:#888;margin-bottom:8px">Option B — Compact: just number</div>
+        <div style="display:inline-flex;align-items:center;gap:6px;background:#222;border-radius:28px;padding:8px 14px;box-shadow:0 4px 16px rgba(0,0,0,0.2)">
+          <div style="min-width:24px;height:24px;border-radius:50%;background:#1a73e8;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+            <span style="font-size:12px;font-weight:600;color:#fff">2</span>
+          </div>
+          <span style="font-size:12px;color:#9AA0A6;margin-right:4px">·</span>
+          <div style="display:flex;align-items:center;gap:4px;padding:4px 8px;border-radius:16px">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M3 7C3 4.79 4.79 3 7 3C9.21 3 11 4.79 11 7C11 9.21 9.21 11 7 11" stroke="#9AA0A6" stroke-width="1.5" stroke-linecap="round"/>
+              <path d="M3 4V7H6" stroke="#9AA0A6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span style="font-size:12px;color:#9AA0A6">Undo</span>
+          </div>
+          <div style="width:1px;height:16px;background:#555;margin:0 4px"></div>
+          <div style="display:flex;align-items:center;gap:4px;padding:4px 8px;border-radius:16px">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M3 3.5L10.5 11M10.5 3.5L3 11" stroke="#EA4335" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+            <span style="font-size:12px;color:#EA4335">Delete</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Single event: done -->
+    <div style="margin-top:20px">
+      <div style="font-size:11px;color:#888;margin-bottom:8px">Single event — done state, Google style toast</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="display:inline-flex;align-items:center;gap:8px;background:#323232;border-radius:20px;padding:8px 14px;box-shadow:0 4px 12px rgba(0,0,0,0.2);max-width:280px">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <circle cx="8" cy="8" r="7" fill="#1e8e3e"/>
+            <path d="M4.5 8L7 10.5L11.5 5.5" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span style="font-size:12px;color:#fff;font-weight:400">"Design review" deleted</span>
+          <button style="background:none;border:none;padding:4px 8px;border-radius:16px;cursor:pointer;margin-left:auto">
+            <span style="font-size:12px;color:#8ab4f8;font-weight:500">Undo</span>
+          </button>
+        </div>
+        <div style="display:inline-flex;align-items:center;gap:8px;background:#323232;border-radius:20px;padding:8px 14px;box-shadow:0 4px 12px rgba(0,0,0,0.2);max-width:280px">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <circle cx="8" cy="8" r="7" fill="#1e8e3e"/>
+            <path d="M4.5 8L7 10.5L11.5 5.5" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span style="font-size:12px;color:#fff;font-weight:400">"Design review" restored</span>
+          <button style="background:none;border:none;padding:4px 8px;border-radius:16px;cursor:pointer;margin-left:auto">
+            <span style="font-size:12px;color:#8ab4f8;font-weight:500">Undo</span>
+          </button>
+        </div>
+      </div>
+      <div style="font-size:10px;color:#888;margin-top:8px">Google uses green checkmark + "restored" / "deleted" toast with Undo button — this is the single-event pattern</div>
+    </div>
+  </div>
+
+</div>
+
+<div style="height:24px"></div>
+
+<div class="options">
+  <div class="option" data-choice="google-exact" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Match Google exactly</h3>
+      <p>Use "X selected" text, undo icon (arch arrow), delete text label. Toast shows green ✓ + "restored" / "deleted". Single-event uses the same toast pattern. Most familiar to users.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="compact" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Compact: just number</h3>
+      <p>Omit "selected" text. Same actions (Undo, Delete). Cleaner for dense calendars. Still Google-inspired. Single-event uses same chip pattern.</p>
+    </div>
+  </div>
+</div>

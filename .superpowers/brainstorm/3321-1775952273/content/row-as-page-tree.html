@@ -1,0 +1,86 @@
+<h2>Row-as-Page Architecture — Page Tree + Database</h2>
+<p class="subtitle">The sidebar page tree is the primary navigation shell. Databases expand to show row-pages.</p>
+
+<div class="mockup">
+  <div class="mockup-header">Sidebar page tree — Notion/AppFlowy style</div>
+  <div class="mockup-body" style="font-family: system-ui; background: #f7f6f3; padding: 12px; border-radius: 6px;">
+    <div style="display: flex; gap: 8px; height: 320px;">
+      <!-- Sidebar -->
+      <div style="width: 220px; background: white; border: 1px solid #e0e0e0; border-radius: 6px; padding: 8px 0; overflow-y: auto;">
+        <div style="padding: 4px 12px; font-size: 10px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Pages</div>
+        <!-- Document -->
+        <div style="padding: 4px 12px; font-size: 12px; color: #333; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+          <span>📄</span> Meeting Notes
+        </div>
+        <div style="padding: 4px 12px; font-size: 12px; color: #333; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+          <span>📄</span> Q1 Retrospective
+        </div>
+        <!-- Database (expanded) -->
+        <div>
+          <div style="padding: 4px 12px; font-size: 12px; color: #333; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+            <span style="font-size: 10px; color: #aaa;">▼</span>
+            <span>📊</span> Project Tracker
+          </div>
+          <!-- Child row-pages (indented) -->
+          <div style="padding: 4px 12px 4px 28px; font-size: 11px; color: #555; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+            <span>📋</span> Q2 Campaign planning
+          </div>
+          <div style="padding: 4px 12px 4px 28px; font-size: 11px; color: #555; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+            <span>📋</span> Website redesign
+          </div>
+          <div style="padding: 4px 12px 4px 28px; font-size: 11px; color: #555; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+            <span>📋</span> Mobile app v2
+          </div>
+          <div style="padding: 4px 12px 4px 28px; font-size: 11px; color: #888; cursor: pointer;">
+            + Add row
+          </div>
+        </div>
+        <!-- Database (collapsed) -->
+        <div style="padding: 4px 12px; font-size: 12px; color: #333; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+          <span style="font-size: 10px; color: #aaa;">▶</span>
+          <span>📊</span> HR Pipeline
+        </div>
+      </div>
+      <!-- Main content area -->
+      <div style="flex: 1; background: white; border: 1px solid #e0e0e0; border-radius: 6px; overflow: hidden; display: flex; flex-direction: column;">
+        <!-- DatabaseShell header -->
+        <div style="border-bottom: 1px solid #e0e0e0; padding: 12px 16px;">
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+            <span style="font-size: 16px;">📊</span>
+            <span style="font-size: 14px; font-weight: 600; color: #333;">Project Tracker</span>
+          </div>
+          <div style="font-size: 11px; color: #888;">Table · 5 views</div>
+        </div>
+        <!-- ViewSwitcher + toolbar -->
+        <div style="padding: 8px 12px; border-bottom: 1px solid #f0f0f0;">
+          <div style="display: flex; gap: 4px; background: #f0f0f0; padding: 3px; border-radius: 6px; display: inline-flex;">
+            <div style="background: white; padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 600; border-bottom: 2px solid #2563eb;">Board</div>
+            <div style="padding: 3px 10px; border-radius: 4px; font-size: 11px; color: #666;">Grid</div>
+            <div style="padding: 3px 10px; border-radius: 4px; font-size: 11px; color: #666;">Calendar</div>
+            <button style="background: #f0f0f0; border: none; border-radius: 4px; padding: 3px 8px; font-size: 11px; cursor: pointer; margin-left: 4px;">+</button>
+          </div>
+          <div style="display: flex; gap: 6px; margin-top: 8px; font-size: 11px; color: #888;">
+            <span>[Filter ▼]</span>
+            <span>[Sort ▼]</span>
+            <span>[Group by: Status ▼]</span>
+          </div>
+        </div>
+        <!-- Board view content -->
+        <div style="flex: 1; padding: 12px; overflow-x: auto;">
+          <div style="display: flex; gap: 8px; min-height: 200px;">
+            <div style="min-width: 180px;">
+              <div style="font-size: 11px; font-weight: 600; color: #333; margin-bottom: 8px;">● To Do <span style="color: #aaa;">(3)</span></div>
+              <div style="background: #f9f9f9; border-radius: 4px; padding: 8px; margin-bottom: 6px; font-size: 11px; color: #333; border-left: 3px solid #e0e0e0; cursor: pointer;">Q2 Campaign planning</div>
+              <div style="background: #f9f9f9; border-radius: 4px; padding: 8px; margin-bottom: 6px; font-size: 11px; color: #333; border-left: 3px solid #e0e0e0; cursor: pointer;">Website redesign</div>
+              <button style="width: 100%; padding: 5px; background: none; border: 1px dashed #ccc; border-radius: 4px; font-size: 11px; color: #aaa; cursor: pointer;">+ Add card</button>
+            </div>
+            <div style="min-width: 180px;">
+              <div style="font-size: 11px; font-weight: 600; color: #333; margin-bottom: 8px;">● In Progress <span style="color: #aaa;">(1)</span></div>
+              <div style="background: #f9f9f9; border-radius: 4px; padding: 8px; font-size: 11px; color: #333; border-left: 3px solid #2563eb; cursor: pointer;">Mobile app v2</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

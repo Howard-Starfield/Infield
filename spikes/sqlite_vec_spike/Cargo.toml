@@ -1,0 +1,12 @@
+[package]
+name = "sqlite_vec_spike"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Phase A spike — verify vec0 virtual table inside rusqlite_migration"
+
+[dependencies]
+rusqlite = { version = "0.37", features = ["bundled", "load_extension"] }
+rusqlite_migration = "2.3"
+sqlite-vec = "0.1"
+zerocopy = "0.8"

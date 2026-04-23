@@ -1,0 +1,110 @@
+<h2>Design — Section 2 of 4: Components &amp; Drag-and-Drop</h2>
+<p class="subtitle">Component tree · DnD sensor split · one design flag to note</p>
+
+<div class="split" style="gap:20px;align-items:flex-start">
+
+  <!-- Component tree -->
+  <div class="mockup" style="flex:1.1">
+    <div class="mockup-header">Component tree (Phase A)</div>
+    <div class="mockup-body" style="background:#0f0f1a;padding:14px;font-family:monospace;font-size:11px;line-height:2;color:#ccc">
+
+      <div style="color:#a5b4fc;font-weight:600">&lt;DatabaseShell&gt;</div>
+      <div style="padding-left:16px;color:#888;font-size:10px">tab bar · + view picker · far-right toolbar</div>
+
+      <div style="padding-left:16px;color:#6366f1;font-weight:600">&lt;DndContext&gt; ← single context for ALL drag</div>
+      <div style="padding-left:32px;color:#888;font-size:10px">sensors: [columnSensor, cardSensor]</div>
+      <div style="padding-left:32px;color:#888;font-size:10px">collisionDetection: customPointerCollision()</div>
+
+      <div style="padding-left:32px;color:#c084fc;font-weight:600">&lt;SortableContext items=&#123;columnIds&#125; strategy=horizontal&gt;</div>
+
+      <div style="padding-left:48px;color:#86efac;font-weight:600">&lt;BoardColumn&gt; × N</div>
+
+      <div style="padding-left:64px;color:#fb923c">&lt;BoardColumnHeader&gt;</div>
+      <div style="padding-left:80px;color:#888;font-size:10px">useSortable(columnId) ← drag handle here only</div>
+      <div style="padding-left:80px;color:#888;font-size:10px">ColorPickerPopover (badge click)</div>
+      <div style="padding-left:80px;color:#888;font-size:10px">ColumnContextMenu (⋯ click)</div>
+
+      <div style="padding-left:64px;color:#c084fc;font-weight:600">&lt;SortableContext items=&#123;cardIds&#125; strategy=vertical&gt;</div>
+
+      <div style="padding-left:80px;color:#fbbf24">&lt;BoardCard&gt; × M</div>
+      <div style="padding-left:96px;color:#888;font-size:10px">useSortable(cardId) ← drag on card body</div>
+      <div style="padding-left:96px;color:#888;font-size:10px">opacity:0.4 when isDragging (ghost)</div>
+
+      <div style="padding-left:64px;color:#fbbf24">&lt;BoardColumnFooter&gt;</div>
+      <div style="padding-left:80px;color:#888;font-size:10px">+ New button → inline text field</div>
+
+      <div style="padding-left:32px;color:#86efac">&lt;AddColumnTrailing&gt;</div>
+      <div style="padding-left:48px;color:#888;font-size:10px">trailing + → text input → Enter → createSelectOption()</div>
+
+      <div style="padding-left:16px;color:#fb923c">&lt;DragOverlay&gt;</div>
+      <div style="padding-left:32px;color:#888;font-size:10px">renders floating ghost: BoardCard OR BoardColumn</div>
+      <div style="padding-left:32px;color:#888;font-size:10px">rotate(2deg) + box-shadow on card · rotate(1.5deg) + scale on column</div>
+    </div>
+  </div>
+
+  <!-- DnD sensor split + flag -->
+  <div style="flex:1;display:flex;flex-direction:column;gap:12px">
+
+    <!-- Sensor split -->
+    <div class="mockup">
+      <div class="mockup-header">Sensor split — how card vs column drag is told apart</div>
+      <div class="mockup-body" style="background:#0f0f1a;padding:12px;font-size:11px;display:flex;flex-direction:column;gap:10px">
+
+        <div style="background:#1e2d1e;border:1px solid #14532d;border-radius:6px;padding:10px">
+          <div style="color:#86efac;font-weight:600;margin-bottom:4px">cardSensor (PointerSensor)</div>
+          <div style="color:#888;font-size:10px;line-height:1.6">
+            activationConstraint: distance 8px<br>
+            activator: card body only<br>
+            → moves individual card across columns<br>
+            → vertical SortableContext handles insertion gap
+          </div>
+        </div>
+
+        <div style="background:#1e2a3e;border:1px solid #1e3a5f;border-radius:6px;padding:10px">
+          <div style="color:#93c5fd;font-weight:600;margin-bottom:4px">columnSensor (PointerSensor)</div>
+          <div style="color:#888;font-size:10px;line-height:1.6">
+            activationConstraint: distance 8px<br>
+            activator: <strong style="color:#93c5fd">column header only</strong> via dragHandle attr<br>
+            → moves entire column (header + all cards)<br>
+            → horizontal SortableContext handles column reorder
+          </div>
+        </div>
+
+        <div style="background:#12121e;border:1px solid #2a2a3e;border-radius:6px;padding:8px;font-size:10px;color:#888;line-height:1.6">
+          Both sensors share one <strong style="color:#a5b4fc">DndContext</strong>. Active drag type is detected from<br>
+          <code style="background:#1e1e35;padding:1px 4px;border-radius:2px">active.data.current.type === 'column' | 'card'</code><br>
+          DragOverlay renders the appropriate ghost.
+        </div>
+      </div>
+    </div>
+
+    <!-- Design flag -->
+    <div style="background:#2d1e0a;border:1px solid #92400e;border-radius:8px;padding:12px;font-size:11px">
+      <div style="color:#fb923c;font-weight:600;margin-bottom:6px">⚑ Design flag: color palette vs hex</div>
+      <div style="color:#d97706;line-height:1.6;font-size:10px">
+        The backend <code style="background:#1e1e1e;padding:1px 4px;border-radius:2px">SelectOption.color</code> currently stores an enum
+        (purple, pink, orange…). A hex string would be more flexible but requires a backend schema change.<br><br>
+        <strong>Recommendation for Phase A:</strong> keep the preset palette (8 colors) — maps directly to existing backend with zero schema change. Phase C can expand to hex if needed.
+      </div>
+      <div style="margin-top:8px;display:flex;gap:5px">
+        <div style="width:16px;height:16px;border-radius:50%;background:#6366f1"></div>
+        <div style="width:16px;height:16px;border-radius:50%;background:#ec4899"></div>
+        <div style="width:16px;height:16px;border-radius:50%;background:#f97316"></div>
+        <div style="width:16px;height:16px;border-radius:50%;background:#eab308"></div>
+        <div style="width:16px;height:16px;border-radius:50%;background:#22c55e"></div>
+        <div style="width:16px;height:16px;border-radius:50%;background:#06b6d4"></div>
+        <div style="width:16px;height:16px;border-radius:50%;background:#ef4444"></div>
+        <div style="width:16px;height:16px;border-radius:50%;background:#8b5cf6"></div>
+      </div>
+    </div>
+
+    <!-- Spring animation -->
+    <div style="background:#1a1a2e;border:1px solid #2a2a3e;border-radius:8px;padding:12px;font-size:10px;color:#888;line-height:1.7">
+      <div style="color:#c4b5fd;font-weight:600;margin-bottom:4px">Spring animation (applied globally)</div>
+      Cards and columns that shift to make room use:<br>
+      <code style="color:#a5b4fc;background:#12121e;padding:2px 6px;border-radius:3px;display:block;margin-top:4px">transition: transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1)</code>
+      On drop, the DragOverlay disappears and the real item snaps in with the same curve — giving the bounce landing feel.
+    </div>
+
+  </div>
+</div>

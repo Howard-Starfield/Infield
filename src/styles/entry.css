@@ -1,0 +1,247 @@
+/**
+ * entry.css — Phase B onboarding + entry surfaces.
+ *
+ * First concern-file per CLAUDE.md Rule 18 (D17). Owns the static
+ * geometry for:
+ *   - `.onboarding-root` / `.onboarding-panel` — stage + glass card
+ *   - `.onboarding-step-enter` / `.onboarding-step-exit` — transitions
+ *   - `.onboarding-cta` / `.onboarding-cta--secondary` — primary / skip buttons
+ *   - `.onboarding-progress-track` / `.onboarding-progress-fill` — per-step
+ *     progress (Models step in particular)
+ *   - `.onboarding-preset-card` / `.onboarding-preset-grid` — theme picker
+ *
+ * State-driven styles (active highlight, disabled opacity, hover) stay
+ * inline via `style={{}}` per Rule 18 §4.
+ *
+ * Tokens (all must already exist in `theme/semantic.css` or `app.css`):
+ *   --on-surface, --surface-1, --workspace-accent, --workspace-accent-soft,
+ *   --workspace-accent-strong, --radius-lg, --radius-container,
+ *   --compact-button-radius, --ui-scale, --heros-glass-fill,
+ *   --heros-glass-blur, --heros-glass-saturate.
+ * No raw hex / rgba / px literals below this line (except inside
+ * calc(Npx * var(--ui-scale)) which is the idiomatic spatial-scaling
+ * pattern used throughout the shell primitives).
+ */
+
+/* ─── Stage / panel geometry ─────────────────────────────────────── */
+
+.onboarding-root {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--on-surface);
+  z-index: 1000;
+  overflow: hidden;
+}
+
+.onboarding-drag-region {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: calc(var(--shell-titlebar-height, calc(48px * var(--ui-scale, 1))) + calc(12px * var(--ui-scale, 1)));
+  z-index: 30;
+}
+
+.onboarding-main {
+  position: relative;
+  z-index: 10;
+  width: min(calc(520px * var(--ui-scale, 1)), 88vw);
+  padding: 0 calc(20px * var(--ui-scale, 1));
+}
+
+.onboarding-panel {
+  background: var(--heros-glass-fill, color-mix(in srgb, var(--on-surface) 8%, transparent));
+  backdrop-filter:
+    blur(var(--heros-glass-blur, calc(24px * var(--ui-scale, 1))))
+    saturate(var(--heros-glass-saturate, 120%));
+  -webkit-backdrop-filter:
+    blur(var(--heros-glass-blur, calc(24px * var(--ui-scale, 1))))
+    saturate(var(--heros-glass-saturate, 120%));
+  border-radius: var(--radius-lg);
+  padding: calc(40px * var(--ui-scale, 1)) calc(36px * var(--ui-scale, 1));
+  border: 1px solid color-mix(in srgb, var(--on-surface) 15%, transparent);
+  box-shadow:
+    0 calc(12px * var(--ui-scale, 1)) calc(40px * var(--ui-scale, 1)) 0
+      color-mix(in srgb, black 15%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--on-surface) 20%, transparent);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: calc(20px * var(--ui-scale, 1));
+}
+
+.onboarding-eyebrow {
+  font-size: calc(11px * var(--ui-scale, 1));
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.6;
+  margin: 0;
+}
+
+.onboarding-title {
+  font-size: calc(26px * var(--ui-scale, 1));
+  font-weight: 600;
+  line-height: 1.2;
+  margin: 0;
+  color: var(--on-surface);
+}
+
+.onboarding-body {
+  font-size: calc(14px * var(--ui-scale, 1));
+  line-height: 1.55;
+  margin: 0;
+  opacity: 0.78;
+}
+
+.onboarding-actions {
+  display: flex;
+  align-items: center;
+  gap: calc(12px * var(--ui-scale, 1));
+  margin-top: calc(8px * var(--ui-scale, 1));
+}
+
+/* ─── Buttons — primary CTA + secondary skip ─────────────────────── */
+
+.onboarding-cta {
+  appearance: none;
+  border: 1px solid color-mix(in srgb, var(--workspace-accent) 28%, transparent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--workspace-accent) 92%, white),
+    var(--workspace-accent)
+  );
+  color: white;
+  padding: calc(10px * var(--ui-scale, 1)) calc(22px * var(--ui-scale, 1));
+  border-radius: var(--radius-container);
+  font-size: calc(14px * var(--ui-scale, 1));
+  font-weight: 500;
+  cursor: pointer;
+  transition: filter 160ms ease, transform 160ms ease;
+}
+.onboarding-cta:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+.onboarding-cta:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.onboarding-cta:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.onboarding-cta--secondary {
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--on-surface) 18%, transparent);
+  color: var(--on-surface);
+  opacity: 0.78;
+}
+.onboarding-cta--secondary:hover:not(:disabled) {
+  opacity: 1;
+  background: color-mix(in srgb, var(--on-surface) 6%, transparent);
+  filter: none;
+}
+
+/* ─── Progress bar (Models step) ─────────────────────────────────── */
+
+.onboarding-progress-track {
+  width: 100%;
+  height: calc(6px * var(--ui-scale, 1));
+  border-radius: calc(3px * var(--ui-scale, 1));
+  background: color-mix(in srgb, var(--on-surface) 10%, transparent);
+  overflow: hidden;
+}
+
+.onboarding-progress-fill {
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--workspace-accent) 70%, transparent),
+    var(--workspace-accent)
+  );
+  transition: width 200ms ease;
+}
+
+.onboarding-progress-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: calc(12px * var(--ui-scale, 1));
+  opacity: 0.7;
+  margin-top: calc(6px * var(--ui-scale, 1));
+}
+
+/* ─── Theme preset grid ──────────────────────────────────────────── */
+
+.onboarding-preset-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(calc(140px * var(--ui-scale, 1)), 1fr));
+  gap: calc(12px * var(--ui-scale, 1));
+}
+
+.onboarding-preset-card {
+  appearance: none;
+  background: color-mix(in srgb, var(--on-surface) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--on-surface) 12%, transparent);
+  border-radius: var(--radius-container);
+  padding: calc(14px * var(--ui-scale, 1));
+  cursor: pointer;
+  text-align: left;
+  color: var(--on-surface);
+  transition: border-color 160ms ease, background 160ms ease;
+  display: flex;
+  flex-direction: column;
+  gap: calc(8px * var(--ui-scale, 1));
+}
+.onboarding-preset-card:hover {
+  border-color: color-mix(in srgb, var(--workspace-accent) 40%, transparent);
+}
+.onboarding-preset-card[data-active="true"] {
+  border-color: var(--workspace-accent);
+  background: color-mix(in srgb, var(--workspace-accent) 8%, transparent);
+}
+
+.onboarding-preset-name {
+  font-size: calc(13px * var(--ui-scale, 1));
+  font-weight: 500;
+}
+
+.onboarding-preset-swatch {
+  height: calc(40px * var(--ui-scale, 1));
+  border-radius: calc(8px * var(--ui-scale, 1));
+  background: linear-gradient(
+    135deg,
+    var(--preset-preview-a, var(--workspace-accent)),
+    var(--preset-preview-b, color-mix(in srgb, var(--workspace-accent) 40%, var(--surface-1)))
+  );
+}
+
+/* ─── Error banner (inline, not modal) ───────────────────────────── */
+
+.onboarding-error {
+  border: 1px solid color-mix(in srgb, var(--workspace-accent) 42%, transparent);
+  background: color-mix(in srgb, var(--workspace-accent) 8%, transparent);
+  color: var(--on-surface);
+  padding: calc(10px * var(--ui-scale, 1)) calc(14px * var(--ui-scale, 1));
+  border-radius: var(--radius-container);
+  font-size: calc(13px * var(--ui-scale, 1));
+  line-height: 1.5;
+}
+
+/* ─── Step motion — crossfade on step change ─────────────────────── */
+
+.onboarding-step-enter {
+  animation: onboarding-fade-in 380ms ease both;
+}
+
+@keyframes onboarding-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(calc(6px * var(--ui-scale, 1)));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

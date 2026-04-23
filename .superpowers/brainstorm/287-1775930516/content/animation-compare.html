@@ -1,0 +1,190 @@
+<h2>Animation quality — functional vs fluid</h2>
+<p class="subtitle">The same feature can feel stiff or alive depending on animation choices</p>
+
+<div class="mockup-header">What "fluid" means in practice</div>
+<div class="mockup-body">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+
+    <!-- Stiff / Functional -->
+    <div style="background:#fff;border:1px solid #e0e0e0;border-radius:10px;padding:20px;font-family:system-ui,sans-serif">
+      <div style="font-size:12px;font-weight:600;color:#c44;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.5px">❌ Stiff — no personality</div>
+
+      <div style="border:1px solid #e0e0e0;border-radius:8px;padding:12px;margin-bottom:12px">
+        <div style="font-size:12px;color:#888;margin-bottom:6px">Drag event to new day</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <div style="width:40px;height:32px;background:#dddde0;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#555">Card</div>
+          <div style="font-size:16px;color:#ccc">→</div>
+          <div style="width:50px;height:32px;border:2px dashed #ccc;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#ccc">Drop</div>
+        </div>
+        <div style="margin-top:8px;font-size:11px;color:#aaa">Snap, no transition, instant state change</div>
+      </div>
+
+      <div style="border:1px solid #e0e0e0;border-radius:8px;padding:12px;margin-bottom:12px">
+        <div style="font-size:12px;color:#888;margin-bottom:6px">Date picker opens</div>
+        <div style="font-size:20px;text-align:center;color:#ddd">📅</div>
+        <div style="margin-top:8px;font-size:11px;color:#aaa">Instant appear, no motion</div>
+      </div>
+
+      <div style="border:1px solid #e0e0e0;border-radius:8px;padding:12px">
+        <div style="font-size:12px;color:#888;margin-bottom:6px">Month navigation</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="font-size:16px;color:#aaa">‹ March 2026 ›</div>
+        </div>
+        <div style="margin-top:8px;font-size:11px;color:#aaa">Instant jump, no slide</div>
+      </div>
+    </div>
+
+    <!-- Fluid / Premium -->
+    <div style="background:#fff;border:1px solid #e0e0e0;border-radius:10px;padding:20px;font-family:system-ui,sans-serif">
+      <div style="font-size:12px;font-weight:600;color:#166;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px">✅ Fluid — feels alive</div>
+
+      <div style="border:1px solid #e0e0e0;border-radius:8px;padding:12px;margin-bottom:12px">
+        <div style="font-size:12px;color:#888;margin-bottom:6px">Drag event to new day</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <div style="width:40px;height:32px;background:#dddde0;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#555;transform:rotate(-2deg);box-shadow:0 4px 12px rgba(0,0,0,0.15)">Card</div>
+          <div style="font-size:14px;color:#6366f1;animation:pulse 1s infinite">→</div>
+          <div style="width:50px;height:32px;border:2px dashed #6366f1;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#6366f1;background:#f0f0ff">Drop</div>
+        </div>
+        <div style="margin-top:8px;font-size:11px;color:#888">Spring physics, ghost card lifts, insertion gap expands with spring bounce</div>
+      </div>
+
+      <div style="border:1px solid #e0e0e0;border-radius:8px;padding:12px;margin-bottom:12px">
+        <div style="font-size:12px;color:#888;margin-bottom:6px">Date picker opens</div>
+        <div style="position:relative;height:50px;display:flex;align-items:center;justify-content:center">
+          <div style="position:absolute;opacity:0;transform:scale(0.8) translateY(-10px);animation:calendarIn 0.25s cubic-bezier(0.34,1.56,0.64,1) forwards">
+            <div style="border:1px solid #6366f1;border-radius:8px;padding:8px 12px;font-size:13px;font-weight:500;color:#6366f1;background:#f0f0ff;box-shadow:0 4px 16px rgba(99,102,241,0.2)">Apr 15, 2026</div>
+          </div>
+        </div>
+        <div style="margin-top:8px;font-size:11px;color:#888">Scale + fade from click point, spring curve</div>
+      </div>
+
+      <div style="border:1px solid #e0e0e0;border-radius:8px;padding:12px">
+        <div style="font-size:12px;color:#888;margin-bottom:6px">Month navigation</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="font-size:14px;color:#6366f1;font-weight:500;animation:slideLeft 0.3s ease">‹</div>
+          <div style="font-size:13px;color:#333;animation:slideLeft 0.3s ease">April 2026</div>
+          <div style="font-size:14px;color:#6366f1;font-weight:500;animation:slideRight 0.3s ease">›</div>
+        </div>
+        <div style="margin-top:8px;font-size:11px;color:#888">Month slides in from the direction you navigated</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+@keyframes pulse {
+  0%,100% { opacity:0.5; transform:translateX(0); }
+  50% { opacity:1; transform:translateX(4px); }
+}
+@keyframes calendarIn {
+  from { opacity:0; transform:scale(0.85) translateY(-8px); }
+  to { opacity:1; transform:scale(1) translateY(0); }
+}
+@keyframes slideLeft {
+  from { opacity:0; transform:translateX(12px); }
+  to { opacity:1; transform:translateX(0); }
+}
+@keyframes slideRight {
+  from { opacity:0; transform:translateX(-12px); }
+  to { opacity:1; transform:translateX(0); }
+}
+</style>
+
+<div style="height:24px"></div>
+
+<div class="mockup-header">Date Picker Popup — what it looks like</div>
+<div class="mockup-body">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+
+    <!-- Event card with date field -->
+    <div style="background:#fff;border:1px solid #e0e0e0;border-radius:10px;padding:20px;font-family:system-ui,sans-serif">
+      <div style="font-size:13px;font-weight:600;color:#333;margin-bottom:10px">Sprint Planning</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="width:12px;height:12px;border-radius:50%;background:#dddde0"></div>
+          <div style="font-size:12px;color:#666">Status</div>
+          <div style="font-size:11px;background:#f0f0ff;color:#6366f1;border-radius:20px;padding:2px 10px;margin-left:auto">To Do</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="width:12px;height:12px;border-radius:50%;background:#dddde0"></div>
+          <div style="font-size:12px;color:#666">Date</div>
+          <!-- The clickable date badge -->
+          <button style="margin-left:auto;font-size:12px;background:#f5f3ff;color:#6366f1;border:1px solid #ddd8f5;border-radius:6px;padding:3px 10px;cursor:pointer;font-weight:500;box-shadow:0 1px 3px rgba(99,102,241,0.1)">📅 Apr 15, 2026</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- The mini calendar popup -->
+    <div style="background:#fff;border:1px solid #ddd;border-radius:12px;padding:16px;font-family:system-ui,sans-serif;box-shadow:0 8px 32px rgba(0,0,0,0.12)">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <button style="border:none;background:none;font-size:14px;color:#888;cursor:pointer;padding:4px">‹</button>
+        <span style="font-size:13px;font-weight:600;color:#333">April 2026</span>
+        <button style="border:none;background:none;font-size:14px;color:#888;cursor:pointer;padding:4px">›</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:8px">
+        <div style="text-align:center;font-size:10px;color:#aaa;font-weight:500">Su</div>
+        <div style="text-align:center;font-size:10px;color:#aaa;font-weight:500">Mo</div>
+        <div style="text-align:center;font-size:10px;color:#aaa;font-weight:500">Tu</div>
+        <div style="text-align:center;font-size:10px;color:#aaa;font-weight:500">We</div>
+        <div style="text-align:center;font-size:10px;color:#aaa;font-weight:500">Th</div>
+        <div style="text-align:center;font-size:10px;color:#aaa;font-weight:500">Fr</div>
+        <div style="text-align:center;font-size:10px;color:#aaa;font-weight:500">Sa</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px">
+        <div style="text-align:center;font-size:11px;color:#ccc;padding:4px">30</div>
+        <div style="text-align:center;font-size:11px;color:#ccc;padding:4px">31</div>
+        <div style="text-align:center;font-size:11px;color:#333;padding:4px;cursor:pointer">1</div>
+        <div style="text-align:center;font-size:11px;color:#333;padding:4px;cursor:pointer">2</div>
+        <div style="text-align:center;font-size:11px;color:#333;padding:4px;cursor:pointer">3</div>
+        <div style="text-align:center;font-size:11px;color:#333;padding:4px;cursor:pointer">4</div>
+        <div style="text-align:center;font-size:11px;color:#333;padding:4px;cursor:pointer">5</div>
+        <div style="text-align:center;font-size:11px;color:#333;padding:4px;cursor:pointer">6</div>
+        <div style="text-align:center;font-size:11px;color:#333;padding:4px;cursor:pointer">7</div>
+        <div style="text-align:center;font-size:11px;color:#333;padding:4px;cursor:pointer">8</div>
+        <div style="text-align:center;font-size:11px;color:#333;padding:4px;cursor:pointer">9</div>
+        <div style="text-align:center;font-size:11px;color:#333;padding:4px;cursor:pointer">10</div>
+        <div style="text-align:center;font-size:11px;color:#333;padding:4px;cursor:pointer">11</div>
+        <!-- Today -->
+        <div style="text-align:center;padding:4px">
+          <div style="width:24px;height:24px;background:#6366f1;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11px;color:#fff;font-weight:600">12</div>
+        </div>
+        <!-- Selected -->
+        <div style="text-align:center;padding:4px">
+          <div style="width:24px;height:24px;background:#f0f0ff;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11px;color:#6366f1;font-weight:600;border:1.5px solid #6366f1">15</div>
+        </div>
+        <div style="text-align:center;font-size:11px;color:#333;padding:4px;cursor:pointer">16</div>
+        <div style="text-align:center;font-size:11px;color:#333;padding:4px;cursor:pointer">17</div>
+        <div style="text-align:center;font-size:11px;color:#ccc;padding:4px">18</div>
+        <div style="text-align:center;font-size:11px;color:#ccc;padding:4px">19</div>
+        <div style="text-align:center;font-size:11px;color:#ccc;padding:4px">20</div>
+      </div>
+      <div style="margin-top:12px;padding-top:10px;border-top:1px solid #eee;display:flex;justify-content:flex-end;gap:6px">
+        <button style="font-size:11px;color:#666;background:none;border:1px solid #ddd;border-radius:6px;padding:4px 12px;cursor:pointer">Cancel</button>
+        <button style="font-size:11px;color:#fff;background:#6366f1;border:none;border-radius:6px;padding:4px 14px;cursor:pointer;font-weight:500">Apply</button>
+      </div>
+    </div>
+  </div>
+</div>
+<p style="margin-top:8px;font-size:12px;color:#555;text-align:center">
+  Mini calendar popup appears anchored to the date field — click any day to jump instantly<br>
+  Apple Calendar, Fantastical, Google Calendar all use this exact pattern
+</p>
+
+<div style="height:24px"></div>
+
+<div class="options">
+  <div class="option" data-choice="full" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Full animation set</h3>
+      <p>Drag spring physics, date picker scale-in, month slide transitions, hover states on everything. Takes more time but feels premium. Matches the board's spring animation.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="light" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Light animations</h3>
+      <p>Date picker opens smoothly, month slides. No spring physics on drag. Faster to build, still feels polished. Good starting point.</p>
+    </div>
+  </div>
+</div>

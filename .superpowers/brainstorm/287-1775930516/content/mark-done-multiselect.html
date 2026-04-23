@@ -1,0 +1,456 @@
+<h2>Mark Done — Multi-Select + Shift+Click, Restore Flow</h2>
+<p class="subtitle">Hover checkbox, Shift+click range select, bulk restore — all polished</p>
+
+<!-- Timezone section -->
+<div class="mockup-header">Timezone — making it less blocky</div>
+<div class="mockup-body">
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
+    <!-- Option 1: Remove it entirely -->
+    <div style="background:#fff;border:1px solid #e0e0e0;border-radius:10px;padding:16px;font-family:system-ui,sans-serif">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:#aaa;margin-bottom:10px">Option A — Remove it</div>
+      <div style="border:1px solid #eee;border-radius:8px;padding:10px;margin-bottom:10px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:13px;font-weight:600;color:#333">Calendar</span>
+          <div style="display:flex;gap:2px;background:#f0f0f0;border-radius:6px;padding:2px">
+            <div style="background:#fff;border-radius:5px;padding:3px 12px;font-size:11px;font-weight:500;color:#333;box-shadow:0 1px 2px rgba(0,0,0,0.08)">Month</div>
+            <div style="padding:3px 12px;font-size:11px;color:#777">Week</div>
+          </div>
+          <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
+            <div style="width:28px;height:28px;border:1px solid #ddd;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;color:#555">‹</div>
+            <div style="font-size:12px;font-weight:500;color:#333">Apr 2026</div>
+            <div style="width:28px;height:28px;border:1px solid #ddd;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;color:#555">›</div>
+          </div>
+        </div>
+      </div>
+      <div style="font-size:11px;color:#555">
+        <strong style="color:#166">✓ Cleanest</strong> — timezone is rarely changed and visible in system tray<br>
+        <span style="color:#888">Used by: Apple Calendar, Notion Calendar</span>
+      </div>
+    </div>
+
+    <!-- Option 2: Ultra compact icon-only -->
+    <div style="background:#fff;border:1px solid #e0e0e0;border-radius:10px;padding:16px;font-family:system-ui,sans-serif">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:#aaa;margin-bottom:10px">Option B — Icon + tooltip</div>
+      <div style="border:1px solid #eee;border-radius:8px;padding:10px;margin-bottom:10px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:13px;font-weight:600;color:#333">Calendar</span>
+          <div style="display:flex;gap:2px;background:#f0f0f0;border-radius:6px;padding:2px">
+            <div style="background:#fff;border-radius:5px;padding:3px 12px;font-size:11px;font-weight:500;color:#333;box-shadow:0 1px 2px rgba(0,0,0,0.08)">Month</div>
+            <div style="padding:3px 12px;font-size:11px;color:#777">Week</div>
+          </div>
+          <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
+            <button title="🌐 UTC+10 (Sydney)" style="width:28px;height:28px;border:1px solid #ddd;border-radius:6px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;cursor:pointer;color:#555">🌐</button>
+            <div style="width:28px;height:28px;border:1px solid #ddd;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;color:#555">‹</div>
+            <div style="font-size:12px;font-weight:500;color:#333">Apr 2026</div>
+            <div style="width:28px;height:28px;border:1px solid #ddd;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;color:#555">›</div>
+          </div>
+        </div>
+      </div>
+      <div style="font-size:11px;color:#555">
+        <strong style="color:#166">✓ Compact</strong> — icon button, click for full picker popup<br>
+        <span style="color:#888">Used by: Google Calendar (click date)</span>
+      </div>
+    </div>
+
+    <!-- Option 3: Subtle text in corner -->
+    <div style="background:#fff;border:1px solid #e0e0e0;border-radius:10px;padding:16px;font-family:system-ui,sans-serif">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:#aaa;margin-bottom:10px">Option C — Inline subtle</div>
+      <div style="border:1px solid #eee;border-radius:8px;padding:10px;margin-bottom:10px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:13px;font-weight:600;color:#333">Calendar</span>
+          <div style="display:flex;gap:2px;background:#f0f0f0;border-radius:6px;padding:2px">
+            <div style="background:#fff;border-radius:5px;padding:3px 12px;font-size:11px;font-weight:500;color:#333;box-shadow:0 1px 2px rgba(0,0,0,0.08)">Month</div>
+            <div style="padding:3px 12px;font-size:11px;color:#777">Week</div>
+          </div>
+          <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
+            <div style="width:28px;height:28px;border:1px solid #ddd;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;color:#555">‹</div>
+            <div style="font-size:12px;font-weight:500;color:#333">Apr 2026</div>
+            <div style="width:28px;height:28px;border:1px solid #ddd;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;color:#555">›</div>
+          </div>
+        </div>
+        <!-- Timezone as tiny footer text -->
+        <div style="margin-top:8px;padding-top:8px;border-top:1px solid #eee;display:flex;justify-content:flex-end">
+          <span style="font-size:10px;color:#aaa">🌐 Sydney (UTC+10)</span>
+        </div>
+      </div>
+      <div style="font-size:11px;color:#555">
+        <strong style="color:#92400e">⚠️ Risky</strong> — easy to miss, adds vertical space<br>
+        <span style="color:#888">Not used by major apps</span>
+      </div>
+    </div>
+  </div>
+</div>
+<p style="margin-top:8px;font-size:12px;color:#555;text-align:center">
+  <strong>Recommendation: Option B (Icon + tooltip)</strong> — compact, discoverable on hover, click opens full timezone picker.<br>
+  Or <strong>Option A (Remove entirely)</strong> — cleanest, timezone visible in OS status bar. I lean toward Option A for mobile-first.
+</p>
+
+<div style="height:24px"></div>
+
+<!-- Multi-select mark done section -->
+<div class="mockup-header">Multi-Select + Shift+Click — Full Interaction Flow</div>
+<div class="mockup-body">
+  <div style="background:#fff;border:1px solid #e0e0e0;border-radius:12px;padding:24px;font-family:system-ui,sans-serif">
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:24px;align-items:start">
+      <!-- LEFT: Hover checkbox interaction -->
+      <div>
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:#aaa;margin-bottom:12px">① Hover → checkbox appears</div>
+        <div style="border:1px solid #ddd;border-radius:8px;padding:12px;background:#fafafa;margin-bottom:12px">
+          <div style="font-size:12px;font-weight:600;color:#333;margin-bottom:10px">Apr 8</div>
+          <!-- Event 1: normal -->
+          <div style="margin-bottom:6px;position:relative;cursor:pointer" onmouseenter="showCheckbox(this)" onmouseleave="hideCheckbox(this)">
+            <div id="ev1-card" style="background:#10b981;border-radius:5px;padding:8px 10px">
+              <div style="font-size:12px;font-weight:500;color:#fff">Write API docs</div>
+              <div style="font-size:10px;color:rgba(255,255,255,0.8)">9:30 AM</div>
+            </div>
+            <div class="hover-checkbox" style="display:none;position:absolute;top:6px;left:6px;z-index:5">
+              <div style="width:18px;height:18px;border-radius:4px;border:2px solid rgba(255,255,255,0.7);background:rgba(255,255,255,0.2);cursor:pointer;backdrop-filter:blur(2px)" onclick="markDone(event, this, 'ev1-card')"></div>
+            </div>
+          </div>
+          <!-- Event 2: normal -->
+          <div style="margin-bottom:6px;position:relative;cursor:pointer" onmouseenter="showCheckbox(this)" onmouseleave="hideCheckbox(this)">
+            <div id="ev2-card" style="background:#dddde0;border-radius:5px;padding:8px 10px">
+              <div style="font-size:12px;font-weight:500;color:#555">Team standup</div>
+              <div style="font-size:10px;color:#888">9:00 AM</div>
+            </div>
+            <div class="hover-checkbox" style="display:none;position:absolute;top:6px;left:6px;z-index:5">
+              <div style="width:18px;height:18px;border-radius:4px;border:2px solid rgba(255,255,255,0.7);background:rgba(255,255,255,0.2);cursor:pointer;backdrop-filter:blur(2px)" onclick="markDone(event, this, 'ev2-card')"></div>
+            </div>
+          </div>
+          <!-- Event 3: normal -->
+          <div style="position:relative;cursor:pointer" onmouseenter="showCheckbox(this)" onmouseleave="hideCheckbox(this)">
+            <div id="ev3-card" style="background:#f97316;border-radius:5px;padding:8px 10px">
+              <div style="font-size:12px;font-weight:500;color:#fff">Design review</div>
+              <div style="font-size:10px;color:rgba(255,255,255,0.8)">2:00 PM</div>
+            </div>
+            <div class="hover-checkbox" style="display:none;position:absolute;top:6px;left:6px;z-index:5">
+              <div style="width:18px;height:18px;border-radius:4px;border:2px solid rgba(255,255,255,0.7);background:rgba(255,255,255,0.2);cursor:pointer;backdrop-filter:blur(2px)" onclick="markDone(event, this, 'ev3-card')"></div>
+            </div>
+          </div>
+          <div style="font-size:10px;color:#aaa;margin-top:8px;text-align:center">🖱️ Hover over any event card</div>
+        </div>
+      </div>
+
+      <!-- RIGHT: After marking done -->
+      <div>
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:#aaa;margin-bottom:12px">② After clicking — dimmed + undo toast</div>
+        <div style="border:1px solid #ddd;border-radius:8px;padding:12px;background:#fafafa;margin-bottom:12px">
+          <div style="font-size:12px;font-weight:600;color:#333;margin-bottom:10px">Apr 8</div>
+          <!-- Event 1: DONE -->
+          <div style="margin-bottom:6px;position:relative" id="ev1-done-wrapper">
+            <div style="background:#d1d5db;border-radius:5px;padding:8px 10px;opacity:0.55;cursor:pointer" onmouseenter="showCheckboxDone(this)" onmouseleave="hideCheckboxDone(this)">
+              <div style="font-size:12px;font-weight:500;color:#9ca3af;text-decoration:line-through">Write API docs</div>
+              <div style="font-size:10px;color:#bbb">9:30 AM</div>
+            </div>
+            <div class="done-checkbox" style="display:none;position:absolute;top:6px;left:6px;z-index:5">
+              <div style="width:18px;height:18px;border-radius:4px;background:#16a34a;border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 6px rgba(22,163,74,0.4)" onclick="unmarkDone(event, this, 'ev1-done-wrapper')">
+                <div style="width:10px;height:10px;background:#fff;border-radius:2px;clip-path:polygon(14% 44%,0 65%,50% 100%,100% 16%,80% 0%,43% 62%)"></div>
+              </div>
+            </div>
+          </div>
+          <!-- Event 2: normal -->
+          <div style="margin-bottom:6px;position:relative">
+            <div style="background:#dddde0;border-radius:5px;padding:8px 10px">
+              <div style="font-size:12px;font-weight:500;color:#555">Team standup</div>
+              <div style="font-size:10px;color:#888">9:00 AM</div>
+            </div>
+          </div>
+          <!-- Event 3: normal -->
+          <div style="position:relative">
+            <div style="background:#f97316;border-radius:5px;padding:8px 10px">
+              <div style="font-size:12px;font-weight:500;color:#fff">Design review</div>
+              <div style="font-size:10px;color:rgba(255,255,255,0.8)">2:00 PM</div>
+            </div>
+          </div>
+        </div>
+        <!-- Undo toast -->
+        <div id="undo-toast" style="background:#1f2937;border-radius:8px;padding:10px 14px;display:flex;align-items:center;gap:10px;box-shadow:0 4px 16px rgba(0,0,0,0.2);animation:slideUp 0.2s ease">
+          <div style="width:6px;height:6px;border-radius:50%;background:#16a34a;flex-shrink:0"></div>
+          <span style="font-size:12px;color:#fff;flex:1">"Write API docs" marked done</span>
+          <button onclick="hideToast()" style="font-size:12px;color:#6366f1;background:none;border:none;cursor:pointer;font-weight:500">Undo</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Shift+Click multi-select flow -->
+    <div style="border-top:1px solid #eee;padding-top:24px">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:#aaa;margin-bottom:12px">③ Shift+Click multi-select (like email or Linear)</div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start">
+        <!-- Before Shift+Click -->
+        <div>
+          <div style="font-size:11px;color:#555;margin-bottom:8px">Select first event normally (click), then Shift+click another to select range:</div>
+          <div style="border:1px solid #ddd;border-radius:8px;padding:12px;background:#fafafa">
+            <div style="font-size:12px;font-weight:600;color:#333;margin-bottom:10px">Apr 8</div>
+            <!-- Selected: ev1 -->
+            <div style="margin-bottom:6px;background:#10b981;border-radius:5px;padding:8px 10px;outline:2px solid #6366f1;outline-offset:2px;cursor:pointer" onclick="selectSingle(this, 'ev1')">
+              <div style="font-size:12px;font-weight:500;color:#fff">Write API docs</div>
+              <div style="font-size:10px;color:rgba(255,255,255,0.8)">9:30 AM</div>
+            </div>
+            <!-- In range: ev2 (highlighted by shift-click) -->
+            <div id="shift-range" style="margin-bottom:6px;background:#dcfce7;border-radius:5px;padding:8px 10px;outline:2px solid #6366f1;outline-offset:2px;cursor:pointer" onclick="selectRange(this, 'ev2')">
+              <div style="font-size:12px;font-weight:500;color:#166">
+                ← Shift+click this to select range
+              </div>
+              <div style="font-size:10px;color:#555">Team standup · 9:00 AM</div>
+            </div>
+            <div style="font-size:10px;color:#aaa;margin-top:4px;text-align:center">↑ Click once (selects first) then Shift+click above</div>
+          </div>
+        </div>
+
+        <!-- After multi-select: floating action bar -->
+        <div>
+          <div style="font-size:11px;color:#555;margin-bottom:8px">Both selected → floating action bar appears at bottom:</div>
+          <div style="border:1px solid #ddd;border-radius:8px;overflow:hidden">
+            <!-- Mini calendar content (faded) -->
+            <div style="padding:12px;background:#fafafa;filter:blur(1px);opacity:0.5">
+              <div style="font-size:11px;color:#aaa;text-align:center">Calendar content (blurred)</div>
+            </div>
+            <!-- Floating action bar -->
+            <div style="background:#fff;border-top:1px solid #e5e5e5;padding:12px 16px;box-shadow:0 -4px 16px rgba(0,0,0,0.1);display:flex;align-items:center;gap:12px">
+              <div style="font-size:12px;color:#333">
+                <strong>2 selected</strong>
+              </div>
+              <div style="flex:1;display:flex;gap:8px">
+                <button onclick="showActionBar()" style="background:#f0f0f0;border:1px solid #ddd;border-radius:6px;padding:6px 12px;font-size:12px;color:#333;cursor:pointer;display:flex;align-items:center;gap:6px">
+                  ✓ Mark done
+                </button>
+                <button style="background:#f0f0f0;border:1px solid #ddd;border-radius:6px;padding:6px 12px;font-size:12px;color:#333;cursor:pointer">Move to...</button>
+                <button onclick="deselectAll()" style="background:#f0f0f0;border:1px solid #ddd;border-radius:6px;padding:6px 12px;font-size:12px;color:#666;cursor:pointer">✕ Deselect</button>
+              </div>
+            </div>
+          </div>
+          <div style="font-size:11px;color:#555;margin-top:8px">
+            <strong style="color:#166">✓ Same pattern as Linear & email apps</strong> — floating bar stays at bottom until action is taken or items are deselected
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="height:24px"></div>
+
+<!-- Restore flow -->
+<div class="mockup-header">Restore — Single vs Multi-Select</div>
+<div class="mockup-body">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+    <!-- Single restore: hover undo chip -->
+    <div style="background:#fff;border:1px solid #e0e0e0;border-radius:10px;padding:16px;font-family:system-ui,sans-serif">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:#aaa;margin-bottom:10px">Single event — hover to undo</div>
+      <div style="border:1px solid #ddd;border-radius:8px;padding:12px;position:relative;margin-bottom:12px;max-width:240px">
+        <div style="background:#d1d5db;border-radius:5px;padding:8px 10px;opacity:0.55">
+          <div style="font-size:12px;font-weight:500;color:#9ca3af;text-decoration:line-through">Write API docs</div>
+          <div style="font-size:10px;color:#bbb">9:30 AM · Completed ✓</div>
+        </div>
+        <!-- Undo chip -->
+        <div style="position:absolute;top:-14px;right:8px;background:#fff;border:1px solid #ddd;border-radius:20px;padding:4px 10px;box-shadow:0 2px 8px rgba(0,0,0,0.1);font-size:11px;white-space:nowrap">
+          <span style="color:#6b7280">Completed</span>
+          <span style="color:#6366f1;cursor:pointer;font-weight:500;margin-left:8px">↩ Undo</span>
+        </div>
+      </div>
+      <div style="font-size:11px;color:#555">
+        Chip appears on hover, disappears after 3 seconds. Clicking "↩ Undo" instantly restores the event.
+      </div>
+    </div>
+
+    <!-- Multi restore: action bar -->
+    <div style="background:#fff;border:1px solid #e0e0e0;border-radius:10px;padding:16px;font-family:system-ui,sans-serif">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:#aaa;margin-bottom:10px">Multi-select — action bar + bulk undo</div>
+      <div style="border:1px solid #ddd;border-radius:8px;overflow:hidden;margin-bottom:12px">
+        <div style="padding:10px 14px;background:#f5f5f5;border-bottom:1px solid #eee;display:flex;align-items:center;gap:10px">
+          <div style="width:6px;height:6px;border-radius:50%;background:#16a34a;flex-shrink:0"></div>
+          <span style="font-size:12px;color:#fff;flex:1;background:#16a34a;border-radius:4px;padding:2px 8px;display:inline-block;width:fit-content">2 events marked done</span>
+          <span style="font-size:11px;color:#888">just now</span>
+        </div>
+        <div style="padding:12px 14px;display:flex;gap:8px">
+          <button style="background:#f0f0f0;border:1px solid #ddd;border-radius:6px;padding:6px 12px;font-size:12px;color:#333;cursor:pointer">↩ Undo all</button>
+          <button style="background:#f0f0f0;border:1px solid #ddd;border-radius:6px;padding:6px 12px;font-size:12px;color:#666;cursor:pointer">✕ Dismiss</button>
+        </div>
+      </div>
+      <div style="font-size:11px;color:#555">
+        "↩ Undo all" restores both events at once. Dismiss closes the toast. Works like Gmail's bulk undo.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Settings section -->
+<div style="height:24px"></div>
+
+<div class="mockup-header">Calendar Settings — Adding "Mark Done" Options</div>
+<div class="mockup-body">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+    <div style="background:#fff;border:1px solid #e0e0e0;border-radius:10px;padding:16px;font-family:system-ui,sans-serif">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:#aaa;margin-bottom:12px">Under Calendar Settings ⚙️</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border:1px solid #ddd;border-radius:8px;background:#f8f8f8">
+          <div>
+            <div style="font-size:12px;font-weight:500;color:#333">Show timezone</div>
+            <div style="font-size:10px;color:#888">Icon in toolbar, click to change</div>
+          </div>
+          <div style="width:36px;height:20px;background:#6366f1;border-radius:10px;position:relative;cursor:pointer">
+            <div style="position:absolute;top:2px;right:2px;width:16px;height:16px;background:#fff;border-radius:50%"></div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border:1px solid #ddd;border-radius:8px;background:#f8f8f8">
+          <div>
+            <div style="font-size:12px;font-weight:500;color:#333">Enable time + date</div>
+            <div style="font-size:10px;color:#888">Toggle time picker in event editor</div>
+          </div>
+          <div style="width:36px;height:20px;background:#6366f1;border-radius:10px;position:relative;cursor:pointer">
+            <div style="position:absolute;top:2px;right:2px;width:16px;height:16px;background:#fff;border-radius:50%"></div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border:1px solid #ddd;border-radius:8px;background:#f8f8f8">
+          <div>
+            <div style="font-size:12px;font-weight:500;color:#333">Show hover checkbox</div>
+            <div style="font-size:10px;color:#888">Reveal checkbox on hover</div>
+          </div>
+          <div style="width:36px;height:20px;background:#6366f1;border-radius:10px;position:relative;cursor:pointer">
+            <div style="position:absolute;top:2px;right:2px;width:16px;height:16px;background:#fff;border-radius:50%"></div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border:1px solid #ddd;border-radius:8px;background:#f8f8f8">
+          <div>
+            <div style="font-size:12px;font-weight:500;color:#333">Default done behavior</div>
+            <div style="font-size:10px;color:#888">What "mark done" does to events</div>
+          </div>
+          <select style="font-size:11px;border:1px solid #ddd;border-radius:6px;padding:4px 8px;background:#fff;color:#333">
+            <option>Everything active</option>
+            <option selected>Dim + strikethrough</option>
+            <option>Move to "Done" view</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Done behavior options explanation -->
+    <div style="background:#fff;border:1px solid #e0e0e0;border-radius:10px;padding:16px;font-family:system-ui,sans-serif">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:#aaa;margin-bottom:12px">"Default done behavior" options</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="border:1px solid #ddd;border-radius:8px;padding:10px 12px;background:#f8f8f8">
+          <div style="font-size:12px;font-weight:500;color:#333;margin-bottom:4px">1. Everything active (Google style)</div>
+          <div style="font-size:11px;color:#555">Events stay full color even when done. No visual change. User must check a separate "Done" filter to hide them.</div>
+        </div>
+        <div style="border:2px solid #6366f1;border-radius:8px;padding:10px 12px;background:#f0f0ff">
+          <div style="font-size:12px;font-weight:500;color:#4338ca;margin-bottom:4px">2. Dim + strikethrough (default)</div>
+          <div style="font-size:11px;color:#555">Events dim to 40% opacity with strikethrough title. Hover reveals undo. Click to open editor with Restore.</div>
+        </div>
+        <div style="border:1px solid #ddd;border-radius:8px;padding:10px 12px;background:#f8f8f8">
+          <div style="font-size:12px;font-weight:500;color:#333;margin-bottom:4px">3. Move to "Done" view (Linear style)</div>
+          <div style="font-size:11px;color:#555">Completed events disappear from the calendar grid and appear in a collapsible "Done" section below or in a filter panel. Keeps calendar clean.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+</style>
+
+<script>
+// Checkbox on hover
+function showCheckbox(el) {
+  var cb = el.querySelector('.hover-checkbox');
+  if (cb) cb.style.display = 'block';
+}
+function hideCheckbox(el) {
+  var cb = el.querySelector('.hover-checkbox');
+  if (cb) cb.style.display = 'none';
+}
+function showCheckboxDone(el) {
+  var cb = el.parentElement.querySelector('.done-checkbox');
+  if (cb) cb.style.display = 'block';
+}
+function hideCheckboxDone(el) {
+  var cb = el.parentElement.querySelector('.done-checkbox');
+  if (cb) cb.style.display = 'none';
+}
+
+// Mark done
+function markDone(e, cbEl, cardId) {
+  e.stopPropagation();
+  var card = document.getElementById(cardId);
+  if (card) {
+    card.style.opacity = '0.55';
+    card.style.background = '#d1d5db';
+    card.style.textDecoration = 'line-through';
+    var title = card.querySelector('div:first-child');
+    if (title) { title.style.color = '#9ca3af'; title.style.textDecoration = 'line-through'; }
+    var time = card.querySelector('div:last-child');
+    if (time) time.style.color = '#bbb';
+  }
+  // Show undo toast
+  var toast = document.getElementById('undo-toast');
+  if (toast) toast.style.display = 'flex';
+  hideCheckbox(card.parentElement);
+}
+
+// Undo single
+function unmarkDone(e, cbEl, wrapperId) {
+  e.stopPropagation();
+  var wrapper = document.getElementById(wrapperId);
+  if (wrapper) {
+    var card = wrapper.querySelector('div:first-child');
+    if (card) {
+      card.style.opacity = '1';
+      card.style.background = '#dcfce7';
+      var title = card.querySelector('div:first-child');
+      if (title) { title.style.color = '#166'; title.style.textDecoration = 'none'; }
+    }
+  }
+  var toast = document.getElementById('undo-toast');
+  if (toast) toast.style.display = 'none';
+}
+
+// Toast
+function hideToast() {
+  var toast = document.getElementById('undo-toast');
+  if (toast) toast.style.display = 'none';
+}
+
+// Multi-select simulation
+var lastSelected = null;
+function selectSingle(el, id) {
+  if (lastSelected) {
+    // clear range highlight
+    var range = document.getElementById('shift-range');
+    if (range) { range.style.background = '#dcfce7'; range.style.outline = '2px solid #6366f1'; }
+  }
+  el.style.outline = '2px solid #6366f1';
+  el.style.background = '#10b981';
+  lastSelected = id;
+}
+function selectRange(el, id) {
+  el.style.outline = '2px solid #6366f1';
+  el.style.background = '#10b981';
+  // Simulate range: both selected now
+}
+function deselectAll() {
+  var range = document.getElementById('shift-range');
+  if (range) { range.style.background = '#dcfce7'; range.style.outline = 'none'; }
+  var ev1 = document.querySelector('[onclick*="selectSingle"]');
+  if (ev1) { ev1.style.outline = 'none'; ev1.style.background = '#10b981'; }
+}
+function showActionBar() {
+  alert('Floating action bar confirmed — both events marked done with undo toast');
+}
+</script>
+
+<div style="height:24px"></div>
+
+<div class="options">
+  <div class="option" data-choice="all" onclick="toggleSelect(this)">
+    <div class="letter">✓</div>
+    <div class="content">
+      <h3>All confirmed — ready to write spec</h3>
+      <p>Hover checkbox ✓, Shift+click multi-select ✓, floating action bar for bulk actions ✓, hover undo chip ✓, calendar settings with done behavior ✓. Timezone: Option B (icon+tooltip) or remove entirely.</p>
+    </div>
+  </div>
+</div>

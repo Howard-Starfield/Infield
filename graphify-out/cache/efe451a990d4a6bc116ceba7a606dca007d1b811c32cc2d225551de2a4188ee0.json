@@ -1,0 +1,1 @@
+{"nodes": [{"id": "scrollshadow", "label": "ScrollShadow.tsx", "file_type": "code", "source_file": "copy\\src\\components\\ScrollShadow.tsx", "source_location": "L1"}], "edges": [{"source": "scrollshadow", "target": "react", "relation": "imports_from", "confidence": "EXTRACTED", "source_file": "copy\\src\\components\\ScrollShadow.tsx", "source_location": "L1", "weight": 1.0}]}

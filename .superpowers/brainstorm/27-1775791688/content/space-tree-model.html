@@ -1,0 +1,119 @@
+<h2>Nested Space Tree — Two Layout Approaches</h2>
+<p class="subtitle">Spaces are folders. Notes and database views are files. Both can nest freely. Which tree model feels right?</p>
+
+<div class="split">
+
+  <!-- Option A: Unified tree (spaces + notes in same tree) -->
+  <div class="mockup" data-choice="a" onclick="toggleSelect(this)" style="cursor:pointer;">
+    <div class="mockup-header">A — Unified Tree (AppFlowy-style) ✦ Recommended</div>
+    <div class="mockup-body">
+      <div style="background:#1c1c1e;border-radius:8px;padding:10px;font-family:system-ui;font-size:12px;color:#aaa;min-height:320px;">
+
+        <!-- Space: Work -->
+        <div style="display:flex;align-items:center;gap:3px;height:22px;padding:0 4px;border-radius:4px;background:#2a2a2a;margin-bottom:1px;">
+          <span style="color:#888;font-size:9px;transform:rotate(90deg);display:inline-block;">▶</span>
+          <span style="font-size:13px;">📁</span>
+          <span style="color:#ddd;font-weight:500;font-size:12px;">Work</span>
+          <span style="margin-left:auto;color:#555;font-size:10px;">space</span>
+        </div>
+          <!-- Sub-space: Projects -->
+          <div style="display:flex;align-items:center;gap:3px;height:22px;padding:0 4px 0 22px;border-radius:4px;margin-bottom:1px;">
+            <span style="color:#777;font-size:9px;transform:rotate(90deg);display:inline-block;">▶</span>
+            <span style="font-size:12px;">📁</span>
+            <span style="color:#bbb;font-size:12px;">Projects</span>
+            <span style="margin-left:auto;color:#555;font-size:10px;">space</span>
+          </div>
+            <!-- Notes inside sub-space -->
+            <div style="display:flex;align-items:center;gap:3px;height:22px;padding:0 4px 0 40px;border-radius:4px;margin-bottom:1px;">
+              <span style="font-size:11px;">⊞</span>
+              <span style="color:#aaa;font-size:12px;">Task Tracker</span>
+              <span style="margin-left:auto;color:#444;font-size:9px;">grid</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:3px;height:22px;padding:0 4px 0 40px;border-radius:4px;margin-bottom:1px;">
+              <span style="font-size:11px;">📋</span>
+              <span style="color:#aaa;font-size:12px;">Sprint Board</span>
+              <span style="margin-left:auto;color:#444;font-size:9px;">board</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:3px;height:22px;padding:0 4px 0 40px;border-radius:4px;margin-bottom:1px;">
+              <span style="font-size:11px;">📄</span>
+              <span style="color:#aaa;font-size:12px;">Spec Doc</span>
+            </div>
+          <!-- Note directly in Work space -->
+          <div style="display:flex;align-items:center;gap:3px;height:22px;padding:0 4px 0 22px;border-radius:4px;margin-bottom:1px;">
+            <span style="font-size:11px;">📄</span>
+            <span style="color:#bbb;font-size:12px;">Meeting Notes</span>
+          </div>
+
+        <!-- Space: Personal -->
+        <div style="display:flex;align-items:center;gap:3px;height:22px;padding:0 4px;border-radius:4px;margin-bottom:1px;margin-top:3px;">
+          <span style="color:#777;font-size:9px;">▶</span>
+          <span style="font-size:13px;">📁</span>
+          <span style="color:#ddd;font-weight:500;font-size:12px;">Personal</span>
+          <span style="margin-left:auto;color:#555;font-size:10px;">space</span>
+        </div>
+
+        <!-- Standalone notes (no space) -->
+        <div style="border-top:1px solid #333;margin:6px 0 4px;padding-top:4px;">
+          <div style="color:#555;font-size:9px;letter-spacing:1px;text-transform:uppercase;padding:0 4px 2px;">Unsorted</div>
+          <div style="display:flex;align-items:center;gap:3px;height:22px;padding:0 4px;border-radius:4px;margin-bottom:1px;">
+            <span style="font-size:11px;">📄</span>
+            <span style="color:#777;font-size:12px;">Quick Note</span>
+          </div>
+        </div>
+
+        <!-- Add space button -->
+        <div style="display:flex;align-items:center;gap:3px;height:22px;padding:0 4px;border-radius:4px;margin-top:6px;border:1px dashed #333;cursor:pointer;">
+          <span style="color:#555;font-size:14px;">+</span>
+          <span style="color:#555;font-size:11px;">New Space</span>
+        </div>
+      </div>
+      <p style="font-size:11px;color:#888;margin-top:8px;">Spaces (📁) and notes/views (📄⊞📋) live in the same tree. Drag anything anywhere. "Unsorted" holds orphan notes.</p>
+    </div>
+  </div>
+
+  <!-- Option B: Two-panel (spaces list + notes list) -->
+  <div class="mockup" data-choice="b" onclick="toggleSelect(this)" style="cursor:pointer;">
+    <div class="mockup-header">B — Two-Panel (spaces rail + notes tree)</div>
+    <div class="mockup-body">
+      <div style="background:#1c1c1e;border-radius:8px;padding:10px;font-family:system-ui;font-size:12px;color:#aaa;min-height:320px;display:flex;gap:8px;">
+
+        <!-- Left rail: spaces -->
+        <div style="width:80px;border-right:1px solid #333;padding-right:8px;">
+          <div style="color:#555;font-size:8px;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">SPACES</div>
+          <div style="background:#2a2a2a;border-radius:4px;padding:4px 6px;margin-bottom:2px;font-size:11px;color:#ddd;">Work</div>
+          <div style="padding:4px 6px;margin-bottom:2px;font-size:11px;color:#777;">Personal</div>
+          <div style="padding:4px 6px;margin-bottom:2px;font-size:11px;color:#777;">Archive</div>
+          <div style="padding:4px 6px;margin-top:6px;font-size:11px;color:#555;border:1px dashed #333;border-radius:4px;text-align:center;">+ Add</div>
+        </div>
+
+        <!-- Right: notes tree for selected space -->
+        <div style="flex:1;">
+          <div style="color:#555;font-size:8px;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">WORK</div>
+          <div style="display:flex;align-items:center;gap:3px;height:22px;padding:0 4px;border-radius:4px;margin-bottom:1px;">
+            <span style="color:#777;font-size:9px;">▶</span>
+            <span style="font-size:11px;">📁</span>
+            <span style="font-size:12px;color:#bbb;">Projects</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:3px;height:22px;padding:0 4px 0 18px;border-radius:4px;margin-bottom:1px;">
+            <span style="font-size:11px;">⊞</span>
+            <span style="font-size:12px;color:#aaa;">Task Tracker</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:3px;height:22px;padding:0 4px 0 18px;border-radius:4px;margin-bottom:1px;">
+            <span style="font-size:11px;">📋</span>
+            <span style="font-size:12px;color:#aaa;">Sprint Board</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:3px;height:22px;padding:0 4px;border-radius:4px;margin-bottom:1px;">
+            <span style="font-size:11px;">📄</span>
+            <span style="font-size:12px;color:#bbb;">Meeting Notes</span>
+          </div>
+        </div>
+      </div>
+      <p style="font-size:11px;color:#888;margin-top:8px;">Spaces in a fixed left rail, notes tree on the right. Simpler but drag-to-space is clunky (must drag across panels).</p>
+    </div>
+  </div>
+
+</div>
+
+<div style="margin-top:16px;background:#1e2a1e;border:1px solid #2d4a2d;border-radius:8px;padding:12px;">
+  <p style="color:#6fcf6f;font-size:12px;margin:0;"><strong>How DnD works in A:</strong> Drag any note or space onto another space to move it in. Drag to the "Unsorted" section to orphan it. Drag a space onto another space to nest it. All powered by @dnd-kit (already installed).</p>
+</div>

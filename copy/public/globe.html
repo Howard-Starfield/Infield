@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <style>
+    :root { color-scheme: dark; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background-color: transparent !important; }
+    canvas { display: block; width: 100%; height: 100%; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+  // ── Configuration ──────────────────────────────────────────────────────────
+  const CFG = {
+    rows:       36,       // latitude bands (more = denser grid)
+    speed:      0.003,    // radians per frame
+    radius:     0.42,     // fraction of min(W,H)
+    dotMaxSize: 3.2,      // largest dot (front-center)
+    dotMinSize: 0.6,      // smallest dot (edge / back)
+    dotBackMax: 1.4,      // max size on the back hemisphere
+    backDim:    0.15,     // max opacity of back-hemisphere dots
+    frontAlpha: 0.95,     // max opacity of front-center dot
+    tiltX:      0.35,     // tip forward/backward (radians)
+    tiltZ:      0.25      // tip left/right (radians)
+  };
+
+  const canvas = document.getElementById('c');
+  const ctx    = canvas.getContext('2d');
+  let W, H, R, rot = 0;
+
+  function resize() {
+    const dpr = window.devicePixelRatio || 1;
+    W = canvas.width  = window.innerWidth  * dpr;
+    H = canvas.height = window.innerHeight * dpr;
+    canvas.style.width  = window.innerWidth  + 'px';
+    canvas.style.height = window.innerHeight + 'px';
+    R = Math.min(W, H) * CFG.radius;
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // ── Tauri event hook ───────────────────────────────────────────────────────
+  if (window.__TAURI__) {
+    const { listen } = window.__TAURI__.event;
+    listen('globe-config', (ev) => {
+      if (ev.payload.speed  != null) CFG.speed  = ev.payload.speed;
+      // We moved to HSL colors, so colorA/B updates would require modifying the base hue
+    });
+  }
+
+  // ── Render loop ────────────────────────────────────────────────────────────
+  function draw() {
+    // Clear to transparent (no black frame/edge)
+    ctx.clearRect(0, 0, W, H);
+
+    rot += CFG.speed;
+    const time = Date.now() * 0.001; // For time-based animations
+
+    const cx = W / 2;
+    const cy = H / 2;
+    const dots = [];
+
+    for (let row = 0; row <= CFG.rows; row++) {
+      // phi: 0 (north pole) → PI (south pole)
+      const phi    = (Math.PI * row) / CFG.rows;
+      const sinPhi = Math.sin(phi);
+      const cosPhi = Math.cos(phi);
+
+      // Columns proportional to circumference at this latitude
+      const cols = Math.max(1, Math.round(CFG.rows * 2 * sinPhi));
+
+      for (let col = 0; col < cols; col++) {
+        const theta    = (2 * Math.PI * col) / cols + rot;
+        
+        // Unit sphere coordinates (base)
+        const x = sinPhi * Math.cos(theta); 
+        const y = cosPhi;            
+        const z = sinPhi * Math.sin(theta); 
+
+        // ── Apply Tilt (tip the globe) ──
+        // Z-axis rotation (left/right tilt)
+        const x1 = x * Math.cos(CFG.tiltZ) - y * Math.sin(CFG.tiltZ);
+        const y1 = x * Math.sin(CFG.tiltZ) + y * Math.cos(CFG.tiltZ);
+        const z1 = z;
+
+        // X-axis rotation (forward/backward tip)
+        const x3 = x1;
+        const y3 = y1 * Math.cos(CFG.tiltX) - z1 * Math.sin(CFG.tiltX);
+        const z3 = y1 * Math.sin(CFG.tiltX) + z1 * Math.cos(CFG.tiltX);
+
+        // Orthographic projection (no perspective)
+        const px = cx + x3 * R;
+        const py = cy + y3 * R;
+
+        // ── Size & alpha based on depth (z3: -1 back, +1 front) ──
+        let size, alpha;
+        if (z3 >= 0) {
+          // Front hemisphere
+          size  = CFG.dotMinSize + z3 * (CFG.dotMaxSize - CFG.dotMinSize);
+          alpha = 0.35 + z3 * (CFG.frontAlpha - 0.35);
+        } else {
+          // Back hemisphere
+          const depth = -z3; 
+          size  = CFG.dotBackMax * (1 - depth * 0.65);
+          alpha = CFG.backDim * (1 - depth * 0.7);
+        }
+
+        // ── Radiant Color Wave ──
+        // Calculate a gentle wave based on 3D position and time
+        const wave = Math.sin(x3 * 2 + y3 * 1.5 + time) * 0.15; 
+        
+        // Base gradient position left to right (0 to 1), modified by the wave
+        let t = (x3 + 1) / 2 + wave;
+        t = Math.max(0, Math.min(1, t));
+
+        // Shift the hue slightly over time for a breathing effect
+        const globalHueShift = Math.sin(time * 0.2) * 20; 
+        
+        // Map 't' (0 to 1) to Hue (180 Cyan to 270 Purple)
+        const hue = 180 + (90 * t) + globalHueShift;
+        
+        // Dynamic saturation and lightness to make it shimmer
+        const sat = 85 + Math.sin(time * 0.8 + t * 4) * 15; 
+        const lit = 65 + Math.cos(time * 0.5 + t * 3) * 10; 
+
+        dots.push({ px, py, size, alpha, hue, sat, lit, z3 });
+      }
+    }
+
+    // Paint back-to-front so front dots render on top
+    dots.sort((a, b) => a.z3 - b.z3);
+
+    for (const d of dots) {
+      if (d.size < 0.2 || d.alpha < 0.01) continue;
+      ctx.beginPath();
+      ctx.arc(d.px, d.py, d.size, 0, Math.PI * 2);
+      ctx.fillStyle = `hsla(${d.hue}, ${d.sat}%, ${d.lit}%, ${d.alpha})`;
+      ctx.fill();
+    }
+
+    requestAnimationFrame(draw);
+  }
+
+  draw();
+</script>
+</body>
+</html>

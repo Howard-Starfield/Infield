@@ -1,0 +1,133 @@
+<h2>Drag Behavior — Two Modes</h2>
+<p class="subtitle">Card drag vs column drag — confirming what each looks like in motion</p>
+
+<div class="split" style="gap:24px;align-items:flex-start">
+
+  <!-- LEFT: Card drag -->
+  <div class="mockup" style="flex:1">
+    <div class="mockup-header" style="display:flex;align-items:center;gap:8px">
+      <span style="background:#6366f1;color:#fff;font-size:10px;padding:2px 8px;border-radius:10px">CARD DRAG</span>
+      Hold-click on card body → drag individually
+    </div>
+    <div class="mockup-body" style="background:#12121e;padding:12px;display:flex;gap:12px;min-height:320px">
+
+      <!-- Source column -->
+      <div style="width:140px;flex-shrink:0">
+        <div style="background:#2a2a3e;border-radius:8px;padding:6px 8px;margin-bottom:8px;display:flex;align-items:center;gap:4px">
+          <span style="background:#4f46e5;color:#fff;font-size:10px;font-weight:600;padding:1px 8px;border-radius:10px">In Progress</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:5px">
+          <div style="background:#2d2d45;border:1px solid #3a3a5e;border-radius:6px;padding:6px 8px;font-size:11px;color:#ddd">Design review</div>
+          <!-- Dragging card (ghost / semi-transparent) -->
+          <div style="background:#2d2d45;border:1px dashed #6366f1;border-radius:6px;padding:6px 8px;font-size:11px;color:#555;opacity:0.4">Fix login bug</div>
+          <div style="background:#2d2d45;border:1px solid #3a3a5e;border-radius:6px;padding:6px 8px;font-size:11px;color:#ddd">Write docs</div>
+        </div>
+      </div>
+
+      <!-- Floating drag overlay (the card being moved) -->
+      <div style="position:relative;width:0;overflow:visible">
+        <div style="position:absolute;top:60px;left:-30px;width:130px;background:#3d3d60;border:1px solid #6366f1;border-radius:6px;padding:6px 8px;font-size:11px;color:#fff;box-shadow:0 8px 24px rgba(99,102,241,0.4);transform:rotate(2deg);cursor:grabbing;z-index:10">
+          Fix login bug
+          <div style="font-size:9px;color:#a5b4fc;margin-top:2px">↓ dragging…</div>
+        </div>
+      </div>
+
+      <!-- Destination column with insertion indicator -->
+      <div style="width:140px;flex-shrink:0">
+        <div style="background:#2a2a3e;border-radius:8px;padding:6px 8px;margin-bottom:8px;display:flex;align-items:center;gap:4px">
+          <span style="background:#22c55e;color:#111;font-size:10px;font-weight:600;padding:1px 8px;border-radius:10px">Done</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:5px">
+          <div style="background:#2d2d45;border:1px solid #3a3a5e;border-radius:6px;padding:6px 8px;font-size:11px;color:#ddd;transform:translateY(-4px);transition:transform 0.2s cubic-bezier(0.34,1.56,0.64,1)">Ship v1</div>
+          <!-- Insertion gap (space making room) -->
+          <div style="height:36px;border:1.5px dashed #6366f1;border-radius:6px;background:rgba(99,102,241,0.08);display:flex;align-items:center;justify-content:center;font-size:10px;color:#6366f1">drop here</div>
+          <div style="background:#2d2d45;border:1px solid #3a3a5e;border-radius:6px;padding:6px 8px;font-size:11px;color:#ddd;transform:translateY(4px);transition:transform 0.2s cubic-bezier(0.34,1.56,0.64,1)">Code review</div>
+        </div>
+      </div>
+    </div>
+    <div style="padding:8px 10px;font-size:11px;color:#888;border-top:1px solid #2a2a3e">
+      • Source card becomes ghost (40% opacity)<br>
+      • Floating overlay follows cursor with slight tilt<br>
+      • Destination cards <strong style="color:#a5b4fc">spring apart</strong> showing insertion gap<br>
+      • On drop: spring bounce into final position<br>
+      • <code style="background:#2d2d45;padding:1px 4px;border-radius:3px;font-size:10px">cubic-bezier(0.34, 1.56, 0.64, 1)</code> = bouncy spring curve
+    </div>
+  </div>
+
+  <!-- RIGHT: Column drag -->
+  <div class="mockup" style="flex:1">
+    <div class="mockup-header" style="display:flex;align-items:center;gap:8px">
+      <span style="background:#f97316;color:#fff;font-size:10px;padding:2px 8px;border-radius:10px">COLUMN DRAG</span>
+      Hold-click on column header → drag entire column
+    </div>
+    <div class="mockup-body" style="background:#12121e;padding:12px;display:flex;gap:12px;min-height:320px;align-items:flex-start">
+
+      <!-- Column A (normal) -->
+      <div style="width:120px;flex-shrink:0">
+        <div style="background:#2a2a3e;border-radius:8px;padding:6px 8px;margin-bottom:8px">
+          <span style="background:#4f46e5;color:#fff;font-size:10px;font-weight:600;padding:1px 8px;border-radius:10px">To Do</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:5px">
+          <div style="background:#2d2d45;border:1px solid #3a3a5e;border-radius:6px;padding:6px 8px;font-size:11px;color:#ddd">Task A</div>
+          <div style="background:#2d2d45;border:1px solid #3a3a5e;border-radius:6px;padding:6px 8px;font-size:11px;color:#ddd">Task B</div>
+        </div>
+      </div>
+
+      <!-- Column being dragged (ghost placeholder) -->
+      <div style="width:120px;flex-shrink:0;opacity:0.2">
+        <div style="background:#2a2a3e;border:2px dashed #f97316;border-radius:8px;padding:6px 8px;margin-bottom:8px;cursor:grabbing">
+          <span style="background:#ec4899;color:#fff;font-size:10px;font-weight:600;padding:1px 8px;border-radius:10px">In Progress</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:5px;opacity:0.3">
+          <div style="background:#2d2d45;border:1px solid #3a3a5e;border-radius:6px;padding:6px 8px;font-size:11px;color:#ddd">Fix login</div>
+          <div style="background:#2d2d45;border:1px solid #3a3a5e;border-radius:6px;padding:6px 8px;font-size:11px;color:#ddd">Design</div>
+        </div>
+      </div>
+
+      <!-- Floating column overlay (lifted, follows cursor) -->
+      <div style="position:relative;width:0;overflow:visible">
+        <div style="position:absolute;top:-10px;left:-90px;width:120px;background:#1e1e35;border:2px solid #f97316;border-radius:8px;box-shadow:0 16px 40px rgba(249,115,22,0.35);transform:rotate(1.5deg) scale(1.03);cursor:grabbing;z-index:10;overflow:hidden">
+          <div style="background:#2a2a3e;padding:6px 8px;border-bottom:1px solid #3a3a5e">
+            <span style="background:#ec4899;color:#fff;font-size:10px;font-weight:600;padding:1px 8px;border-radius:10px">In Progress</span>
+          </div>
+          <div style="padding:6px;display:flex;flex-direction:column;gap:4px">
+            <div style="background:#2d2d45;border-radius:4px;padding:5px 7px;font-size:10px;color:#ddd">Fix login</div>
+            <div style="background:#2d2d45;border-radius:4px;padding:5px 7px;font-size:10px;color:#ddd">Design</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Column C shifted to make room, spring bounce arrow -->
+      <div style="width:120px;flex-shrink:0;transform:translateX(8px);transition:transform 0.2s cubic-bezier(0.34,1.56,0.64,1)">
+        <div style="background:#2a2a3e;border-radius:8px;padding:6px 8px;margin-bottom:8px">
+          <span style="background:#22c55e;color:#111;font-size:10px;font-weight:600;padding:1px 8px;border-radius:10px">Done</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:5px">
+          <div style="background:#2d2d45;border:1px solid #3a3a5e;border-radius:6px;padding:6px 8px;font-size:11px;color:#ddd">Ship v1</div>
+        </div>
+      </div>
+    </div>
+    <div style="padding:8px 10px;font-size:11px;color:#888;border-top:1px solid #2a2a3e">
+      • Cursor on <strong style="color:#fb923c">column header</strong> activates column drag<br>
+      • Entire column (header + all cards) lifts as one unit<br>
+      • Adjacent columns <strong style="color:#a5b4fc">spring sideways</strong> to show insertion point<br>
+      • On drop: column snaps to new position with bounce<br>
+      • Cursor changes: <code style="background:#2d2d45;padding:1px 4px;border-radius:3px;font-size:10px">grab → grabbing</code>
+    </div>
+  </div>
+
+</div>
+
+<div class="section" style="margin-top:16px">
+  <h3>Does this capture the drag behaviour you described?</h3>
+  <div class="options">
+    <div class="option" data-choice="yes" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content"><h3>Yes — that's it</h3><p>Both modes, the ghost effect, spring cards, and the insertion gap all match</p></div>
+    </div>
+    <div class="option" data-choice="tweak" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content"><h3>Mostly — small tweak</h3><p>Right direction but something needs adjusting — I'll describe in terminal</p></div>
+    </div>
+  </div>
+</div>

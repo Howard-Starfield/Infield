@@ -1,0 +1,359 @@
+<h2>Final Chip — Light/Dark Mode + Where Deleted Events Go</h2>
+<p class="subtitle">Compact: just number. Light + dark mode. Undo lifecycle.</p>
+
+<!-- LIGHT MODE -->
+<div style="background:#fff;border:1px solid #e0e0e0;border-radius:12px;padding:24px;font-family:system-ui,sans-serif;margin-bottom:20px">
+  <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:#aaa;margin-bottom:12px">Light Mode</div>
+
+  <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin-bottom:20px">
+    <!-- Default -->
+    <div>
+      <div style="font-size:10px;color:#888;margin-bottom:6px">Default</div>
+      <div style="display:inline-flex;align-items:center;gap:6px;background:#202124;border-radius:20px;padding:6px 12px;box-shadow:0 2px 8px rgba(0,0,0,0.15)">
+        <div style="min-width:22px;height:22px;border-radius:50%;background:#1a73e8;display:flex;align-items:center;justify-content:center;padding:0 5px;flex-shrink:0">
+          <span style="font-size:12px;font-weight:600;color:#fff;line-height:1">2</span>
+        </div>
+        <span style="font-size:12px;color:#9aa0a6;margin:0 2px">·</span>
+        <div style="display:flex;align-items:center;gap:4px;padding:3px 8px;border-radius:14px;cursor:pointer">
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M3 7C3 4.79 4.79 3 7 3C9.21 3 11 4.79 11 7C11 9.21 9.21 11 7 11" stroke="#9AA0A6" stroke-width="1.5" stroke-linecap="round"/><path d="M3 4V7H6" stroke="#9AA0A6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span style="font-size:12px;color:#9AA0A6">Undo</span>
+        </div>
+        <div style="width:1px;height:16px;background:#5f6368;margin:0 2px"></div>
+        <div style="display:flex;align-items:center;gap:4px;padding:3px 8px;border-radius:14px;cursor:pointer">
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M3 3.5L10.5 11M10.5 3.5L3 11" stroke="#EA4335" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <span style="font-size:12px;color:#EA4335">Delete</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Hover Undo -->
+    <div>
+      <div style="font-size:10px;color:#888;margin-bottom:6px">Hover Undo</div>
+      <div style="display:inline-flex;align-items:center;gap:6px;background:#202124;border-radius:20px;padding:6px 12px;box-shadow:0 2px 8px rgba(0,0,0,0.15)">
+        <div style="min-width:22px;height:22px;border-radius:50%;background:#1a73e8;display:flex;align-items:center;justify-content:center;padding:0 5px;flex-shrink:0">
+          <span style="font-size:12px;font-weight:600;color:#fff;line-height:1">2</span>
+        </div>
+        <span style="font-size:12px;color:#9aa0a6;margin:0 2px">·</span>
+        <div style="display:flex;align-items:center;gap:4px;padding:3px 8px;border-radius:14px;background:rgba(255,255,255,0.1)">
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M3 7C3 4.79 4.79 3 7 3C9.21 3 11 4.79 11 7C11 9.21 9.21 11 7 11" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/><path d="M3 4V7H6" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span style="font-size:12px;color:#fff;font-weight:500">Undo</span>
+        </div>
+        <div style="width:1px;height:16px;background:#5f6368;margin:0 2px"></div>
+        <div style="display:flex;align-items:center;gap:4px;padding:3px 8px;border-radius:14px;cursor:pointer">
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M3 3.5L10.5 11M10.5 3.5L3 11" stroke="#EA4335" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <span style="font-size:12px;color:#EA4335">Delete</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Hover Delete -->
+    <div>
+      <div style="font-size:10px;color:#888;margin-bottom:6px">Hover Delete</div>
+      <div style="display:inline-flex;align-items:center;gap:6px;background:#202124;border-radius:20px;padding:6px 12px;box-shadow:0 2px 8px rgba(0,0,0,0.15)">
+        <div style="min-width:22px;height:22px;border-radius:50%;background:#1a73e8;display:flex;align-items:center;justify-content:center;padding:0 5px;flex-shrink:0">
+          <span style="font-size:12px;font-weight:600;color:#fff;line-height:1">2</span>
+        </div>
+        <span style="font-size:12px;color:#9aa0a6;margin:0 2px">·</span>
+        <div style="display:flex;align-items:center;gap:4px;padding:3px 8px;border-radius:14px;cursor:pointer">
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M3 7C3 4.79 4.79 3 7 3C9.21 3 11 4.79 11 7C11 9.21 9.21 11 7 11" stroke="#9AA0A6" stroke-width="1.5" stroke-linecap="round"/><path d="M3 4V7H6" stroke="#9AA0A6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span style="font-size:12px;color:#9AA0A6">Undo</span>
+        </div>
+        <div style="width:1px;height:16px;background:#5f6368;margin:0 2px"></div>
+        <div style="display:flex;align-items:center;gap:4px;padding:3px 8px;border-radius:14px;background:rgba(234,67,53,0.1)">
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M3 3.5L10.5 11M10.5 3.5L3 11" stroke="#EA4335" stroke-width="2" stroke-linecap="round"/></svg>
+          <span style="font-size:12px;color:#EA4335;font-weight:500">Delete</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Light mode single done -->
+  <div style="border-top:1px solid #eee;padding-top:16px">
+    <div style="font-size:10px;color:#888;margin-bottom:8px">Single done — Google-style toast (light)</div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="display:inline-flex;align-items:center;gap:8px;background:#323232;border-radius:20px;padding:8px 14px;box-shadow:0 4px 12px rgba(0,0,0,0.2);max-width:300px">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" fill="#1e8e3e"/><path d="M4.5 8L7 10.5L11.5 5.5" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span style="font-size:12px;color:#fff;font-weight:400">"Design review" deleted</span>
+        <button style="background:none;border:none;padding:4px 8px;border-radius:14px;cursor:pointer;margin-left:auto"><span style="font-size:12px;color:#8ab4f8;font-weight:500">Undo</span></button>
+      </div>
+      <div style="display:inline-flex;align-items:center;gap:8px;background:#323232;border-radius:20px;padding:8px 14px;box-shadow:0 4px 12px rgba(0,0,0,0.2);max-width:300px">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" fill="#1e8e3e"/><path d="M4.5 8L7 10.5L11.5 5.5" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span style="font-size:12px;color:#fff;font-weight:400">"Design review" restored</span>
+        <button style="background:none;border:none;padding:4px 8px;border-radius:14px;cursor:pointer;margin-left:auto"><span style="font-size:12px;color:#8ab4f8;font-weight:500">Undo</span></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DARK MODE -->
+<div style="background:#1e1e1e;border:1px solid #333;border-radius:12px;padding:24px;font-family:system-ui,sans-serif;margin-bottom:20px">
+  <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:#888;margin-bottom:12px">Dark Mode</div>
+
+  <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin-bottom:20px">
+    <!-- Default dark -->
+    <div>
+      <div style="font-size:10px;color:#888;margin-bottom:6px">Default</div>
+      <div style="display:inline-flex;align-items:center;gap:6px;background:#2d2d2d;border:1px solid #3c3c3c;border-radius:20px;padding:6px 12px;box-shadow:0 2px 8px rgba(0,0,0,0.4)">
+        <div style="min-width:22px;height:22px;border-radius:50%;background:#8ab4f8;display:flex;align-items:center;justify-content:center;padding:0 5px;flex-shrink:0">
+          <span style="font-size:12px;font-weight:600;color:#1e1e1e;line-height:1">2</span>
+        </div>
+        <span style="font-size:12px;color:#9aa0a6;margin:0 2px">·</span>
+        <div style="display:flex;align-items:center;gap:4px;padding:3px 8px;border-radius:14px;cursor:pointer">
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M3 7C3 4.79 4.79 3 7 3C9.21 3 11 4.79 11 7C11 9.21 9.21 11 7 11" stroke="#9AA0A6" stroke-width="1.5" stroke-linecap="round"/><path d="M3 4V7H6" stroke="#9AA0A6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span style="font-size:12px;color:#9AA0A6">Undo</span>
+        </div>
+        <div style="width:1px;height:16px;background:#5f6368;margin:0 2px"></div>
+        <div style="display:flex;align-items:center;gap:4px;padding:3px 8px;border-radius:14px;cursor:pointer">
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M3 3.5L10.5 11M10.5 3.5L3 11" stroke="#f28b82" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <span style="font-size:12px;color:#f28b82">Delete</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Hover dark -->
+    <div>
+      <div style="font-size:10px;color:#888;margin-bottom:6px">Hover Delete (dark)</div>
+      <div style="display:inline-flex;align-items:center;gap:6px;background:#2d2d2d;border:1px solid #3c3c3c;border-radius:20px;padding:6px 12px;box-shadow:0 2px 8px rgba(0,0,0,0.4)">
+        <div style="min-width:22px;height:22px;border-radius:50%;background:#8ab4f8;display:flex;align-items:center;justify-content:center;padding:0 5px;flex-shrink:0">
+          <span style="font-size:12px;font-weight:600;color:#1e1e1e;line-height:1">2</span>
+        </div>
+        <span style="font-size:12px;color:#9aa0a6;margin:0 2px">·</span>
+        <div style="display:flex;align-items:center;gap:4px;padding:3px 8px;border-radius:14px;cursor:pointer">
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M3 7C3 4.79 4.79 3 7 3C9.21 3 11 4.79 11 7C11 9.21 9.21 11 7 11" stroke="#9AA0A6" stroke-width="1.5" stroke-linecap="round"/><path d="M3 4V7H6" stroke="#9AA0A6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span style="font-size:12px;color:#9AA0A6">Undo</span>
+        </div>
+        <div style="width:1px;height:16px;background:#5f6368;margin:0 2px"></div>
+        <div style="display:flex;align-items:center;gap:4px;padding:3px 8px;border-radius:14px;background:rgba(242,139,130,0.15)">
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M3 3.5L10.5 11M10.5 3.5L3 11" stroke="#f28b82" stroke-width="2" stroke-linecap="round"/></svg>
+          <span style="font-size:12px;color:#f28b82;font-weight:500">Delete</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dark mode single done -->
+  <div style="border-top:1px solid #333;padding-top:16px">
+    <div style="font-size:10px;color:#888;margin-bottom:8px">Single done toast (dark)</div>
+    <div style="display:inline-flex;align-items:center;gap:8px;background:#3c3c3c;border:1px solid #5f6368;border-radius:20px;padding:8px 14px;box-shadow:0 4px 12px rgba(0,0,0,0.4);max-width:300px">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" fill="#81c995"/><path d="M4.5 8L7 10.5L11.5 5.5" stroke="#1e1e1e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span style="font-size:12px;color:#e8eaed;font-weight:400">"Design review" deleted</span>
+      <button style="background:none;border:none;padding:4px 8px;border-radius:14px;cursor:pointer;margin-left:auto"><span style="font-size:12px;color:#8ab4f8;font-weight:500">Undo</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- Color mapping table -->
+<div style="background:#fff;border:1px solid #e0e0e0;border-radius:12px;padding:24px;font-family:system-ui,sans-serif;margin-bottom:20px">
+  <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:#aaa;margin-bottom:12px">Light / Dark Color Mapping</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px">
+    <div style="background:#f8f8f8;border-radius:6px;padding:10px;text-align:center">
+      <div style="font-size:10px;color:#888;margin-bottom:4px">Element</div>
+      <div style="font-size:11px;font-weight:600;color:#333">Background</div>
+    </div>
+    <div style="background:#f8f8f8;border-radius:6px;padding:10px;text-align:center">
+      <div style="font-size:10px;color:#888;margin-bottom:4px">Light</div>
+      <div style="font-size:11px;font-weight:600;color:#333">#202124</div>
+    </div>
+    <div style="background:#f8f8f8;border-radius:6px;padding:10px;text-align:center">
+      <div style="font-size:10px;color:#888;margin-bottom:4px">Dark</div>
+      <div style="font-size:11px;font-weight:600;color:#333">#2d2d2d</div>
+    </div>
+    <div style="background:#f8f8f8;border-radius:6px;padding:10px;text-align:center">
+      <div style="font-size:10px;color:#888;margin-bottom:4px">CSS variable</div>
+      <div style="font-size:11px;font-weight:600;color:#333">--chip-bg</div>
+    </div>
+
+    <div style="background:#f8f8f8;border-radius:6px;padding:10px;text-align:center">
+      <div style="font-size:10px;color:#888;margin-bottom:4px">Element</div>
+      <div style="font-size:11px;font-weight:600;color:#333">Number bubble</div>
+    </div>
+    <div style="background:#f8f8f8;border-radius:6px;padding:10px;text-align:center">
+      <div style="font-size:10px;font-weight:600;color:#1a73e8">#1a73e8</div>
+      <div style="font-size:10px;color:#888">Google blue</div>
+    </div>
+    <div style="background:#f8f8f8;border-radius:6px;padding:10px;text-align:center">
+      <div style="font-size:10px;font-weight:600;color:#8ab4f8">#8ab4f8</div>
+      <div style="font-size:10px;color:#888">Muted blue</div>
+    </div>
+    <div style="background:#f8f8f8;border-radius:6px;padding:10px;text-align:center">
+      <div style="font-size:10px;color:#888;margin-bottom:4px">CSS variable</div>
+      <div style="font-size:11px;font-weight:600;color:#333">--chip-count-bg</div>
+    </div>
+
+    <div style="background:#f8f8f8;border-radius:6px;padding:10px;text-align:center">
+      <div style="font-size:10px;color:#888;margin-bottom:4px">Element</div>
+      <div style="font-size:11px;font-weight:600;color:#333">Text / icons</div>
+    </div>
+    <div style="background:#f8f8f8;border-radius:6px;padding:10px;text-align:center">
+      <div style="font-size:10px;font-weight:600;color:#9aa0a6">#9aa0a6</div>
+      <div style="font-size:10px;color:#888">Muted grey</div>
+    </div>
+    <div style="background:#f8f8f8;border-radius:6px;padding:10px;text-align:center">
+      <div style="font-size:10px;font-weight:600;color:#9aa0a6">#9aa0a6</div>
+      <div style="font-size:10px;color:#888">Same (dark adapts)</div>
+    </div>
+    <div style="background:#f8f8f8;border-radius:6px;padding:10px;text-align:center">
+      <div style="font-size:10px;color:#888;margin-bottom:4px">CSS variable</div>
+      <div style="font-size:11px;font-weight:600;color:#333">--chip-text-muted</div>
+    </div>
+
+    <div style="background:#f8f8f8;border-radius:6px;padding:10px;text-align:center">
+      <div style="font-size:10px;color:#888;margin-bottom:4px">Element</div>
+      <div style="font-size:11px;font-weight:600;color:#333">Border</div>
+    </div>
+    <div style="background:#f8f8f8;border-radius:6px;padding:10px;text-align:center">
+      <div style="font-size:10px;font-weight:600;color:#5f6368">#5f6368</div>
+      <div style="font-size:10px;color:#888">Divider</div>
+    </div>
+    <div style="background:#f8f8f8;border-radius:6px;padding:10px;text-align:center">
+      <div style="font-size:10px;font-weight:600;color:#3c3c3c">#3c3c3c</div>
+      <div style="font-size:10px;color:#888">Dark border</div>
+    </div>
+    <div style="background:#f8f8f8;border-radius:6px;padding:10px;text-align:center">
+      <div style="font-size:10px;color:#888;margin-bottom:4px">CSS variable</div>
+      <div style="font-size:11px;font-weight:600;color:#333">--chip-border</div>
+    </div>
+  </div>
+</div>
+
+<!-- UNDO LIFECYCLE — THE KEY QUESTION -->
+<div style="background:#fff7ed;border:2px solid #fed7aa;border-radius:12px;padding:24px;font-family:system-ui,sans-serif">
+  <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:#92400e;margin-bottom:16px">⚠️ Where do deleted events go after the chip disappears?</div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+    <!-- Step 1 -->
+    <div style="background:#fff;border:1px solid #e0e0e0;border-radius:8px;padding:14px">
+      <div style="font-size:11px;font-weight:600;color:#333;margin-bottom:8px">① Delete — chip disappears after 4s</div>
+      <div style="font-size:11px;color:#555;margin-bottom:10px">User taps Delete. Chip shows "deleted" toast → fades out. The event is gone from the calendar view. Where is it?</div>
+      <div style="font-size:10px;color:#888;background:#f5f5f5;border-radius:6px;padding:8px">
+        Answer: The row is NOT deleted from the database. It gets a <code style="background:#f0f0ff;padding:1px 4px;border-radius:3px">status = "deleted"</code> flag. It is simply hidden from all calendar views.
+      </div>
+    </div>
+
+    <!-- Step 2 -->
+    <div style="background:#fff;border:1px solid #e0e0e0;border-radius:8px;padding:14px">
+      <div style="font-size:11px;font-weight:600;color:#333;margin-bottom:8px">② Finding deleted events</div>
+      <div style="font-size:11px;color:#555;margin-bottom:10px">Three places a user can find and restore a deleted event:</div>
+      <div style="font-size:11px;color:#555">
+        <div style="margin-bottom:6px"><strong>A. Unscheduled panel</strong> — events without a date. Deleted calendar events (which have a date) don't go here unless date was cleared.</div>
+        <div style="margin-bottom:6px"><strong>B. Database Grid view</strong> — the grid shows ALL rows including deleted ones. There's a "Show deleted" filter toggle.</div>
+        <div><strong>C. Trash / History section</strong> — a dedicated "Deleted events" section in the database sidebar (below the view tabs). This is the primary recovery path.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recovery paths visual -->
+  <div style="border-top:1px solid #fed7aa;padding-top:16px">
+    <div style="font-size:11px;font-weight:600;color:#92400e;margin-bottom:12px">Recovery paths — three ways to undo after chip is gone</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+      <!-- Path A: Grid view -->
+      <div style="background:#fff;border:1px solid #ddd;border-radius:8px;padding:14px">
+        <div style="font-size:11px;font-weight:600;color:#333;margin-bottom:8px">A — Grid view filter</div>
+        <div style="background:#f9f9f9;border:1px solid #eee;border-radius:6px;padding:10px;margin-bottom:10px">
+          <div style="font-size:10px;color:#888;margin-bottom:6px">Grid toolbar filter:</div>
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:#f0f0ff;border:1px solid #ddddf0;border-radius:6px">
+              <input type="checkbox" checked style="accent-color:#6366f1">
+              <span style="font-size:11px;color:#333">Active</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;padding:6px 8px">
+              <input type="checkbox">
+              <span style="font-size:11px;color:#888">Show deleted</span>
+            </div>
+          </div>
+        </div>
+        <div style="font-size:10px;color:#555">Enable "Show deleted" → deleted rows appear with strikethrough → click to restore</div>
+      </div>
+
+      <!-- Path B: Trash section -->
+      <div style="background:#fff;border:1px solid #ddd;border-radius:8px;padding:14px">
+        <div style="font-size:11px;font-weight:600;color:#333;margin-bottom:8px">B — Trash section (Recommended)</div>
+        <div style="background:#f9f9f9;border:1px solid #eee;border-radius:6px;padding:10px;margin-bottom:10px">
+          <div style="font-size:10px;color:#888;margin-bottom:6px">Database sidebar:</div>
+          <div style="font-size:11px;color:#555">
+            <div style="padding:6px 0;border-bottom:1px solid #eee;color:#333;font-weight:500">📋 Board</div>
+            <div style="padding:6px 0;border-bottom:1px solid #eee;color:#888">📊 Grid</div>
+            <div style="padding:6px 0;border-bottom:1px solid #eee;color:#888">🗓️ Calendar</div>
+            <div style="padding:6px 0;border-bottom:1px solid #eee;color:#888">📈 Chart</div>
+            <div style="padding:6px 0;color:#888">📝 List</div>
+          </div>
+        </div>
+        <div style="border:1px solid #ddd;border-radius:6px;padding:8px;background:#fff7ed">
+          <div style="font-size:11px;font-weight:500;color:#92400e;margin-bottom:4px">🗑️ Trash (2)</div>
+          <div style="font-size:10px;color:#888;margin-bottom:6px">Collapsed by default, expands to show deleted items</div>
+          <div style="font-size:10px;color:#6b7280;padding:4px 0">"Design review" — 2m ago</div>
+          <div style="font-size:10px;color:#6b7280;padding:4px 0">"Team standup" — 5m ago</div>
+        </div>
+      </div>
+
+      <!-- Path C: Undo log -->
+      <div style="background:#fff;border:1px solid #ddd;border-radius:8px;padding:14px">
+        <div style="font-size:11px;font-weight:600;color:#333;margin-bottom:8px">C — Right-click in calendar</div>
+        <div style="background:#f9f9f9;border:1px solid #eee;border-radius:6px;padding:10px;margin-bottom:10px">
+          <div style="font-size:10px;color:#888;margin-bottom:6px">Right-click empty day cell:</div>
+          <div style="border:1px solid #ddd;background:#fff;border-radius:6px;padding:8px;font-size:11px;color:#555">
+            <div style="padding:4px 0;cursor:pointer">Today</div>
+            <div style="padding:4px 0;cursor:pointer">Jump to date...</div>
+            <div style="padding:4px 0;cursor:pointer;color:#888">────────────────</div>
+            <div style="padding:4px 0;cursor:pointer;color:#888">────────────────</div>
+            <div style="padding:4px 0;cursor:pointer;color:#f28b82">🗑 View trash</div>
+          </div>
+        </div>
+        <div style="font-size:10px;color:#555">"View trash" opens the trash panel from anywhere in the calendar</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Trash panel -->
+  <div style="border-top:1px solid #fed7aa;padding-top:16px;margin-top:8px">
+    <div style="font-size:11px;font-weight:600;color:#92400e;margin-bottom:12px">The Trash Panel — what it looks like</div>
+    <div style="border:1px solid #ddd;border-radius:8px;overflow:hidden">
+      <div style="padding:10px 14px;background:#f9f9f9;border-bottom:1px solid #eee;display:flex;align-items:center;gap:8px">
+        <div style="font-size:13px">🗑️</div>
+        <div style="flex:1">
+          <div style="font-size:12px;font-weight:600;color:#333">Trash</div>
+          <div style="font-size:10px;color:#888">Deleted items auto-purge after 30 days</div>
+        </div>
+        <button style="font-size:11px;color:#ef4444;background:none;border:1px solid #fecaca;border-radius:6px;padding:4px 10px;cursor:pointer">Empty trash</button>
+      </div>
+      <div>
+        <div style="padding:10px 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #f0f0f0">
+          <div>
+            <div style="font-size:12px;font-weight:500;color:#333">Design review</div>
+            <div style="font-size:10px;color:#888">Apr 15 · Deleted 2 min ago</div>
+          </div>
+          <div style="display:flex;gap:6px">
+            <button style="font-size:11px;color:#166;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:4px 10px;cursor:pointer">Restore</button>
+            <button style="font-size:11px;color:#ef4444;background:none;border:1px solid #fecaca;border-radius:6px;padding:4px 10px;cursor:pointer">Delete</button>
+          </div>
+        </div>
+        <div style="padding:10px 14px;display:flex;align-items:center;justify-content:space-between">
+          <div>
+            <div style="font-size:12px;font-weight:500;color:#333">Team standup</div>
+            <div style="font-size:10px;color:#888">Apr 8 · Deleted 5 min ago</div>
+          </div>
+          <div style="display:flex;gap:6px">
+            <button style="font-size:11px;color:#166;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:4px 10px;cursor:pointer">Restore</button>
+            <button style="font-size:11px;color:#ef4444;background:none;border:1px solid #fecaca;border-radius:6px;padding:4px 10px;cursor:pointer">Delete</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:8px;padding:10px;background:#fff;border:1px solid #ddd;border-radius:8px">
+      <div style="font-size:11px;font-weight:600;color:#333;margin-bottom:4px">Restore = removes the deleted flag</div>
+      <div style="font-size:11px;color:#555">Tapping "Restore" sets <code style="background:#f5f5f5;padding:1px 4px;border-radius:3px">status = "active"</code> → row reappears in calendar on its original date → Google-style green toast: "Design review restored" · Undo</div>
+    </div>
+  </div>
+</div>
+
+<div style="height:24px"></div>
+
+<div class="options">
+  <div class="option" data-choice="final" onclick="toggleSelect(this)">
+    <div class="letter">✓</div>
+    <div class="content">
+      <h3>Final confirmed — ready to write spec</h3>
+      <p>Compact chip: [number] · Undo · Delete. Light mode: #202124 bg, #1a73e8 bubble. Dark mode: #2d2d2d bg, #8ab4f8 bubble. CSS variables for all colors. Trash section in sidebar: recover deleted events from Grid filter, Trash panel, or right-click. Auto-purge after 30 days. Restore = remove deleted flag → event reappears with green toast.</p>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,1 @@
+{"nodes": [{"id": "glasswell", "label": "GlassWell.tsx", "file_type": "code", "source_file": "src\\shell\\primitives\\GlassWell.tsx", "source_location": "L1"}], "edges": [{"source": "glasswell", "target": "react", "relation": "imports_from", "confidence": "EXTRACTED", "source_file": "src\\shell\\primitives\\GlassWell.tsx", "source_location": "L1", "weight": 1.0}]}

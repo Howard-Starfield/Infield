@@ -1,0 +1,87 @@
+<h2>Column Color — Where does the picker live?</h2>
+<p class="subtitle">The color tints the column name badge. Three placement options — pick which feels most natural.</p>
+
+<div class="cards">
+
+  <!-- Option A: Click badge directly -->
+  <div class="card" data-choice="click-badge" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#1a1a2e;padding:16px;min-height:160px;display:flex;flex-direction:column;gap:10px">
+      <!-- Header row mock -->
+      <div style="display:flex;align-items:center;gap:6px;background:#2a2a3e;padding:8px 10px;border-radius:8px">
+        <div style="position:relative;display:inline-flex;align-items:center">
+          <span style="background:#4f46e5;color:#fff;font-size:11px;font-weight:600;padding:2px 10px;border-radius:12px;cursor:pointer;border:2px dashed #a5b4fc">In Progress</span>
+          <span style="font-size:9px;color:#a5b4fc;margin-left:4px;font-style:italic">← click badge</span>
+        </div>
+        <div style="margin-left:auto;display:flex;gap:4px">
+          <div style="width:20px;height:20px;border-radius:4px;background:#3a3a5e;display:flex;align-items:center;justify-content:center;font-size:11px;color:#aaa">⋯</div>
+          <div style="width:20px;height:20px;border-radius:4px;background:#3a3a5e;display:flex;align-items:center;justify-content:center;font-size:13px;color:#aaa">+</div>
+        </div>
+      </div>
+      <!-- Color picker popover -->
+      <div style="background:#2d2d45;border:1px solid #6366f1;border-radius:8px;padding:10px;width:180px;margin-left:4px">
+        <div style="font-size:10px;color:#888;margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em">Column color</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <div style="width:20px;height:20px;border-radius:50%;background:#6366f1;cursor:pointer;border:2px solid #fff"></div>
+          <div style="width:20px;height:20px;border-radius:50%;background:#ec4899;cursor:pointer"></div>
+          <div style="width:20px;height:20px;border-radius:50%;background:#f97316;cursor:pointer"></div>
+          <div style="width:20px;height:20px;border-radius:50%;background:#eab308;cursor:pointer"></div>
+          <div style="width:20px;height:20px;border-radius:50%;background:#22c55e;cursor:pointer"></div>
+          <div style="width:20px;height:20px;border-radius:50%;background:#06b6d4;cursor:pointer"></div>
+          <div style="width:20px;height:20px;border-radius:50%;background:#ef4444;cursor:pointer"></div>
+          <div style="width:20px;height:20px;border-radius:50%;background:#8b5cf6;cursor:pointer"></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Click the badge</h3>
+      <p>Clicking the colored name badge directly opens a color picker popover. Most direct — the color is part of the badge's identity.</p>
+    </div>
+  </div>
+
+  <!-- Option B: Via 3-dot menu -->
+  <div class="card" data-choice="via-menu" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#1a1a2e;padding:16px;min-height:160px;display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;align-items:center;gap:6px;background:#2a2a3e;padding:8px 10px;border-radius:8px">
+        <span style="background:#ec4899;color:#fff;font-size:11px;font-weight:600;padding:2px 10px;border-radius:12px">Done</span>
+        <div style="margin-left:auto;display:flex;gap:4px">
+          <div style="width:20px;height:20px;border-radius:4px;background:#6366f1;display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff;border:1px dashed #a5b4fc">⋯</div>
+          <div style="width:20px;height:20px;border-radius:4px;background:#3a3a5e;display:flex;align-items:center;justify-content:center;font-size:13px;color:#aaa">+</div>
+        </div>
+      </div>
+      <!-- dropdown menu -->
+      <div style="background:#2d2d45;border:1px solid #4a4a6e;border-radius:8px;width:160px;overflow:hidden;margin-left:auto;margin-right:0;font-size:12px">
+        <div style="padding:8px 12px;color:#ccc;border-bottom:1px solid #3a3a5e;display:flex;align-items:center;gap:8px"><span>✏️</span> Rename</div>
+        <div style="padding:8px 12px;color:#ccc;border-bottom:1px solid #3a3a5e;background:#3a3a5e;display:flex;align-items:center;gap:8px"><span>🎨</span> Change color</div>
+        <div style="padding:8px 12px;color:#ef4444;display:flex;align-items:center;gap:8px"><span>🗑️</span> Delete</div>
+      </div>
+      <div style="font-size:10px;color:#888;padding-left:2px">↑ 3-dot menu gains "Change color" item</div>
+    </div>
+    <div class="card-body">
+      <h3>B — Via ⋯ menu</h3>
+      <p>The 3-dot menu gets a "Change color" item alongside Rename and Delete. Keeps the header clean; color is an editing action.</p>
+    </div>
+  </div>
+
+  <!-- Option C: Both -->
+  <div class="card" data-choice="both" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#1a1a2e;padding:16px;min-height:160px;display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;align-items:center;gap:6px;background:#2a2a3e;padding:8px 10px;border-radius:8px">
+        <span style="background:#22c55e;color:#111;font-size:11px;font-weight:600;padding:2px 10px;border-radius:12px;cursor:pointer">To Do</span>
+        <div style="margin-left:auto;display:flex;gap:4px">
+          <div style="width:20px;height:20px;border-radius:4px;background:#3a3a5e;display:flex;align-items:center;justify-content:center;font-size:11px;color:#aaa">⋯</div>
+          <div style="width:20px;height:20px;border-radius:4px;background:#3a3a5e;display:flex;align-items:center;justify-content:center;font-size:13px;color:#aaa">+</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <div style="font-size:10px;color:#22c55e;background:#1e3a1e;border:1px solid #22c55e;border-radius:4px;padding:4px 8px">Click badge → color picker</div>
+        <div style="font-size:10px;color:#22c55e;background:#1e3a1e;border:1px solid #22c55e;border-radius:4px;padding:4px 8px">⋯ menu → Change color</div>
+      </div>
+      <div style="font-size:10px;color:#888;padding-left:2px">Both paths lead to the same color picker popover</div>
+    </div>
+    <div class="card-body">
+      <h3>C — Both paths</h3>
+      <p>Badge click AND menu item both open the same color picker. Maximum discoverability — power users use the badge, new users find it in the menu.</p>
+    </div>
+  </div>
+
+</div>

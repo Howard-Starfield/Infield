@@ -1,0 +1,123 @@
+<h2>Unified Workspace Model — One Table, Three Node Types</h2>
+<p class="subtitle">workspace_nodes is the single source of truth. Views are projections over node data.</p>
+
+<div class="mockup">
+  <div class="mockup-body" style="font-family: system-ui; background: #f7f6f3; padding: 16px; border-radius: 6px; font-size: 12px;">
+    <div style="background: white; border: 1px solid #e0e0e0; border-radius: 6px; overflow: hidden; margin-bottom: 16px;">
+      <div style="background: #f8f8f8; padding: 10px 16px; border-bottom: 1px solid #e0e0e0; font-weight: 600; font-size: 12px;">workspace_nodes — unified table</div>
+      <div style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 11px; min-width: 700px;">
+          <thead>
+            <tr style="background: #f5f5f5;">
+              <th style="padding: 8px 12px; text-align: left; border-bottom: 1px solid #e0e0e0;">id</th>
+              <th style="padding: 8px 12px; text-align: left; border-bottom: 1px solid #e0e0e0;">parent_id</th>
+              <th style="padding: 8px 12px; text-align: left; border-bottom: 1px solid #e0e0e0;">node_type</th>
+              <th style="padding: 8px 12px; text-align: left; border-bottom: 1px solid #e0e0e0;">name</th>
+              <th style="padding: 8px 12px; text-align: left; border-bottom: 1px solid #e0e0e0;">icon</th>
+              <th style="padding: 8px 12px; text-align: left; border-bottom: 1px solid #e0e0e0;">properties (JSON)</th>
+              <th style="padding: 8px 12px; text-align: left; border-bottom: 1px solid #e0e0e0;">body (rich text)</th>
+              <th style="padding: 8px 12px; text-align: left; border-bottom: 1px solid #e0e0e0;">position</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Document node -->
+            <tr style="background: #fff;">
+              <td style="padding: 8px 12px; border-bottom: 1px solid #f0f0f0; color: #1a73e8; font-family: monospace;">n1</td>
+              <td style="padding: 8px 12px; border-bottom: 1px solid #f0f0f0; font-family: monospace; color: #aaa;">null</td>
+              <td style="padding: 8px 12px; border-bottom: 1px solid #f0f0f0;"><span style="background: #f1f3f4; padding: 2px 6px; border-radius: 3px; font-size: 10px;">document</span></td>
+              <td style="padding: 8px 12px; border-bottom: 1px solid #f0f0f0;">Meeting Notes</td>
+              <td style="padding: 8px 12px; border-bottom: 1px solid #f0f0f0;">📄</td>
+              <td style="padding: 8px 12px; border-bottom: 1px solid #f0f0f0; color: #888; font-size: 10px;">—</td>
+              <td style="padding: 8px 12px; border-bottom: 1px solid #f0f0f0; color: #888; font-size: 10px;">rich text body</td>
+              <td style="padding: 8px 12px; border-bottom: 1px solid #f0f0f0;">0</td>
+            </tr>
+            <!-- Database container node -->
+            <tr style="background: #fff;">
+              <td style="padding: 8px 12px; border-bottom: 1px solid #f0f0f0; color: #1a73e8; font-family: monospace;">n2</td>
+              <td style="padding: 8px 12px; border-bottom: 1px solid #f0f0f0; font-family: monospace; color: #aaa;">null</td>
+              <td style="padding: 8px 12px; border-bottom: 1px solid #f0f0f0;"><span style="background: #e8f0fe; color: #1a73e8; padding: 2px 6px; border-radius: 3px; font-size: 10px;">database</span></td>
+              <td style="padding: 8px 12px; border-bottom: 1px solid #f0f0f0;">Project Tracker</td>
+              <td style="padding: 8px 12px; border-bottom: 1px solid #f0f0f0;">📊</td>
+              <td style="padding: 8px 12px; border-bottom: 1px solid #f0f0f0; font-size: 10px; color: #555;">{fields: [...]}</td>
+              <td style="padding: 8px 12px; border-bottom: 1px solid #f0f0f0; color: #888; font-size: 10px;">—</td>
+              <td style="padding: 8px 12px; border-bottom: 1px solid #f0f0f0;">1</td>
+            </tr>
+            <!-- Row page — child of database -->
+            <tr style="background: #fff;">
+              <td style="padding: 8px 12px; border-bottom: 1px solid #f0f0f0; color: #1a73e8; font-family: monospace;">n3</td>
+              <td style="padding: 8px 12px; border-bottom: 1px solid #f0f0f0; font-family: monospace; color: #333;">n2</td>
+              <td style="padding: 8px 12px; border-bottom: 1px solid #f0f0f0;"><span style="background: #e6f4ea; color: #1e8e3e; padding: 2px 6px; border-radius: 3px; font-size: 10px;">row</span></td>
+              <td style="padding: 8px 12px; border-bottom: 1px solid #f0f0f0;">Q2 Campaign planning</td>
+              <td style="padding: 8px 12px; border-bottom: 1px solid #f0f0f0;">📋</td>
+              <td style="padding: 8px 12px; border-bottom: 1px solid #f0f0f0; font-size: 10px; color: #555;">{status: "In Progress", priority: "High", ...}</td>
+              <td style="padding: 8px 12px; border-bottom: 1px solid #f0f0f0; font-size: 10px; color: #555;">rich text body</td>
+              <td style="padding: 8px 12px; border-bottom: 1px solid #f0f0f0;">0</td>
+            </tr>
+            <tr style="background: #fff;">
+              <td style="padding: 8px 12px; border-bottom: 1px solid #f0f0f0; color: #1a73e8; font-family: monospace;">n4</td>
+              <td style="padding: 8px 12px; border-bottom: 1px solid #f0f0f0; font-family: monospace; color: #333;">n2</td>
+              <td style="padding: 8px 12px; border-bottom: 1px solid #f0f0f0;"><span style="background: #e6f4ea; color: #1e8e3e; padding: 2px 6px; border-radius: 3px; font-size: 10px;">row</span></td>
+              <td style="padding: 8px 12px; border-bottom: 1px solid #f0f0f0;">Website redesign</td>
+              <td style="padding: 8px 12px; border-bottom: 1px solid #f0f0f0;">📋</td>
+              <td style="padding: 8px 12px; border-bottom: 1px solid #f0f0f0; font-size: 10px; color: #555;">{status: "To Do", priority: "High", ...}</td>
+              <td style="padding: 8px 12px; border-bottom: 1px solid #f0f0f0; font-size: 10px; color: #888;">—</td>
+              <td style="padding: 8px 12px; border-bottom: 1px solid #f0f0f0;">1</td>
+            </tr>
+            <!-- Row page — child of another database -->
+            <tr style="background: #fff;">
+              <td style="padding: 8px 12px; border-bottom: 1px solid #f0f0f0; color: #1a73e8; font-family: monospace;">n5</td>
+              <td style="padding: 8px 12px; border-bottom: 1px solid #f0f0f0; font-family: monospace; color: #333;">n2</td>
+              <td style="padding: 8px 12px; border-bottom: 1px solid #f0f0f0;"><span style="background: #e6f4ea; color: #1e8e3e; padding: 2px 6px; border-radius: 3px; font-size: 10px;">row</span></td>
+              <td style="padding: 8px 12px; border-bottom: 1px solid #f0f0f0;">Mobile app v2</td>
+              <td style="padding: 8px 12px; border-bottom: 1px solid #f0f0f0;">📋</td>
+              <td style="padding: 8px 12px; border-bottom: 1px solid #f0f0f0; font-size: 10px; color: #555;">{status: "Done", priority: "Medium", ...}</td>
+              <td style="padding: 8px 12px; border-bottom: 1px solid #f0f0f0; font-size: 10px; color: #888;">—</td>
+              <td style="padding: 8px 12px; border-bottom: 1px solid #f0f0f0;">2</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- db_views still exists but is lighter -->
+    <div style="background: white; border: 1px solid #e0e0e0; border-radius: 6px; overflow: hidden;">
+      <div style="background: #f8f8f8; padding: 10px 16px; border-bottom: 1px solid #e0e0e0; font-weight: 600; font-size: 12px;">node_views — views (lightweight, no row data)</div>
+      <div style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 11px; min-width: 500px;">
+          <thead>
+            <tr style="background: #f5f5f5;">
+              <th style="padding: 8px 12px; text-align: left; border-bottom: 1px solid #e0e0e0;">id</th>
+              <th style="padding: 8px 12px; text-align: left; border-bottom: 1px solid #e0e0e0;">node_id (FK)</th>
+              <th style="padding: 8px 12px; text-align: left; border-bottom: 1px solid #e0e0e0;">name</th>
+              <th style="padding: 8px 12px; text-align: left; border-bottom: 1px solid #e0e0e0;">layout</th>
+              <th style="padding: 8px 12px; text-align: left; border-bottom: 1px solid #e0e0e0;">position</th>
+              <th style="padding: 8px 12px; text-align: left; border-bottom: 1px solid #e0e0e0;">view_options (JSON)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="padding: 8px 12px; border-bottom: 1px solid #f0f0f0; color: #1a73e8; font-family: monospace;">v1</td>
+              <td style="padding: 8px 12px; border-bottom: 1px solid #f0f0f0; font-family: monospace;">n2</td>
+              <td style="padding: 8px 12px; border-bottom: 1px solid #f0f0f0;">Board</td>
+              <td style="padding: 8px 12px; border-bottom: 1px solid #f0f0f0;"><span style="background: #f1f3f4; padding: 2px 6px; border-radius: 3px; font-size: 10px;">board</span></td>
+              <td style="padding: 8px 12px; border-bottom: 1px solid #f0f0f0;">0</td>
+              <td style="padding: 8px 12px; border-bottom: 1px solid #f0f0f0; font-size: 10px;">{groupByField: "status"}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 12px; border-bottom: 1px solid #f0f0f0; color: #1a73e8; font-family: monospace;">v2</td>
+              <td style="padding: 8px 12px; border-bottom: 1px solid #f0f0f0; font-family: monospace;">n2</td>
+              <td style="padding: 8px 12px; border-bottom: 1px solid #f0f0f0;">Grid</td>
+              <td style="padding: 8px 12px; border-bottom: 1px solid #f0f0f0;"><span style="background: #f1f3f4; padding: 2px 6px; border-radius: 3px; font-size: 10px;">grid</span></td>
+              <td style="padding: 8px 12px; border-bottom: 1px solid #f0f0f0;">1</td>
+              <td style="padding: 8px 12px; border-bottom: 1px solid #f0f0f0; font-size: 10px;">{}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div style="margin-top: 12px; padding: 12px; background: #fffbea; border: 1px solid #f0c800; border-radius: 6px; font-size: 11px;">
+      <strong style="color: #b25a00;">Key insight:</strong> Views (<code>node_views</code>) are attached to <code>database</code> nodes. They are <em>projections</em> — they query the <code>workspace_nodes</code> table to find child <code>row</code> nodes and display them. The view never holds row data; it just knows which layout to use and how to group/filter/sort.
+    </div>
+  </div>
+</div>

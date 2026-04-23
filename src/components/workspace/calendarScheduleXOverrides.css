@@ -1,0 +1,197 @@
+/* Loaded after @schedule-x/theme-default — smooth scroll in header date picker popup */
+.sx__date-picker-popup {
+  scroll-behavior: smooth;
+  overflow: auto;
+}
+
+/* Keep Schedule-X UI below workspace modals (modal uses --workspace-modal-z via portal). */
+.sx-react-calendar-wrapper {
+  isolation: isolate;
+  z-index: 0;
+  /* Narrower time gutter + hour labels (library default 75px). */
+  --sx-calendar-week-grid-padding-left: 44px;
+  /* Softer grid + column chrome (theme uses --sx-color-outline-variant). */
+  --sx-border: 1px solid color-mix(in srgb, var(--workspace-border, #ccc) 55%, transparent);
+}
+
+.sx-react-calendar-wrapper .sx__week-header-border {
+  border-left-width: var(--sx-calendar-week-grid-padding-left);
+}
+
+.sx-react-calendar-wrapper .sx__week-grid__hour {
+  font-size: 9px;
+}
+
+.sx-react-calendar-wrapper .sx__week-grid__hour-text {
+  left: -30px;
+  color: color-mix(in srgb, var(--workspace-text-muted, #888) 90%, transparent);
+}
+
+.sx-react-calendar-wrapper .sx__time-grid-day {
+  border-left-width: 1px;
+}
+
+.sx-react-calendar-wrapper .sx__week-grid__date {
+  padding-block: 4px;
+}
+
+/* Current time: use workspace accent instead of default red. */
+.sx-react-calendar-wrapper .sx__current-time-indicator,
+.sx-react-calendar-wrapper .sx__current-time-indicator::before {
+  background-color: var(--workspace-accent, #0a84ff);
+}
+
+.sx-react-calendar-wrapper .sx__current-time-indicator-full-week {
+  background-color: color-mix(in srgb, var(--workspace-accent, #0a84ff) 42%, transparent);
+}
+
+/* ─── HerOS theme overrides — match mockup dbcal design ──────────────────────
+ * Every color is derived from the active theme primitives via semantic.css.
+ * Switching preset (Terracotta → Midnight → Paper) automatically re-skins.
+ * -------------------------------------------------------------------------- */
+
+.sx-react-calendar-wrapper {
+  /* Schedule-X's own variable tree — map its color tokens to our semantic cascade */
+  --sx-color-background-primary: transparent;
+  --sx-color-surface: color-mix(in srgb, var(--on-surface) 4%, transparent);
+  --sx-color-surface-container: color-mix(in srgb, var(--on-surface) 8%, transparent);
+  --sx-color-on-surface: var(--workspace-text);
+  --sx-color-on-surface-variant: var(--workspace-text-muted);
+  --sx-color-outline: color-mix(in srgb, var(--on-surface) 14%, transparent);
+  --sx-color-outline-variant: color-mix(in srgb, var(--on-surface) 8%, transparent);
+  --sx-color-primary: var(--workspace-accent);
+  --sx-color-primary-container: var(--workspace-accent-soft);
+  --sx-color-on-primary: color-mix(in srgb, var(--heros-bg-foundation) 85%, black 40%);
+
+  color: var(--workspace-text);
+  background: transparent;
+}
+
+/* Month grid cells — match mockup's `.dbcal-cell` style */
+.sx-react-calendar-wrapper .sx__month-grid-cell {
+  border-color: color-mix(in srgb, var(--on-surface) 7%, transparent) !important;
+  background: transparent;
+  transition: background calc(120ms * var(--duration-scale, 1));
+}
+.sx-react-calendar-wrapper .sx__month-grid-cell:hover {
+  background: color-mix(in srgb, var(--on-surface) 3%, transparent);
+}
+
+/* Muted (prev/next month) cells */
+.sx-react-calendar-wrapper .sx__month-grid-cell--is-leading,
+.sx-react-calendar-wrapper .sx__month-grid-cell--is-trailing {
+  background: color-mix(in srgb, black 14%, transparent);
+}
+.sx-react-calendar-wrapper .sx__month-grid-cell--is-leading .sx__month-grid-day__header-day-name,
+.sx-react-calendar-wrapper .sx__month-grid-cell--is-trailing .sx__month-grid-day__header-day-name {
+  color: var(--workspace-text-soft);
+}
+
+/* Day number pill — mockup's `.dbcal-daynum` with mono font */
+.sx-react-calendar-wrapper .sx__month-grid-day__header-day-name {
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 10px;
+  color: var(--workspace-text);
+}
+
+/* Today highlight — cream glow on the day number */
+.sx-react-calendar-wrapper .sx__month-grid-day__header--today .sx__month-grid-day__header-day-name {
+  background: var(--on-surface);
+  color: color-mix(in srgb, var(--heros-bg-foundation) 70%, black 40%);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--on-surface) 50%, transparent);
+}
+
+/* Day-of-week headers at top of month */
+.sx-react-calendar-wrapper .sx__month-agenda-day__day-name,
+.sx-react-calendar-wrapper .sx__week-header {
+  background: color-mix(in srgb, black 22%, transparent);
+  border-color: color-mix(in srgb, var(--on-surface) 8%, transparent) !important;
+  color: var(--workspace-text-soft);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* Events — each type uses a status token for color */
+.sx-react-calendar-wrapper .sx__event {
+  font-size: 10.5px;
+  padding: 2px 6px;
+  border-radius: 5px;
+  color: var(--workspace-text);
+  border: 1px solid transparent;
+  transition: background calc(120ms * var(--duration-scale, 1)), border-color calc(120ms * var(--duration-scale, 1));
+}
+.sx-react-calendar-wrapper .sx__event:hover {
+  border-color: color-mix(in srgb, var(--on-surface) 20%, transparent);
+}
+
+/* Generic event types (library default calendar categorization) */
+.sx-react-calendar-wrapper .sx__event.sx__event--blocked {
+  background: var(--status-blocked-bg);
+  color: var(--status-blocked-fg);
+}
+.sx-react-calendar-wrapper .sx__event.sx__event--active {
+  background: var(--status-active-bg);
+  color: var(--status-active-fg);
+}
+.sx-react-calendar-wrapper .sx__event.sx__event--done {
+  background: var(--status-done-bg);
+  color: var(--status-done-fg);
+}
+.sx-react-calendar-wrapper .sx__event.sx__event--review {
+  background: var(--status-review-bg);
+  color: var(--status-review-fg);
+}
+.sx-react-calendar-wrapper .sx__event.sx__event--draft {
+  background: transparent;
+  border: 1px dashed color-mix(in srgb, var(--on-surface) 14%, transparent);
+  color: var(--workspace-text-muted);
+}
+
+/* Spanning (multi-day) event — left-edge accent bar */
+.sx-react-calendar-wrapper .sx__event--spanning {
+  border-left: 3px solid currentColor;
+}
+
+/* Month navigation + toolbar chrome */
+.sx-react-calendar-wrapper .sx__calendar-header {
+  background: color-mix(in srgb, black 8%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--on-surface) 7%, transparent);
+}
+
+.sx-react-calendar-wrapper .sx__button {
+  color: var(--workspace-text);
+  background: color-mix(in srgb, var(--on-surface) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--on-surface) 12%, transparent);
+  border-radius: 10px;
+  transition: background calc(120ms * var(--duration-scale, 1));
+}
+.sx-react-calendar-wrapper .sx__button:hover {
+  background: color-mix(in srgb, var(--on-surface) 14%, transparent);
+}
+
+/* View selector segmented chrome */
+.sx-react-calendar-wrapper .sx__view-selection {
+  background: color-mix(in srgb, var(--on-surface) 4%, transparent);
+  border: 1px solid color-mix(in srgb, var(--on-surface) 10%, transparent);
+  border-radius: 8px;
+}
+
+/* Overdue text color — used in any custom event cell with this class */
+.sx-react-calendar-wrapper .sx__event--overdue {
+  color: var(--status-overdue-text);
+}
+
+/* Scrollbars inside the calendar — match theme */
+.sx-react-calendar-wrapper ::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--on-surface) 14%, transparent);
+  border-radius: 6px;
+}
+.sx-react-calendar-wrapper ::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--on-surface) 28%, transparent);
+}
+

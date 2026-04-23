@@ -1,0 +1,6 @@
+[build]
+target-dir = "C:/ht"
+
+[env]
+CMAKE_GENERATOR = "Ninja"
+CXXFLAGS = "-DMAP_FAILED=((void*)-1)"

@@ -1,0 +1,16 @@
+[package]
+name = "seed_vault"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Phase A stop-gate seed — populate workspace.db with N synthetic nodes and vec_embeddings to exercise perf + semantic overlap targets"
+
+[dependencies]
+rusqlite = { version = "0.37", features = ["bundled", "load_extension"] }
+rusqlite_migration = "2.3"
+sqlite-vec = "0.1"
+zerocopy = "0.8"
+rand = "0.8"
+uuid = { version = "1", features = ["v4"] }
+clap = { version = "4", features = ["derive"] }
+anyhow = "1"

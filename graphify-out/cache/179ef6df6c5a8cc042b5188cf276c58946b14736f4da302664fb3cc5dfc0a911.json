@@ -1,0 +1,1 @@
+{"nodes": [{"id": "glasspanel", "label": "GlassPanel.tsx", "file_type": "code", "source_file": "src\\shell\\primitives\\GlassPanel.tsx", "source_location": "L1"}], "edges": [{"source": "glasspanel", "target": "react", "relation": "imports_from", "confidence": "EXTRACTED", "source_file": "src\\shell\\primitives\\GlassPanel.tsx", "source_location": "L1", "weight": 1.0}]}

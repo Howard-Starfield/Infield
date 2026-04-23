@@ -1,0 +1,325 @@
+/* Max pill footprint + glow — keep in sync with overlay.rs (pill is width: max-content). */
+.overlay-shell {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+.recording-overlay {
+  box-sizing: border-box;
+  width: max-content;
+  max-width: min(236px, calc(100vw - 16px));
+  min-height: 32px;
+  display: grid;
+  grid-template-columns: auto auto auto;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px 3px 3px;
+  border-radius: 999px;
+  border: 1px solid var(--pill-border);
+  background: var(--pill-surface);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.1) inset,
+    0 1px 0 rgba(255, 255, 255, 0.38) inset,
+    0 0 0 1px rgba(0, 0, 0, 0.04),
+    0 2px 14px var(--pill-outer-glow),
+    0 6px 22px rgba(0, 0, 0, 0.06);
+  cursor: grab;
+  opacity: 0;
+  transition: opacity 300ms ease-out;
+  color: var(--body-text);
+}
+
+.recording-overlay[data-capture="mic"] {
+  --pill-border: rgba(143, 112, 105, 0.26);
+  --pill-surface: linear-gradient(180deg, #fffdf8, #f3ebe3);
+  --body-text: #5b403a;
+  --hub-bg: linear-gradient(165deg, #d45335 0%, #b72301 48%, #8a1a00 100%);
+  --hub-icon: #fffef9;
+  --bar-glow: rgba(183, 35, 1, 0.22);
+  --pill-outer-glow: rgba(183, 55, 28, 0.18);
+  --speech-shimmer-mid: rgba(255, 250, 245, 0.92);
+  --meter-bar-grad: linear-gradient(
+    180deg,
+    #f5e6c8 0%,
+    #deb887 35%,
+    #c9a06a 70%,
+    #a67c52 100%
+  );
+  --meter-bar-glow: rgba(201, 160, 106, 0.45);
+  --flow-line-a: rgba(183, 35, 1, 0.35);
+  --flow-line-b: rgba(255, 140, 110, 0.65);
+  --bar-grad: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.82) 0%,
+    rgba(255, 218, 208, 0.95) 22%,
+    rgba(255, 120, 88, 0.92) 48%,
+    rgba(183, 35, 1, 0.45) 100%
+  );
+  --cancel-hover-bg: rgba(255, 122, 89, 0.16);
+  --cancel-hover-fg: #b72301;
+}
+
+.recording-overlay[data-capture="system"] {
+  --pill-border: rgba(95, 90, 140, 0.28);
+  --pill-surface: linear-gradient(180deg, #faf9ff, #eceafc);
+  --body-text: #3d3a52;
+  --hub-bg: linear-gradient(165deg, #7c74e8 0%, #5248d8 45%, #3b32b8 100%);
+  --hub-icon: #f6f5ff;
+  --bar-glow: rgba(99, 91, 220, 0.28);
+  --pill-outer-glow: rgba(82, 72, 216, 0.2);
+  --speech-shimmer-mid: rgba(255, 255, 255, 0.95);
+  --meter-bar-grad: linear-gradient(
+    180deg,
+    #f0ecff 0%,
+    #d4c4ff 40%,
+    #b8a0f0 72%,
+    #8b76d4 100%
+  );
+  --meter-bar-glow: rgba(140, 120, 220, 0.42);
+  --flow-line-a: rgba(82, 72, 200, 0.38);
+  --flow-line-b: rgba(180, 170, 255, 0.75);
+  --bar-grad: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.88) 0%,
+    rgba(224, 220, 255, 0.95) 24%,
+    rgba(140, 130, 255, 0.9) 50%,
+    rgba(75, 62, 200, 0.5) 100%
+  );
+  --cancel-hover-bg: rgba(120, 110, 255, 0.14);
+  --cancel-hover-fg: #4338ca;
+}
+
+.overlay-hub {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  min-height: 22px;
+  align-self: center;
+  border-radius: 999px;
+  background: var(--hub-bg);
+  color: var(--hub-icon);
+  flex-shrink: 0;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.2) inset;
+}
+
+.overlay-hub svg {
+  display: block;
+}
+
+.overlay-middle {
+  position: relative;
+  display: block;
+  flex: 0 0 auto;
+  min-width: 88px;
+  min-height: 22px;
+  align-self: center;
+}
+
+.overlay-stack-layer {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(calc(-50% + 3px)) scaleY(0.94);
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  min-width: 88px;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.overlay-stack-layer.is-visible {
+  opacity: 1;
+  transform: translateY(-50%) scaleY(1);
+}
+
+.overlay-meter-layer {
+  z-index: 1;
+}
+
+.overlay-status-layer {
+  z-index: 2;
+}
+
+/* Reference-style symmetric meter: rounded vertical bars, peak at center. */
+.overlay-symmetric-bars {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 2.5px;
+  height: 20px;
+  padding: 0 2px;
+  flex-shrink: 0;
+}
+
+.overlay-symmetric-bars__bar {
+  width: 2.75px;
+  min-height: 3px;
+  border-radius: 999px;
+  background: var(--meter-bar-grad);
+  box-shadow:
+    0 0 4px var(--meter-bar-glow),
+    0 0 1px rgba(255, 255, 255, 0.35) inset;
+  transform-origin: center bottom;
+  transition:
+    height 95ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.recording-overlay.fade-in {
+  opacity: 1;
+}
+
+.recording-overlay:active {
+  cursor: grabbing;
+}
+
+/* MVP speech flow: shimmer label + indeterminate flow line */
+.speech-flow {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  min-width: 0;
+  max-width: 152px;
+}
+
+.speech-flow__text {
+  font-size: 8.5px;
+  font-family:
+    "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background-image: linear-gradient(
+    105deg,
+    var(--body-text) 0%,
+    var(--body-text) 36%,
+    var(--speech-shimmer-mid) 50%,
+    var(--body-text) 64%,
+    var(--body-text) 100%
+  );
+  background-size: 220% 100%;
+  background-position: 0% 50%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: speech-flow-shimmer 2.4s ease-in-out infinite;
+}
+
+@keyframes speech-flow-shimmer {
+  0% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.speech-flow__line {
+  display: block;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    var(--flow-line-a) 0%,
+    var(--flow-line-b) 45%,
+    var(--flow-line-a) 100%
+  );
+  background-size: 160% 100%;
+  animation: speech-flow-line 1.8s ease-in-out infinite;
+  opacity: 0.85;
+}
+
+@keyframes speech-flow-line {
+  0% {
+    background-position: 0% 0%;
+  }
+  100% {
+    background-position: 100% 0%;
+  }
+}
+
+[dir="rtl"] .speech-flow__text {
+  animation-name: speech-flow-shimmer-rtl;
+}
+
+@keyframes speech-flow-shimmer-rtl {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 100% 50%;
+  }
+}
+
+[dir="rtl"] .speech-flow__line {
+  animation-name: speech-flow-line-rtl;
+}
+
+@keyframes speech-flow-line-rtl {
+  0% {
+    background-position: 100% 0%;
+  }
+  100% {
+    background-position: 0% 0%;
+  }
+}
+
+.cancel-button {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(143, 112, 105, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+  color: #8f7069;
+  transition:
+    background-color 150ms ease-out,
+    transform 100ms ease-out,
+    color 150ms ease-out;
+  flex-shrink: 0;
+}
+
+.recording-overlay[data-capture="system"] .cancel-button {
+  border-color: rgba(95, 90, 140, 0.16);
+}
+
+.cancel-button:hover {
+  background: var(--cancel-hover-bg);
+  color: var(--cancel-hover-fg);
+  transform: scale(1.05);
+}
+
+.cancel-button:active {
+  transform: scale(0.95);
+}
+
+.overlay-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 0 0 auto;
+  min-width: 0;
+}

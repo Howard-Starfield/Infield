@@ -1,0 +1,110 @@
+<h2>Board card design — AppFlowy-style rich cards</h2>
+<p class="subtitle">Based on AppFlowy: cards support checkbox + text + colored labels in any combination</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>AppFlowy-style — inline block cards</h3>
+      <p>Cards are rich content blocks: checkbox inline, text lines, colored label chips. The "+" button inside the column adds a card. Another "+" on the right edge of the column header adds a new column.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Classic kanban — title + field chips only</h3>
+      <p>Cards show a single title field + up to 2 secondary field chips. Simpler, less flexible. Board groups by a Select field.</p>
+    </div>
+  </div>
+</div>
+
+<br>
+
+<div class="mockup">
+  <div class="mockup-header">Option A — AppFlowy-style rich cards</div>
+  <div class="mockup-body" style="font-family: system-ui; background: #f7f6f3; padding: 12px; border-radius: 6px;">
+    <div style="display: flex; gap: 8px;">
+      <!-- Column 1 -->
+      <div style="flex: 1; min-width: 200px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span style="font-size: 12px;">●</span>
+            <span style="font-size: 11px; font-weight: 600; color: #333;">To Do</span>
+            <span style="font-size: 10px; color: #aaa;">(3)</span>
+          </div>
+          <div style="display: flex; gap: 4px;">
+            <button style="font-size: 11px; background: none; border: none; cursor: pointer; color: #888; padding: 2px 4px;">···</button>
+          </div>
+        </div>
+        <!-- Card 1 -->
+        <div style="background: white; border: 1px solid #e0e0e0; border-radius: 6px; padding: 10px; margin-bottom: 6px;">
+          <div style="display: flex; align-items: flex-start; gap: 8px; margin-bottom: 6px;">
+            <input type="checkbox" style="margin-top: 2px; flex-shrink: 0;">
+            <span style="font-size: 12px; color: #333; text-decoration: none;">Write quarterly report</span>
+          </div>
+          <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+            <span style="background: #fce8d4; color: #b25a00; font-size: 10px; padding: 2px 6px; border-radius: 3px;">High</span>
+            <span style="background: #e8f0fe; color: #1a73e8; font-size: 10px; padding: 2px 6px; border-radius: 3px;">Marketing</span>
+          </div>
+        </div>
+        <!-- Card 2 -->
+        <div style="background: white; border: 1px solid #e0e0e0; border-radius: 6px; padding: 10px; margin-bottom: 6px;">
+          <div style="display: flex; align-items: flex-start; gap: 8px; margin-bottom: 6px;">
+            <input type="checkbox" style="margin-top: 2px; flex-shrink: 0;">
+            <span style="font-size: 12px; color: #888; text-decoration: line-through;">Review budget proposal</span>
+          </div>
+          <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+            <span style="background: #e6f4ea; color: #1e8e3e; font-size: 10px; padding: 2px 6px; border-radius: 3px;">Done</span>
+          </div>
+        </div>
+        <!-- Add card button -->
+        <button style="width: 100%; padding: 6px; background: none; border: 1px dashed #ccc; border-radius: 4px; font-size: 11px; color: #aaa; cursor: pointer; text-align: left;">+ Add card</button>
+      </div>
+      <!-- Column 2 -->
+      <div style="flex: 1; min-width: 200px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span style="font-size: 12px;">●</span>
+            <span style="font-size: 11px; font-weight: 600; color: #333;">In Progress</span>
+            <span style="font-size: 10px; color: #aaa;">(2)</span>
+          </div>
+          <button style="font-size: 11px; background: none; border: none; cursor: pointer; color: #888; padding: 2px 4px;">···</button>
+        </div>
+        <div style="background: white; border: 1px solid #e0e0e0; border-radius: 6px; padding: 10px; margin-bottom: 6px;">
+          <div style="display: flex; align-items: flex-start; gap: 8px; margin-bottom: 6px;">
+            <input type="checkbox" style="margin-top: 2px; flex-shrink: 0;">
+            <span style="font-size: 12px; color: #333;">Design new landing page</span>
+          </div>
+          <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+            <span style="background: #fce8d4; color: #b25a00; font-size: 10px; padding: 2px 6px; border-radius: 3px;">High</span>
+          </div>
+        </div>
+        <button style="width: 100%; padding: 6px; background: none; border: 1px dashed #ccc; border-radius: 4px; font-size: 11px; color: #aaa; cursor: pointer; text-align: left;">+ Add card</button>
+      </div>
+      <!-- Add column button -->
+      <div style="display: flex; align-items: center;">
+        <button style="padding: 6px 12px; background: none; border: 1px dashed #ccc; border-radius: 4px; font-size: 11px; color: #aaa; cursor: pointer; white-space: nowrap;">+ Add column</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="mockup">
+  <div class="mockup-header">Option B — Classic kanban title + chips</div>
+  <div class="mockup-body" style="font-family: system-ui; background: #f7f6f3; padding: 12px; border-radius: 6px;">
+    <div style="display: flex; gap: 8px;">
+      <div style="flex: 1; background: white; border: 1px solid #e0e0e0; border-radius: 6px; padding: 10px;">
+        <div style="font-size: 11px; font-weight: 600; color: #333; margin-bottom: 8px;">To Do <span style="color: #aaa; font-weight: 400;">(3)</span></div>
+        <div style="background: #f9f9f9; border-radius: 4px; padding: 10px; margin-bottom: 6px; border-left: 3px solid #e5e5e5;">
+          <div style="font-size: 12px; font-weight: 500; color: #333; margin-bottom: 6px;">Write quarterly report</div>
+          <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+            <span style="background: #fce8d4; color: #b25a00; font-size: 10px; padding: 2px 6px; border-radius: 3px;">High</span>
+            <span style="font-size: 10px; color: #888;">Apr 15</span>
+          </div>
+        </div>
+        <div style="text-align: center; font-size: 11px; color: #aaa; padding: 4px;">+ Add card</div>
+      </div>
+    </div>
+  </div>
+</div>

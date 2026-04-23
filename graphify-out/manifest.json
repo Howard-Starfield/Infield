@@ -1,0 +1,33 @@
+{
+  "generated": "2026-04-23T00:33:04.997649",
+  "corpus": {
+    "path": ".",
+    "total_files": 614,
+    "total_words": 748334,
+    "code_files": 513,
+    "doc_files": 0,
+    "image_files": 0
+  },
+  "graph": {
+    "nodes": 3520,
+    "edges": 9031,
+    "communities": 204
+  },
+  "extraction": {
+    "ast_nodes": 2982,
+    "semantic_nodes": 2957,
+    "total_nodes": 3532,
+    "total_edges": 14400
+  },
+  "outputs": [
+    "graph.html",
+    "graph.svg",
+    "GRAPH_REPORT.md",
+    "graph.json"
+  ],
+  "mode": "deep",
+  "token_cost": {
+    "input": 0,
+    "output": 0
+  }
+}

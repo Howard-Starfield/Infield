@@ -1,0 +1,159 @@
+<h2>Row-as-Page — Full Interactive Demo</h2>
+<p class="subtitle">Click "Go to row page" to see the full-page navigation experience</p>
+
+<div style="display: flex; flex-direction: column; gap: 16px; font-family: system-ui;">
+
+<!-- Section 1: Tree + Board + Row page all in one -->
+<div style="display: flex; gap: 8px; height: 340px;">
+  <!-- Sidebar -->
+  <div style="width: 200px; background: white; border: 1px solid #e0e0e0; border-radius: 6px; padding: 8px 0; overflow-y: auto; flex-shrink: 0;">
+    <div style="padding: 4px 12px; font-size: 10px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Pages</div>
+    <div style="padding: 4px 12px; font-size: 12px; color: #333; cursor: pointer; display: flex; align-items: center; gap: 6px;" onclick="showView('board')">
+      <span>📄</span> Meeting Notes
+    </div>
+    <!-- Database expanded -->
+    <div>
+      <div style="padding: 4px 12px; font-size: 12px; color: #333; cursor: pointer; display: flex; align-items: center; gap: 6px;" onclick="showView('board')">
+        <span style="font-size: 10px; color: #aaa;">▼</span>
+        <span>📊</span> Project Tracker
+      </div>
+      <div style="padding: 4px 12px 4px 28px; font-size: 11px; color: #555; cursor: pointer; display: flex; align-items: center; gap: 6px;" onclick="showView('rowpage')">
+        <span>📋</span> Q2 Campaign planning
+      </div>
+      <div style="padding: 4px 12px 4px 28px; font-size: 11px; color: #555; cursor: pointer; display: flex; align-items: center; gap: 6px;" onclick="showView('rowpage')">
+        <span>📋</span> Website redesign
+      </div>
+      <div style="padding: 4px 12px 4px 28px; font-size: 11px; color: #555; cursor: pointer; display: flex; align-items: center; gap: 6px;" onclick="showView('rowpage')">
+        <span>📋</span> Mobile app v2
+      </div>
+      <div style="padding: 4px 12px 4px 28px; font-size: 11px; color: #aaa; cursor: pointer;" onclick="showView('board')">
+        + Add row
+      </div>
+    </div>
+    <!-- Database collapsed -->
+    <div style="padding: 4px 12px; font-size: 12px; color: #333; cursor: pointer; display: flex; align-items: center; gap: 6px;" onclick="showView('board')">
+      <span style="font-size: 10px; color: #aaa;">▶</span>
+      <span>📊</span> HR Pipeline
+    </div>
+  </div>
+
+  <!-- Main content — changes based on view -->
+  <div id="mainContent" style="flex: 1; background: white; border: 1px solid #e0e0e0; border-radius: 6px; display: flex; flex-direction: column; overflow: hidden;">
+    <!-- Board view (default) -->
+    <div id="view-board" style="display: flex; flex-direction: column; height: 100%;">
+      <div style="padding: 12px 16px; border-bottom: 1px solid #e0e0e0;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+          <span style="font-size: 16px;">📊</span>
+          <span style="font-size: 14px; font-weight: 600;">Project Tracker</span>
+        </div>
+        <div style="display: flex; gap: 4px; background: #f0f0f0; padding: 3px; border-radius: 6px; display: inline-flex; width: fit-content;">
+          <div style="background: white; padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 600; border-bottom: 2px solid #2563eb; cursor: pointer;" onclick="event.stopPropagation()">Board</div>
+          <div style="padding: 3px 10px; border-radius: 4px; font-size: 11px; color: #666; cursor: pointer;">Grid</div>
+          <div style="padding: 3px 10px; border-radius: 4px; font-size: 11px; color: #666; cursor: pointer;">Calendar</div>
+          <button style="background: #f0f0f0; border: none; border-radius: 4px; padding: 3px 8px; font-size: 11px; cursor: pointer; margin-left: 4px;">+</button>
+        </div>
+        <div style="display: flex; gap: 6px; margin-top: 8px; font-size: 11px; color: #888;">
+          <span>[Filter ▼]</span>
+          <span>[Sort ▼]</span>
+          <span style="background: #e8f0fe; color: #1a73e8; padding: 2px 8px; border-radius: 10px; cursor: pointer;">Grouped by: Status ✕</span>
+        </div>
+      </div>
+      <div style="flex: 1; padding: 12px; overflow-x: auto;">
+        <div style="display: flex; gap: 8px; min-height: 200px;">
+          <div style="min-width: 160px;">
+            <div style="font-size: 11px; font-weight: 600; color: #333; margin-bottom: 8px;">● To Do <span style="color: #aaa;">(2)</span></div>
+            <div style="background: #f9f9f9; border-radius: 4px; padding: 8px; margin-bottom: 6px; font-size: 11px; color: #333; border-left: 3px solid #e0e0e0; cursor: pointer;" onclick="showView('rowpage')">Q2 Campaign planning</div>
+            <div style="background: #f9f9f9; border-radius: 4px; padding: 8px; margin-bottom: 6px; font-size: 11px; color: #333; border-left: 3px solid #e0e0e0; cursor: pointer;" onclick="showView('rowpage')">Website redesign</div>
+            <button style="width: 100%; padding: 5px; background: none; border: 1px dashed #ccc; border-radius: 4px; font-size: 11px; color: #aaa; cursor: pointer;">+ Add card</button>
+          </div>
+          <div style="min-width: 160px;">
+            <div style="font-size: 11px; font-weight: 600; color: #333; margin-bottom: 8px;">● In Progress <span style="color: #aaa;">(1)</span></div>
+            <div style="background: #f9f9f9; border-radius: 4px; padding: 8px; font-size: 11px; color: #333; border-left: 3px solid #2563eb; cursor: pointer;" onclick="showView('rowpage')">Mobile app v2</div>
+          </div>
+          <div style="display: flex; align-items: center;">
+            <button style="padding: 6px 12px; background: none; border: 1px dashed #ccc; border-radius: 4px; font-size: 11px; color: #aaa; cursor: pointer; white-space: nowrap;">+ Add column</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Row page (hidden by default) -->
+    <div id="view-rowpage" style="display: none; flex-direction: column; height: 100%;">
+      <!-- Breadcrumb -->
+      <div style="padding: 10px 16px; border-bottom: 1px solid #f0f0f0; display: flex; align-items: center; gap: 6px; font-size: 11px; color: #888;">
+        <span style="cursor: pointer;" onclick="showView('board')">📊 Project Tracker</span>
+        <span>›</span>
+        <span style="color: #333; font-weight: 500;">Q2 Campaign planning</span>
+      </div>
+      <!-- Title -->
+      <div style="padding: 16px 20px 8px;">
+        <div style="font-size: 20px; font-weight: 700; color: #1a1a1a;">Q2 Campaign planning</div>
+      </div>
+      <!-- Body + Properties -->
+      <div style="flex: 1; display: flex; overflow: hidden;">
+        <!-- Body -->
+        <div style="flex: 1; padding: 0 20px 16px; overflow-y: auto; border-right: 1px solid #f0f0f0;">
+          <div style="font-size: 13px; color: #555; line-height: 1.7; margin-bottom: 12px;">
+            This is the <strong>page body</strong> — freeform rich text content that only row-as-page nodes have. Every row can have its own notes, embedded content, and more.
+          </div>
+          <div style="font-size: 13px; color: #555; line-height: 1.7;">
+            Unlike a modal, this is a real page you can navigate to, link to from other pages, and embed. Click "← Back to board" to return.
+          </div>
+        </div>
+        <!-- Properties sidebar -->
+        <div style="width: 240px; padding: 12px 16px; overflow-y: auto;">
+          <div style="font-size: 10px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Properties</div>
+          <div style="margin-bottom: 12px;">
+            <div style="font-size: 11px; color: #888; margin-bottom: 4px;">Status</div>
+            <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+              <div style="background: #f1f3f4; color: #666; font-size: 11px; padding: 3px 10px; border-radius: 12px; cursor: pointer;">To Do</div>
+              <div style="background: #e8f0fe; color: #1a73e8; font-size: 11px; padding: 3px 10px; border-radius: 12px; cursor: pointer;">In Progress</div>
+              <div style="background: #f1f3f4; color: #666; font-size: 11px; padding: 3px 10px; border-radius: 12px; cursor: pointer;">Done</div>
+            </div>
+          </div>
+          <div style="margin-bottom: 12px;">
+            <div style="font-size: 11px; color: #888; margin-bottom: 4px;">Priority</div>
+            <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+              <div style="background: #fce8d4; color: #b25a00; font-size: 11px; padding: 3px 10px; border-radius: 12px; cursor: pointer;">High</div>
+              <div style="background: #f1f3f4; color: #666; font-size: 11px; padding: 3px 10px; border-radius: 12px; cursor: pointer;">Medium</div>
+              <div style="background: #f1f3f4; color: #666; font-size: 11px; padding: 3px 10px; border-radius: 12px; cursor: pointer;">Low</div>
+            </div>
+          </div>
+          <div style="margin-bottom: 12px;">
+            <div style="font-size: 11px; color: #888; margin-bottom: 4px;">Due date</div>
+            <div style="font-size: 12px; color: #333; cursor: pointer;">📅 April 15, 2026</div>
+          </div>
+          <div style="margin-bottom: 12px;">
+            <div style="font-size: 11px; color: #888; margin-bottom: 4px;">Projects (Relation)</div>
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <div style="background: #e8f0fe; color: #1a73e8; font-size: 11px; padding: 4px 10px; border-radius: 4px; cursor: pointer;">→ Project Alpha</div>
+              <div style="background: #e8f0fe; color: #1a73e8; font-size: 11px; padding: 4px 10px; border-radius: 4px; cursor: pointer;">→ Project Beta</div>
+            </div>
+          </div>
+          <div style="margin-bottom: 12px;">
+            <div style="font-size: 11px; color: #888; margin-bottom: 4px;">Total Budget (Rollup)</div>
+            <div style="font-size: 13px; font-weight: 600; color: #1a73e8;">$125,000</div>
+          </div>
+          <div style="margin-bottom: 12px;">
+            <div style="font-size: 11px; color: #888; margin-bottom: 4px; display: flex; align-items: center; gap: 4px;">
+              💬 Comments <span style="background: #e8f0fe; color: #1a73e8; font-size: 10px; padding: 1px 6px; border-radius: 8px; font-weight: 600;">3</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Navigation hint -->
+<div style="text-align: center; font-size: 11px; color: #aaa;">
+  ← Click row names in the sidebar or cards in the board to navigate to the row page →
+</div>
+
+<script>
+function showView(view) {
+  document.getElementById('view-board').style.display = view === 'board' ? 'flex' : 'none';
+  document.getElementById('view-rowpage').style.display = view === 'rowpage' ? 'flex' : 'none';
+}
+</script>
+</div>

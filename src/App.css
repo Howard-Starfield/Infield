@@ -1,0 +1,1810 @@
+@import "tailwindcss";
+
+@theme {
+  /* Agentic Architect warm editorial tokens */
+  --color-text: #1c1c19;
+  --color-background: #fdf9f3;
+  --color-background-ui: #f1ede800;
+  --color-logo-primary: #b72301;
+  --color-logo-stroke: #ff5733;
+  --color-text-stroke: #fdf9f3;
+  --color-mid-gray: #5b403a;
+}
+
+/* ─── Theme primitives — @property registration ─────────────────────────────
+ *
+ * Every token listed in `src/theme/tokens.ts` → REGISTERED_SLIDER_TOKENS MUST
+ * be registered here as a typed `@property`. Without this, CSS transitions on
+ * the consumers of these vars animate as `discrete` (MDN) — the value snaps
+ * instead of tweening. That makes every slider in the Theme panel feel broken.
+ *
+ * DO NOT register non-slider tokens here. `@property` increases the
+ * invalidation surface (every registered property triggers its own recalc
+ * path). Only slider-driven numeric primitives need typed animation.
+ *
+ * Keep this list in sync with REGISTERED_SLIDER_TOKENS — the theme unit tests
+ * assert that every id there is emitted by `deriveCssVars`, but they CANNOT
+ * verify the `@property` block exists. Reviewer discipline: adding a token to
+ * REGISTERED_SLIDER_TOKENS requires adding a block here.
+ * ─────────────────────────────────────────────────────────────────────────── */
+
+@property --heros-glass-fill-opacity {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0.08;
+}
+
+@property --heros-grain-opacity {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 1;
+}
+
+@property --ui-scale {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 1;
+}
+
+@property --density-scale {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 1;
+}
+
+@property --duration-scale {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 1;
+}
+
+@property --shadow-scale {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 1;
+}
+
+/* ─── Reduced motion — one rule covers the whole app ────────────────────────
+ *
+ * Motion's `useReducedMotion()` hook handles JS-driven springs. This media
+ * query covers CSS transitions on tokens (accessed through @property above)
+ * and keyframe animations anywhere in the tree. Without it, a user with
+ * `prefers-reduced-motion: reduce` still sees token tweens because CSS has no
+ * awareness of Motion's preference.
+ *
+ * 0.01ms (not 0) because some libraries test for "transition end" events —
+ * zero duration can skip the event entirely and leave state machines hung.
+ *
+ * The `animationSpeed: 'off'` theme setting emits `--duration-scale: 0` which
+ * disables tweens globally via the semantic cascade in `:root` below. This
+ * media query is the OS-level fallback for users who never touch the setting.
+ * ─────────────────────────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+html {
+  color-scheme: light;
+}
+
+/* ─── Theme mode hint for native UI (scrollbars, form controls) ─────────────
+ *
+ * ThemeProvider writes `data-theme-mode="dark"` or `"light"` on the <html>
+ * element whenever the active theme is flushed. These rules set `color-scheme`
+ * accordingly so native scrollbars, `<input>` controls, and system popover
+ * surfaces match the user's theme without us styling each one individually.
+ *
+ * This is the only rule in App.css that switches on theme mode in Step 3.
+ * Component-level light/dark variants ride the semantic cascade added in
+ * Step 6; we deliberately keep Step 3 minimal so plumbing is verifiable
+ * without a giant refactor of every existing consumer.
+ * ─────────────────────────────────────────────────────────────────────────── */
+
+html[data-theme-mode="dark"] {
+  color-scheme: dark;
+}
+html[data-theme-mode="light"] {
+  color-scheme: light;
+}
+
+:root {
+  /* Typography — fluid base, scales with viewport width */
+  font-size: clamp(12px, 1.2vw + 8px, 15px);
+  line-height: 24px;
+  font-weight: 400;
+
+  /* Colors - Light Theme */
+  /* --color-text: #0f0f0f;
+  --color-background: #fbfbfb;
+  --color-logo-primary: #FAA2CA;
+  --color-logo-stroke: #382731;
+  --color-text-stroke: #f6f6f6; */
+
+  /* Typography settings */
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
+
+  --scrollbar-thumb: color-mix(in srgb, var(--color-text), transparent 85%);
+  --scrollbar-thumb-hover: color-mix(
+    in srgb,
+    var(--color-text),
+    transparent 70%
+  );
+  --workspace-bg: #fdf9f3;
+  --workspace-bg-soft: #f7f1ea;
+  --bg-main: #fdf9f3;
+  --bg-sidebar: #f3ece4;
+  --surface-1: #fffef9;
+  --surface-2: #f7f1ea;
+  --surface-3: #efe7dd;
+  --workspace-cream: #f3ece4;
+  --workspace-pane: color-mix(in srgb, var(--workspace-cream) 94%, transparent);
+  --workspace-pane-strong: color-mix(in srgb, var(--workspace-cream) 98%, transparent);
+  --workspace-panel: #fffef9;
+  --workspace-panel-muted: #f7f1ea;
+  --workspace-border: rgba(28, 28, 25, 0.12);
+  --workspace-border-strong: rgba(28, 28, 25, 0.2);
+  --workspace-text: #1c1c19;
+  --workspace-text-muted: rgba(60, 50, 45, 0.82);
+  --workspace-text-soft: rgba(60, 50, 45, 0.55);
+  --workspace-accent: #b72301;
+  --workspace-accent-soft: rgba(183, 35, 1, 0.09);
+  --workspace-accent-strong: rgba(183, 35, 1, 0.18);
+  --workspace-tree-hover: color-mix(in srgb, var(--workspace-text) 6%, transparent);
+  --workspace-tree-hover-strong: color-mix(in srgb, var(--workspace-text) 10%, transparent);
+  --workspace-accent-secondary: #6d4c3d;
+  --workspace-shadow: 0 18px 40px rgba(28, 28, 25, 0.1);
+  --workspace-shadow-soft: 0 10px 24px rgba(28, 28, 25, 0.08);
+  --workspace-panel-blur: 10px;
+  --workspace-panel-radius: 14px;
+  --workspace-note-topbar-bg: rgba(253, 249, 243, 0.75);
+  --workspace-grid-bg-cell: #fffef9;
+  --workspace-grid-bg-header: #f7f1ea;
+  --workspace-grid-bg-header-hover: #efe7dd;
+  --workspace-grid-bg-header-focus: #efe7dd;
+  --workspace-grid-border: rgba(28, 28, 25, 0.08);
+  --workspace-grid-border-soft: rgba(28, 28, 25, 0.06);
+  --workspace-grid-link: #b72301;
+  --workspace-grid-accent-light: rgba(183, 35, 1, 0.12);
+  --workspace-grid-cell-padding-h: 8px;
+  --workspace-grid-cell-padding-v: 3px;
+  --workspace-grid-row-height: 26px;
+  --workspace-editor-max-width: 800px;
+  --workspace-shell-glow-top: rgba(212, 184, 150, 0.14);
+  --workspace-shell-glow-right: rgba(183, 35, 1, 0.04);
+  --workspace-shell-glow-bottom: rgba(183, 35, 1, 0.03);
+
+  /* Home decorative orbs (tinted from shell glow + accent) */
+  --workspace-orb-1: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--workspace-shell-glow-top) 72%, transparent) 0%,
+    transparent 72%
+  );
+  --workspace-orb-2: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--workspace-accent) 10%, transparent) 0%,
+    transparent 70%
+  );
+  --workspace-orb-3: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--workspace-shell-glow-top) 50%, var(--workspace-bg-soft) 30%) 0%,
+    transparent 70%
+  );
+
+  /* Widget header dots (preset overrides via JS) */
+  --workspace-widget-todo: #c45a3e;
+  --workspace-widget-calendar: #b8956a;
+  --workspace-widget-recent: #7a8f72;
+  --workspace-widget-quickcapture: #c9a227;
+  --workspace-widget-aiinsights: #8b7355;
+  --workspace-widget-notifications: #b87a7a;
+  --workspace-widget-stats: #6d7b8b;
+  --workspace-widget-voicememos: #b72301;
+
+  /* Chat / home chat surfaces (many compose from base tokens; JS fills gradients where needed) */
+  --workspace-chat-input-bg: var(--workspace-panel);
+  --workspace-chat-input-text: var(--workspace-text);
+  --workspace-chat-bubble-user-bg: linear-gradient(
+    180deg,
+    var(--workspace-panel),
+    color-mix(in srgb, var(--workspace-panel) 55%, var(--workspace-panel-muted))
+  );
+  --workspace-chat-bubble-user-text: var(--workspace-text);
+  --workspace-chat-bubble-user-border: color-mix(in srgb, var(--workspace-accent) 22%, transparent);
+  --workspace-chat-send-btn-bg: linear-gradient(
+    180deg,
+    var(--workspace-panel),
+    color-mix(in srgb, var(--workspace-panel) 40%, var(--workspace-border-strong))
+  );
+  --workspace-chat-send-btn-border: color-mix(in srgb, var(--workspace-accent) 28%, transparent);
+  --workspace-chat-send-btn-text: var(--workspace-text);
+  --workspace-chat-toolbar-divider: color-mix(in srgb, var(--workspace-border) 85%, transparent);
+  --workspace-chat-backdrop: color-mix(in srgb, var(--workspace-text) 35%, transparent);
+  --workspace-chat-modal-shadow: 0 24px 48px color-mix(in srgb, var(--workspace-text) 18%, transparent);
+  --workspace-chat-prompt-hover: color-mix(in srgb, var(--workspace-accent) 6%, transparent);
+  --workspace-chat-prompt-save-disabled-bg: color-mix(in srgb, var(--workspace-text) 6%, transparent);
+  --workspace-chat-error: var(--workspace-accent);
+  --workspace-chat-doc-chip-bg: color-mix(in srgb, var(--workspace-panel) 65%, transparent);
+  --workspace-chat-doc-chip-border: color-mix(in srgb, var(--workspace-accent) 20%, transparent);
+  --workspace-chat-drop-bg: color-mix(in srgb, var(--workspace-bg) 88%, transparent);
+  --workspace-chat-drop-ring: color-mix(in srgb, var(--workspace-accent) 12%, transparent);
+  --workspace-chat-header-bg: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--workspace-bg) 92%, transparent),
+    color-mix(in srgb, var(--workspace-bg-soft) 82%, transparent)
+  );
+  --workspace-chat-transcript-radial: radial-gradient(
+    circle at top center,
+    color-mix(in srgb, var(--workspace-panel) 28%, transparent),
+    transparent 42%
+  );
+  --workspace-chat-footer-divider: color-mix(in srgb, var(--workspace-border) 55%, transparent);
+  --workspace-chat-footer-bg: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--workspace-bg-soft) 78%, transparent),
+    color-mix(in srgb, var(--workspace-bg) 96%, transparent)
+  );
+  --workspace-chat-draft-popup-shadow: 0 -8px 32px color-mix(in srgb, var(--workspace-text) 12%, transparent),
+    0 4px 16px color-mix(in srgb, var(--workspace-text) 8%, transparent);
+  --workspace-chat-draft-error-text: color-mix(in srgb, var(--workspace-accent) 82%, var(--workspace-text));
+  --workspace-chat-draft-error-bg: color-mix(in srgb, var(--workspace-accent) 8%, transparent);
+  --workspace-chat-subtle-border: color-mix(in srgb, var(--workspace-text) 8%, transparent);
+  --workspace-chat-subtle-border-soft: color-mix(in srgb, var(--workspace-text) 6%, transparent);
+  --workspace-chat-home-bar-bg: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--workspace-panel) 98%, transparent),
+    color-mix(in srgb, var(--workspace-bg-soft) 95%, transparent)
+  );
+  --workspace-chat-home-user-bubble-bg: color-mix(in srgb, var(--workspace-accent) 8%, transparent);
+  --workspace-chat-home-assistant-bubble-bg: color-mix(in srgb, var(--workspace-panel) 95%, transparent);
+  --workspace-chat-home-accent-stripe: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--workspace-accent) 45%, transparent),
+    color-mix(in srgb, var(--workspace-shell-glow-top) 75%, transparent)
+  );
+  --workspace-chat-home-send-idle-bg: color-mix(in srgb, var(--workspace-border) 45%, transparent);
+  --workspace-chat-chip-bg: var(--workspace-panel);
+  --workspace-chat-surface-raised: color-mix(in srgb, var(--workspace-panel) 90%, transparent);
+  --workspace-chat-overlay-panel: color-mix(in srgb, var(--workspace-text) 96%, transparent);
+  --workspace-home-popup-overlay: rgba(20, 23, 28, 0.96);
+  --workspace-home-widget-toggle-idle: color-mix(
+    in srgb,
+    var(--workspace-panel) 4%,
+    transparent
+  );
+
+  /* Home dashboard chart (overridden in applyWorkspaceAppearanceToDocument) */
+  --workspace-home-chart-bar: var(--workspace-accent);
+  --workspace-home-chart-bar-muted: color-mix(in srgb, var(--workspace-text-muted) 38%, transparent);
+  --workspace-home-chart-axis: color-mix(in srgb, var(--workspace-text-soft) 55%, transparent);
+
+  /* Bottom bar */
+  --workspace-bottom-bar-bg: color-mix(in srgb, var(--workspace-panel-muted) 92%, transparent);
+  --workspace-status-recording: #ef4444;
+  --workspace-status-transcribing: #f59e0b;
+  --workspace-status-ready: #4ade80;
+
+  /* Calendar category colors (JS mirrors from calendarColors.ts) */
+  --workspace-cal-purple: #8b7355;
+  --workspace-cal-pink: #ec407a;
+  --workspace-cal-green: #66bb6a;
+  --workspace-cal-blue: #42a5f5;
+  --workspace-cal-orange: #ffa726;
+  --workspace-cal-yellow: #ffee58;
+
+  /* Sortable widget card shell */
+  --workspace-widget-card-bg: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--workspace-panel) 98%, transparent),
+    color-mix(in srgb, var(--workspace-bg-soft) 96%, transparent)
+  );
+
+  /* Shared controls (Button primary, react-select) */
+  --workspace-ui-button-text: var(--workspace-text);
+  --workspace-ui-button-from: var(--workspace-panel);
+  --workspace-ui-button-to: color-mix(
+    in srgb,
+    var(--workspace-panel) 40%,
+    var(--workspace-border-strong)
+  );
+  --workspace-ui-button-hover-from: color-mix(in srgb, var(--workspace-panel) 92%, var(--workspace-bg));
+  --workspace-ui-button-hover-to: color-mix(in srgb, var(--workspace-panel) 55%, var(--workspace-bg-soft));
+  --workspace-ui-button-border: color-mix(in srgb, var(--workspace-accent) 28%, transparent);
+  --workspace-ui-select-hover-bg: color-mix(in srgb, var(--workspace-accent) 7%, transparent);
+  --workspace-ui-select-focus-bg: color-mix(in srgb, var(--workspace-accent) 10%, transparent);
+  --workspace-ui-select-menu-bg: var(--workspace-panel);
+  --workspace-ui-select-menu-shadow: 0 10px 30px color-mix(in srgb, var(--workspace-text) 12%, transparent);
+  --workspace-ui-select-table-border: color-mix(in srgb, var(--workspace-text) 12%, transparent);
+  --workspace-on-accent: #ffffff;
+
+  /* Document-level menus / popovers (above sidebar MDX and tree chrome) */
+  --workspace-floating-backdrop-z: 12000;
+  --workspace-floating-z: 12001;
+  --workspace-modal-z: 12030;
+  --workspace-tooltip-z: 12060;
+  --workspace-menu-radius: 12px;
+  --workspace-menu-danger-fg: var(--workspace-accent);
+  --workspace-menu-danger-hover-bg: color-mix(
+    in srgb,
+    var(--workspace-accent) 12%,
+    transparent
+  );
+  --workspace-menu-surface-bg: color-mix(
+    in srgb,
+    var(--workspace-panel) 97%,
+    transparent
+  );
+
+  /* Apply colors */
+  color: var(--color-text);
+  background-color: var(--color-background);
+}
+
+/* Editor surface — always light (paper look regardless of OS theme) */
+.note-editor-wrapper {
+  --editor-bg: var(--editor-bg, #F5F5F0);
+  --editor-text: #1a1a1a;
+  --editor-muted: #6b6b6b;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+/* ─── macOS-feel window framing ────────────────────────────────────────
+ * The Tauri main window runs with `decorations(false)` + `transparent(true)`
+ * + `shadow(false)` (see `src-tauri/src/lib.rs`). That makes the OS draw
+ * nothing for the window itself — no native titlebar, no drop shadow. The
+ * frontend owns the entire visible silhouette, so `#root` is what the user
+ * sees as "the app window":
+ *
+ *   - `border-radius` rounds the window corners (high-fi 18px).
+ *   - `overflow: hidden` clips every child to that radius — without this
+ *     floating panels paint past the corner.
+ *   - `border: 1px` rim light reads as a subtle lit edge.
+ *   - Background color is the brand foundation so the first paint never
+ *     flashes the default OS white/black before ThemeProvider's mesh
+ *     mounts (critical on macOS where transparency reveals the desktop).
+ *
+ * `html`/`body` stay transparent so the OS sees the rounded `#root`
+ * corners and renders them correctly (without transparent html/body, the
+ * corners show white/black rectangles instead of desktop cut-outs).
+ * ------------------------------------------------------------------ */
+html,
+body {
+  background-color: transparent;
+  overflow: hidden;
+}
+
+#root {
+  position: relative;
+  /* 18px — outer-window edge in the three-tier radius hierarchy:
+       18px  outer window       (this rule, #root)
+       24px  large panels       (--radius-lg,     glass panels / login card)
+       14px  small containers   (--radius-container, sidebar items, inputs)
+     The nesting (smaller → larger → smaller) is intentional: the interior
+     24px panel reads as "floated inside" the 18px window frame, and the
+     14px controls read as "contained within" the 24px panel. */
+  border-radius: 18px;
+  overflow: hidden;
+  background-color: var(--heros-bg-foundation, #cc4c2b);
+  border: 1px solid color-mix(in srgb, var(--on-surface) 10%, transparent);
+  /* Three-layer shadow stack:
+       0 0 0 1px         — crisp outer black rim, defines the window edge
+       0 2px 8px         — tight contact shadow under the window
+       0 24px 64px       — diffuse ambient shadow, floats the app above desktop */
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, black 50%, transparent),
+    0 2px 8px color-mix(in srgb, black 25%, transparent),
+    0 24px 64px color-mix(in srgb, black 40%, transparent);
+}
+
+body {
+  margin: 0;
+  font-family:
+    "Inter",
+    "Segoe UI Variable Text",
+    "Segoe UI",
+    sans-serif;
+  color: var(--workspace-text);
+}
+
+/* ─── Focus/blur vibrancy ──────────────────────────────────────────────
+ * When Tauri writes `data-window-focused="false"` on the <html> element
+ * (set by the TitleBar focus listener — to be wired in Phase 3), the
+ * window's rim + shadow soften so the inactive state reads as recessed.
+ * Kit-matched subtle opacity drop + 20% rim dimming. No layout shift.
+ * ------------------------------------------------------------------ */
+html[data-window-focused="false"] #root {
+  border-color: color-mix(in srgb, var(--on-surface) 6%, transparent);
+  box-shadow:
+    0 16px 48px color-mix(in srgb, black 28%, transparent),
+    0 1px 4px color-mix(in srgb, black 18%, transparent);
+}
+
+/* Native selects / lists — match creamy shell, always dark text */
+select,
+option,
+optgroup {
+  color: #1c1c19;
+  background-color: #fffef9;
+}
+
+select {
+  border: 1px solid var(--workspace-border-strong);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font: inherit;
+  color-scheme: light;
+}
+
+select:focus {
+  outline: none;
+  border-color: rgba(183, 35, 1, 0.35);
+  box-shadow: 0 0 0 3px rgba(183, 35, 1, 0.08);
+}
+
+/* Glide Data Grid portals the cell editor to #portal (sibling of #root). Force light inputs so
+   OS dark mode / color-scheme does not yield pale text on pale backgrounds. */
+#portal {
+  color-scheme: light;
+  color: #1c1c19;
+}
+
+#portal .gdg-clip-region textarea.gdg-input,
+#portal .gdg-clip-region input.gdg-input {
+  color: #1c1c19;
+  -webkit-text-fill-color: #1c1c19;
+  caret-color: #1c1c19;
+  background-color: var(--workspace-bg) !important;
+}
+
+/* Glide overlays: GrowingEntry ships margin-top:6px which misaligns the editor in short row
+   overlays and leaves pale gaps at the cell edge. Clip region should match workspace cell fill. */
+#portal .gdg-growing-entry {
+  margin-top: 0;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  background-color: var(--workspace-bg);
+}
+
+#portal .gdg-clip-region {
+  background-color: var(--workspace-bg);
+  border-radius: 0;
+  padding: 0;
+  margin: 0;
+  animation: none !important;
+  transition: none !important;
+}
+
+/* Glide overlay root: keep box model predictable when we clamp width/height from JS */
+#portal [id^="gdg-overlay-"] {
+  box-sizing: border-box;
+  background-color: var(--workspace-bg);
+  /* Kill Glide's fade-in and any transition that reads as a size/position pop. */
+  animation: none !important;
+  transition: none !important;
+  opacity: 1 !important;
+}
+
+/* GrowingEntry hidden measure row adds 2px bottom padding in Glide; remove in portal only. */
+#portal .gdg-growing-entry > div:first-child {
+  padding-bottom: 0 !important;
+}
+
+.container {
+  margin: 0;
+  padding-top: 10vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  text-align: center;
+}
+
+/* Keep creamy light theme even when the OS prefers dark mode */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-text: #1c1c19;
+    --color-background: #fdf9f3;
+    --color-logo-primary: #b72301;
+    --color-logo-stroke: #c45a3e;
+    --workspace-text: #1c1c19;
+    --workspace-text-muted: rgba(91, 64, 58, 0.82);
+    --workspace-text-soft: rgba(91, 64, 58, 0.5);
+    --workspace-bg: #fdf9f3;
+    --workspace-panel: #fffef9;
+  }
+}
+
+/* macOS - tint native overlay scrollbar thumb */
+:root[data-platform="macos"] {
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+/* Custom Scrollbar - only on Windows/Linux; macOS uses native overlay scrollbars */
+:root:not([data-platform="macos"]) ::-webkit-scrollbar {
+  width: 14px;
+  height: 14px;
+}
+
+:root:not([data-platform="macos"]) ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+:root:not([data-platform="macos"]) ::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
+  border-radius: 20px;
+  border: 3px solid transparent;
+  border-right-width: 4px;
+  border-left-width: 3px;
+  background-clip: content-box;
+  min-height: 32px;
+}
+
+:root:not([data-platform="macos"]) ::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover);
+}
+
+/* System Audio — Live Transcript (inherits --sa-* from session root; matches appearance colors + panel radius) */
+.sa-transcript-scroll {
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: var(--sa-scrollbar-thumb) var(--sa-scrollbar-track);
+}
+
+.sa-transcript-scroll::-webkit-scrollbar {
+  width: var(--sa-scrollbar-width, 10px);
+  height: var(--sa-scrollbar-width, 10px);
+}
+
+.sa-transcript-scroll::-webkit-scrollbar-track {
+  background: var(--sa-scrollbar-track, transparent);
+}
+
+.sa-transcript-scroll::-webkit-scrollbar-thumb {
+  background-color: var(--sa-scrollbar-thumb);
+  border-radius: var(--sa-scrollbar-thumb-radius, 10px);
+  border: 3px solid transparent;
+  background-clip: content-box;
+  min-height: 28px;
+}
+
+.sa-transcript-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: var(--sa-scrollbar-thumb-hover);
+}
+
+@layer utilities {
+  .text-stroke {
+    -webkit-text-stroke: 2px var(--color-text-stroke);
+  }
+}
+
+.workspace-grid-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.workspace-grid-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.workspace-grid-scroll::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+}
+.workspace-grid-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.workspace-tab-strip::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.workspace-tab-strip::-webkit-scrollbar-track {
+  background: transparent;
+}
+.workspace-tab-strip::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+}
+.workspace-tab-strip::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
+}
+.workspace-tab-strip {
+  scrollbar-width: thin;
+}
+
+.logo-primary {
+  fill: var(--color-logo-primary);
+}
+
+.logo-stroke {
+  fill: var(--color-logo-stroke);
+  stroke: var(--color-logo-stroke);
+  stroke-width: 1;
+}
+
+.workspace-app-shell {
+  position: relative;
+  isolation: isolate;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.45), rgba(255, 255, 255, 0)),
+    var(--workspace-bg);
+}
+
+.workspace-app-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 10% 0%, rgba(212, 184, 150, 0.12), transparent 24%),
+    radial-gradient(circle at 85% 100%, rgba(183, 35, 1, 0.05), transparent 26%);
+  opacity: 0.95;
+  z-index: 0;
+}
+
+.workspace-app-shell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: linear-gradient(
+    rgba(143, 112, 105, 0.05) 1px,
+    transparent 1px
+  );
+  background-size: 100% 32px;
+  opacity: 0.2;
+  z-index: 0;
+}
+
+.workspace-app-shell > * {
+  position: relative;
+  z-index: 1;
+}
+
+.workspace-window-control {
+  border: none;
+  background: transparent;
+  color: var(--workspace-text-muted);
+  display: grid;
+  place-items: center;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.workspace-window-control:hover {
+  background: rgba(28, 28, 25, 0.05);
+}
+
+.workspace-window-control-danger:hover {
+  background: #e81123;
+  color: #ffffff;
+}
+
+.workspace-infield-shell {
+  position: relative;
+  isolation: isolate;
+}
+
+.workspace-infield-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at top center, rgba(212, 184, 150, 0.11), transparent 28%),
+    radial-gradient(circle at 88% 12%, rgba(183, 35, 1, 0.04), transparent 22%);
+  z-index: 0;
+}
+
+.workspace-infield-shell > * {
+  position: relative;
+  z-index: 1;
+}
+
+.workspace-eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-family: "Inter", "Segoe UI", sans-serif;
+  color: var(--workspace-text-soft);
+}
+
+/* SpeakType-style section titles — color follows workspace appearance */
+.workspace-display-heading {
+  font-family: Georgia, "Iowan Old Style", "Times New Roman", serif;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--workspace-text);
+  margin: 0;
+}
+
+.workspace-display-subtitle {
+  font-family: Georgia, "Iowan Old Style", "Times New Roman", serif;
+  font-weight: 500;
+  color: var(--workspace-text-muted);
+  margin: 0;
+}
+
+.workspace-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(247, 241, 234, 0.92);
+  border: 1px solid var(--workspace-border);
+  color: var(--workspace-text-muted);
+  font-size: 13px;
+  font-family: "Inter", "Segoe UI", sans-serif;
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1;
+}
+
+.workspace-paper-surface {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0)),
+    var(--workspace-panel);
+  border: 1px solid rgba(28, 28, 25, 0.08);
+  border-radius: var(--workspace-panel-radius);
+  box-shadow: var(--workspace-shadow-soft);
+}
+
+.workspace-note-surface {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--surface-1) 58%, transparent),
+      color-mix(in srgb, var(--surface-2) 74%, transparent)
+    ),
+    color-mix(in srgb, var(--bg-main) 94%, var(--surface-2));
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.workspace-soft-panel {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0)),
+    var(--workspace-panel-muted);
+  border: 1px solid rgba(28, 28, 25, 0.06);
+  border-radius: var(--workspace-panel-radius);
+  box-shadow: 0 4px 10px rgba(28, 28, 25, 0.04);
+}
+
+.workspace-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(40, 26, 20, 0.22);
+  backdrop-filter: blur(18px) saturate(1.05);
+}
+
+.workspace-dialog {
+  position: relative;
+  width: min(440px, calc(100vw - 32px));
+  border-radius: 22px;
+  padding: 22px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(248, 243, 237, 0.98)),
+    var(--workspace-panel);
+  border: 1px solid rgba(143, 112, 105, 0.16);
+  box-shadow:
+    0 30px 80px rgba(39, 24, 19, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.65);
+  overflow: hidden;
+}
+
+.workspace-dialog-glow {
+  position: absolute;
+  inset: auto auto 100% -12%;
+  width: 220px;
+  height: 120px;
+  background: radial-gradient(circle, rgba(255, 87, 51, 0.18), transparent 72%);
+  pointer-events: none;
+}
+
+.workspace-dialog-glow-danger {
+  background: radial-gradient(circle, rgba(183, 35, 1, 0.24), transparent 72%);
+}
+
+.workspace-dialog-glow-default {
+  background: radial-gradient(circle, rgba(255, 87, 51, 0.18), transparent 72%);
+}
+
+.workspace-dialog-header {
+  position: relative;
+  margin-bottom: 16px;
+}
+
+.workspace-dialog-title {
+  margin: 6px 0 0;
+  font-size: 24px;
+  line-height: 1.1;
+  letter-spacing: -0.04em;
+  font-family: "Manrope", "Segoe UI", sans-serif;
+  font-weight: 800;
+  color: var(--workspace-text);
+}
+
+.workspace-dialog-description {
+  margin: 8px 0 0;
+  color: var(--workspace-text-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.workspace-dialog-body {
+  margin-bottom: 18px;
+}
+
+.workspace-dialog-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 18px;
+  color: var(--workspace-text-muted);
+  font-size: 12px;
+}
+
+.workspace-dialog-checkbox input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--workspace-accent);
+}
+
+.workspace-dialog-input {
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: 14px;
+  border: 1px solid rgba(143, 112, 105, 0.18);
+  background: rgba(255, 255, 255, 0.88);
+  padding: 14px 15px;
+  font-size: 14px;
+  color: var(--workspace-text);
+  outline: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+
+.workspace-dialog-input:focus {
+  border-color: rgba(183, 35, 1, 0.34);
+  box-shadow:
+    0 0 0 4px rgba(183, 35, 1, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.74);
+}
+
+.workspace-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.workspace-dialog-button {
+  min-width: 96px;
+  border-radius: 999px;
+  padding: 11px 16px;
+  border: none;
+  font-size: 12px;
+  font-family: "Manrope", "Segoe UI", sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  box-sizing: border-box;
+  transition: filter 140ms ease, opacity 140ms ease, box-shadow 140ms ease,
+    background 140ms ease, border-color 140ms ease;
+}
+
+/* Keep hover feedback inside the pill — no vertical lift (avoids “shadow layer” offset). */
+.workspace-dialog-button:hover:not(:disabled) {
+  transform: none;
+}
+
+.workspace-dialog-button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.workspace-dialog-button-secondary {
+  background: rgba(255, 255, 255, 0.82);
+  color: var(--workspace-text-muted);
+  border: 1px solid rgba(143, 112, 105, 0.18);
+}
+
+.workspace-dialog-button-secondary:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.96);
+  border-color: rgba(143, 112, 105, 0.26);
+}
+
+.workspace-dialog-button-primary {
+  background: linear-gradient(180deg, #fffef9, #f0e8df);
+  color: #1c1c19;
+  border: 1px solid rgba(183, 35, 1, 0.32);
+  box-shadow:
+    0 2px 0 rgba(255, 255, 255, 0.55) inset,
+    0 4px 14px rgba(28, 28, 25, 0.07);
+}
+
+.workspace-dialog-button-primary:hover:not(:disabled) {
+  filter: brightness(1.02);
+  box-shadow:
+    0 2px 0 rgba(255, 255, 255, 0.65) inset,
+    0 5px 16px rgba(28, 28, 25, 0.09);
+}
+
+.workspace-dialog-button-danger {
+  background: linear-gradient(135deg, #a11a00, #d93210);
+  color: #ffffff;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.22) inset,
+    0 5px 16px rgba(161, 26, 0, 0.22);
+}
+
+.workspace-dialog-button-danger:hover:not(:disabled) {
+  filter: brightness(1.04);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.28) inset,
+    0 6px 18px rgba(161, 26, 0, 0.26);
+}
+
+.workspace-dialog-button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--workspace-accent) 42%, transparent);
+  outline-offset: -3px;
+}
+
+/* Workspace floating menus — focus ring stays inside the row pill. */
+button.workspace-menu-item:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--workspace-accent) 38%, transparent);
+  outline-offset: -2px;
+}
+
+/* Sidebar icon strip — no OS default button chrome bleeding past rounded hit targets. */
+.workspace-sidebar-icon-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(183, 35, 1, 0.16);
+}
+
+/* ── Sidebar & settings panel entrance animations ─────── */
+@keyframes nav-item-in {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes nav-group-in {
+  from { opacity: 0; transform: translateY(5px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes sidebar-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.sidebar-nav-item {
+  animation: nav-item-in 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.settings-nav-group {
+  animation: nav-group-in 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.settings-nav-item {
+  animation: nav-item-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ── Sidebar nav item shared interaction styles ─────── */
+.sidebar-nav-btn {
+  transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
+}
+
+.sidebar-nav-btn:hover {
+  background: rgba(28, 28, 25, 0.04) !important;
+}
+
+@keyframes workspace-chat-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes handyDraftPopupIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes workspace-chat-cursor {
+  0%,
+  45% {
+    opacity: 1;
+  }
+
+  55%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.workspace-chat-card {
+  animation: workspace-chat-rise 180ms ease both;
+}
+
+.workspace-chat-cursor {
+  display: inline-block;
+  width: 0.7ch;
+  margin-left: 2px;
+  color: var(--workspace-accent-secondary);
+  animation: workspace-chat-cursor 1s steps(1) infinite;
+}
+
+/* ── MDXEditor shell ───────────────────────────────────────── */
+/*
+ * MDXEditor's bundled CSS uses @media (prefers-color-scheme: dark) which
+ * cannot be overridden by `color-scheme: light` — media queries respond to
+ * the OS setting directly. We defeat dark-mode styles by forcing all
+ * MDXEditor internal elements back to our light-mode tokens.
+ */
+.mdx-shell {
+  --accentBase: var(--workspace-accent);
+  --accentBgSubtle: rgba(183, 35, 1, 0.06);
+  /* Force light regardless of OS dark mode */
+  color-scheme: light only;
+  background: transparent;
+  font-family: var(--font-body, Inter, sans-serif);
+}
+
+/* Kill dark backgrounds that MDXEditor injects via its own stylesheet */
+.mdx-shell,
+.mdx-shell .mdxeditor,
+.mdx-shell [class^="_mdxEditor"],
+.mdx-shell [class*=" _mdxEditor"],
+.mdx-shell ._contentEditable_uazmk_379,
+.mdx-shell [contenteditable] {
+  background: transparent !important;
+  color: var(--workspace-text) !important;
+}
+
+/* Toolbar — sticky solid bar (opaque; matches note chrome) */
+.mdx-shell .mdxeditor-toolbar.handy-mdx-toolbar-root {
+  min-width: 0;
+}
+
+.mdx-shell .mdxeditor-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 4px 6px;
+  margin: 8px 0 10px;
+  padding: 6px 10px;
+  max-width: 100%;
+  border-radius: var(--workspace-panel-radius);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+
+  background: var(--workspace-panel) !important;
+  border: 1px solid var(--workspace-border);
+  box-shadow: var(--workspace-shadow-soft),
+    inset 0 0 0 1px color-mix(in srgb, var(--workspace-text) 5%, transparent);
+}
+
+.mdx-shell .mdxeditor-toolbar::-webkit-scrollbar {
+  height: 6px;
+}
+.mdx-shell .mdxeditor-toolbar::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--workspace-text-muted) 35%, transparent);
+  border-radius: 999px;
+}
+
+/* Merge nested MDXEditor toolbar groups into the single outer pill */
+.mdx-shell .mdxeditor-toolbar [class*="toolbarGroupOfGroups"],
+.mdx-shell .mdxeditor-toolbar [class*="diffSourceToggleWrapper"] {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.mdx-shell .mdxeditor-toolbar [class*="toolbarGroupOfGroups"] {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* Handy: single-row rich toolbar + overflow (see HandyMdxToolbar) */
+.handy-mdx-toolbar-rich {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+
+.handy-mdx-toolbar-slot {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+}
+
+.handy-mdx-toolbar-more-wrap {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+}
+
+.handy-mdx-toolbar-more-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--workspace-text) 12%, transparent);
+  background: var(--workspace-panel);
+  color: var(--workspace-text);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.handy-mdx-toolbar-more-btn:hover {
+  background: color-mix(in srgb, var(--workspace-panel) 88%, var(--workspace-accent));
+}
+
+.handy-mdx-toolbar-more-panel {
+  position: absolute;
+  z-index: 50;
+  margin-top: 4px;
+  right: 0;
+  top: 100%;
+  min-width: 200px;
+  max-height: min(70vh, 420px);
+  overflow-y: auto;
+  padding: 6px;
+  border-radius: var(--workspace-menu-radius);
+  border: 1px solid var(--workspace-border-strong);
+  background: var(--workspace-menu-surface-bg);
+  backdrop-filter: blur(var(--workspace-panel-blur));
+  -webkit-backdrop-filter: blur(var(--workspace-panel-blur));
+  box-shadow: var(--workspace-shadow-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.handy-mdx-toolbar-more-panel .handy-mdx-toolbar-slot {
+  width: 100%;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+/* Horizontal "stripe" for overflow tools (More menu) */
+.handy-mdx-toolbar-more-panel--stripe {
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 2px;
+  min-width: auto;
+  max-height: none;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 6px 8px;
+  scrollbar-width: thin;
+}
+
+.handy-mdx-toolbar-more-panel--stripe .handy-mdx-toolbar-slot {
+  width: auto;
+  flex-shrink: 0;
+  flex-wrap: nowrap;
+}
+
+/* Selection bubble — pill chrome (workspace theme) */
+.mdx-selection-bubble {
+  pointer-events: auto;
+}
+
+.mdx-selection-bubble__pill {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 6px 4px 8px;
+  min-height: 36px;
+  border-radius: 9999px;
+  background: var(--workspace-panel);
+  border: 1px solid var(--workspace-border-strong);
+  box-shadow:
+    0 4px 14px color-mix(in srgb, var(--workspace-text) 10%, transparent),
+    0 1px 2px color-mix(in srgb, var(--workspace-text) 6%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--workspace-text) 4%, transparent);
+}
+
+.mdx-selection-bubble__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  margin: 0;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--workspace-text);
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.mdx-selection-bubble__btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--workspace-accent) 12%, var(--workspace-panel-muted));
+  color: var(--workspace-text);
+}
+
+.mdx-selection-bubble__btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.mdx-selection-bubble__btn--on {
+  background: color-mix(in srgb, var(--workspace-accent) 16%, var(--workspace-panel-muted));
+  color: var(--workspace-accent);
+}
+
+.mdx-selection-bubble__letter {
+  font-size: 13px;
+  font-weight: 800;
+  font-family: Manrope, Inter, sans-serif;
+  line-height: 1;
+}
+
+.mdx-selection-bubble__letter--i {
+  font-style: italic;
+  font-weight: 700;
+}
+
+.mdx-selection-bubble__letter--u {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  font-weight: 700;
+}
+
+.mdx-selection-bubble__sep {
+  width: 1px;
+  height: 18px;
+  flex-shrink: 0;
+  background: color-mix(in srgb, var(--workspace-border-strong) 80%, transparent);
+  margin: 0 1px;
+}
+
+.mdx-selection-bubble__sep--inner {
+  height: 22px;
+  margin: 0 3px;
+}
+
+.mdx-selection-bubble__list-anchor {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.mdx-selection-bubble__list-flyout {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  padding: 6px;
+  min-width: 40px;
+  border-radius: 16px;
+  background: var(--workspace-panel);
+  border: 1px solid var(--workspace-border-strong);
+  box-shadow:
+    0 6px 20px color-mix(in srgb, var(--workspace-text) 12%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--workspace-text) 4%, transparent);
+}
+
+.mdx-selection-bubble__list-flyout .mdx-selection-bubble__btn {
+  width: 34px;
+  height: 34px;
+}
+
+.mdx-selection-bubble__highlight-anchor {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.mdx-selection-bubble__highlight-flyout {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 12px;
+  width: 168px;
+  border-radius: 16px;
+  background: var(--workspace-panel);
+  border: 1px solid var(--workspace-border-strong);
+  box-shadow:
+    0 6px 20px color-mix(in srgb, var(--workspace-text) 12%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--workspace-text) 4%, transparent);
+}
+
+.mdx-selection-bubble__color-btn {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  margin: 0;
+  border: 1.5px solid color-mix(in srgb, var(--workspace-border-strong) 60%, transparent);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+  flex-shrink: 0;
+}
+
+.mdx-selection-bubble__color-btn:hover {
+  transform: scale(1.2);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--workspace-text) 20%, transparent);
+}
+
+.mdx-selection-bubble__more-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.mdx-selection-bubble__more-panel {
+  padding: 6px 8px;
+  border-radius: 9999px;
+  background: var(--workspace-panel);
+  border: 1px solid var(--workspace-border-strong);
+  box-shadow:
+    0 6px 20px color-mix(in srgb, var(--workspace-text) 12%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--workspace-text) 4%, transparent);
+}
+
+.mdx-selection-bubble__more-row {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  max-width: min(400px, calc(100vw - 24px));
+}
+
+.mdx-shell .mdxeditor-toolbar [class*="toolbarToggleSingleGroup"] {
+  background: transparent !important;
+}
+
+/* Force toolbar buttons to light colours */
+.mdx-shell .mdxeditor-toolbar button,
+.mdx-shell .mdxeditor-toolbar [role="button"],
+.mdx-shell .mdxeditor-toolbar select {
+  background: transparent !important;
+  color: var(--workspace-text) !important;
+}
+
+/* Compact toolbar hit targets (MDXEditor defaults are roomy) */
+.mdx-shell .mdxeditor-toolbar button,
+.mdx-shell .mdxeditor-toolbar [role="button"] {
+  min-width: 26px !important;
+  min-height: 26px !important;
+  padding: 2px !important;
+}
+
+.mdx-shell .mdxeditor-toolbar button svg,
+.mdx-shell .mdxeditor-toolbar [role="button"] svg {
+  width: 15px !important;
+  height: 15px !important;
+}
+
+.mdx-shell .mdxeditor-toolbar select {
+  min-height: 26px !important;
+  padding: 2px 6px !important;
+  font-size: 12px !important;
+}
+
+.mdx-prose {
+  padding: 0;
+  /* Minimum height so an empty note has a clickable area */
+  min-height: 480px;
+  font-size: inherit;
+  line-height: 1.75;
+  /* Explicitly force light colours — defeats dark media query */
+  color: var(--workspace-text) !important;
+  background: transparent !important;
+  caret-color: var(--workspace-text);
+}
+
+.mdx-prose h1 { font-size: clamp(1.25rem, 2.2vw, 2rem); font-weight: 800; font-family: Manrope, sans-serif; margin: 1.25em 0 0.5em; }
+.mdx-prose h2 { font-size: clamp(1.05rem, 1.8vw, 1.5rem); font-weight: 700; font-family: Manrope, sans-serif; margin: 1.1em 0 0.4em; }
+.mdx-prose h3 { font-size: clamp(0.95rem, 1.5vw, 1.2rem); font-weight: 700; margin: 1em 0 0.35em; }
+.mdx-prose p  { margin: 0 0 0.5em; }
+
+/*
+ * Lists: use inside markers so bullets/numbers stay visible (not clipped in the margin)
+ * and align with the text column. Scoped under .mdx-shell where the editor runs.
+ */
+.mdx-shell .mdx-prose ul {
+  list-style-type: disc;
+  list-style-position: inside;
+  padding-inline-start: 0.35em;
+  padding-left: 0;
+  margin: 0 0 0.5em;
+  color: var(--workspace-text);
+}
+
+.mdx-shell .mdx-prose ol {
+  list-style-type: decimal;
+  list-style-position: inside;
+  padding-inline-start: 0.35em;
+  padding-left: 0;
+  margin: 0 0 0.5em;
+  color: var(--workspace-text);
+}
+
+.mdx-shell .mdx-prose ul > li::marker,
+.mdx-shell .mdx-prose ol > li::marker {
+  color: var(--workspace-text);
+}
+
+/* Nested lists: inner items keep visible markers */
+.mdx-shell .mdx-prose ul ul > li:not([aria-checked]),
+.mdx-shell .mdx-prose ol ol > li:not([aria-checked]),
+.mdx-shell .mdx-prose ol ul > li:not([aria-checked]),
+.mdx-shell .mdx-prose ul ol > li:not([aria-checked]) {
+  list-style-type: inherit;
+}
+
+/* Tighter first line inside list items so markers / task rows line up with copy */
+.mdx-prose li > p:first-child {
+  margin-top: 0;
+}
+.mdx-prose li > p:last-child {
+  margin-bottom: 0;
+}
+
+/*
+ * Task / checklist rows (Lexical: li[aria-checked]). MDXEditor pins ::before to top:0,
+ * which sits above the first line of text — center in the first line box instead.
+ */
+.mdx-shell .mdx-prose li[aria-checked] {
+  color: var(--workspace-text) !important;
+  margin-top: 0.2em;
+  margin-bottom: 0.2em;
+  /* Undo upstream negative indent so row text lines up with normal list copy */
+  margin-inline-start: 0 !important;
+  padding-left: 1.75rem !important;
+  padding-right: 0 !important;
+}
+
+/* Checklist box: align with first line (inside list markers change line metrics slightly) */
+.mdx-shell .mdx-prose li[aria-checked]::before {
+  top: calc(0.8em - 0.5rem) !important;
+  width: 1rem !important;
+  height: 1rem !important;
+  border-color: var(--workspace-text-muted) !important;
+  background-color: transparent !important;
+}
+
+.mdx-shell .mdx-prose li[aria-checked="true"]::before {
+  border-color: var(--workspace-accent) !important;
+  background-color: var(--workspace-accent) !important;
+}
+
+/* Checkmark stroke: high contrast on accent fill */
+.mdx-shell .mdx-prose li[aria-checked="true"]::after {
+  top: calc(0.8em - 0.5rem + 0.125rem) !important;
+  left: 0.375rem !important;
+  border-color: rgba(255, 255, 255, 0.95) !important;
+}
+.mdx-prose blockquote {
+  border-left: 3px solid var(--workspace-accent);
+  margin: 1em 0;
+  padding: 0.2em 1em;
+  color: var(--workspace-text-muted);
+}
+.mdx-prose code {
+  background: rgba(143, 112, 105, 0.1);
+  border-radius: 3px;
+  padding: 0.1em 0.3em;
+  font-size: 0.875em;
+}
+.mdx-prose pre {
+  background: rgba(241, 237, 232, 0.6);
+  border: 1px solid rgba(143, 112, 105, 0.16);
+  border-radius: 4px;
+  padding: 1em;
+  overflow-x: auto;
+}
+.mdx-prose a { color: var(--workspace-accent); text-decoration: underline; }
+.mdx-prose hr { border: none; border-top: 1px solid rgba(143, 112, 105, 0.16); margin: 1.5em 0; }
+.mdx-prose table { width: 100%; border-collapse: collapse; margin: 1em 0; }
+.mdx-prose th,
+.mdx-prose td {
+  border: 1px solid rgba(143, 112, 105, 0.18);
+  padding: 0.4em 0.75em;
+  text-align: left;
+}
+.mdx-prose th { background: rgba(241, 237, 232, 0.7); font-weight: 600; }
+
+/* ── Database "Add cover" hover affordance ──────────────────────────────── */
+.database-cover-hover-zone:hover::after {
+  content: '+ Add cover';
+  position: absolute;
+  top: 4px;
+  left: 24px;
+  font-size: 11px;
+  font-family: 'Space Grotesk', sans-serif;
+  color: var(--workspace-text-soft);
+  cursor: pointer;
+  padding: 2px 8px;
+  border: 1px solid var(--workspace-border);
+  border-radius: 4px;
+  background: rgba(245,245,240,0.9);
+}
+
+/* ── PopIn animation for popovers ────────────────────────────────────────── */
+@keyframes popIn {
+  from { opacity: 0; transform: scale(0.96) translateY(-4px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.workspace-popover {
+  animation: popIn 120ms ease;
+}
+
+/* ── Board card hover (no translate — keeps shadow inside column clip) ───── */
+.board-card:hover {
+  transform: none;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+}
+
+/* Board column gap */
+.board-column-wrap {
+  display: flex;
+  gap: 4px;
+  padding: 16px;
+  height: 100%;
+  overflow-x: auto;
+  align-items: flex-start;
+}
+
+/* ── Database board (Kanban) ───────────────────────────────────────────────── */
+.workspace-board-strip {
+  min-height: 0;
+}
+
+.workspace-board-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--workspace-text-muted);
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  box-sizing: border-box;
+  outline: none;
+}
+
+.workspace-board-icon-btn:hover {
+  background: var(--workspace-tree-hover);
+  color: var(--workspace-text);
+}
+
+.workspace-board-icon-btn:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--workspace-accent) 38%, transparent);
+  outline-offset: -2px;
+}
+
+.workspace-board-rename-input {
+  border-radius: 9999px;
+  border: 1px solid var(--workspace-border-strong);
+  background: var(--workspace-panel);
+  color: var(--workspace-text);
+  padding: 2px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  outline: none;
+  max-width: 6rem;
+}
+
+.workspace-board-new-row {
+  display: flex;
+  width: calc(100% - 4px);
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  margin: 0 2px 4px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  font-size: 14px;
+  color: var(--workspace-text-muted);
+  cursor: pointer;
+  text-align: left;
+}
+
+.workspace-board-new-row:hover {
+  background: var(--workspace-tree-hover);
+  color: var(--workspace-text);
+}
+
+.workspace-board-new-input {
+  width: calc(100% - 16px);
+  margin: 0 8px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--workspace-border);
+  background: var(--workspace-panel);
+  color: var(--workspace-text);
+  padding: 6px 8px;
+  font-size: 13px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+/* ── Row hover states ──────────────────────────────────────────────────────── */
+.workspace-row-hover {
+  transition: background 80ms ease;
+}
+.workspace-row-hover:hover {
+  background: rgba(28, 28, 25, 0.04);
+}
+
+/* ── Sidebar section headers ───────────────────────────────────────────────── */
+.sidebar-section-header {
+  transition: background 80ms ease;
+}
+.sidebar-section-header:hover {
+  background: rgba(0, 0, 0, 0.04);
+  border-left-color: var(--workspace-accent) !important;
+}
+
+/* ── Disabled state ────────────────────────────────────────────────────────── */
+.workspace-disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Interactive element hover/active ─────────────────────────────────────── */
+.workspace-interactive:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+.workspace-interactive:active {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+/* ── TopBar system-audio capture (waveform) ───────────────────────────────── */
+@keyframes topbarSaBarPulse {
+  0%,
+  100% {
+    transform: scaleY(0.42);
+    opacity: 0.65;
+  }
+  50% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+.topbar-sa-capture__wave {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 3px;
+  height: 16px;
+}
+
+.topbar-sa-capture__bar {
+  width: 3px;
+  border-radius: 2px;
+  height: 12px;
+  background: currentColor;
+  transform-origin: bottom;
+  transform: scaleY(0.55);
+  opacity: 0.75;
+  transition:
+    transform 220ms ease,
+    opacity 220ms ease;
+}
+
+.topbar-sa-capture[data-active="true"] .topbar-sa-capture__bar {
+  animation: topbarSaBarPulse 0.85s ease-in-out infinite;
+}
+
+.topbar-sa-capture[data-active="true"] .topbar-sa-capture__bar:nth-child(1) {
+  animation-delay: 0ms;
+}
+.topbar-sa-capture[data-active="true"] .topbar-sa-capture__bar:nth-child(2) {
+  animation-delay: 120ms;
+}
+.topbar-sa-capture[data-active="true"] .topbar-sa-capture__bar:nth-child(3) {
+  animation-delay: 240ms;
+}
+.topbar-sa-capture[data-active="true"] .topbar-sa-capture__bar:nth-child(4) {
+  animation-delay: 120ms;
+}
+.topbar-sa-capture[data-active="true"] .topbar-sa-capture__bar:nth-child(5) {
+  animation-delay: 0ms;
+}
+
+/* ── Kinetic blob atmosphere — drives AtmosphericBackground ───────────────
+ * Three cluster drift animations ported from HerOS_UI_Kit (blob-cl-1/2/3).
+ * The `--duration-scale` divisor in the consumer lets the theme editor
+ * globally slow or freeze motion without touching these keyframes.
+ * `prefers-reduced-motion` gates them to a static pose below. */
+@keyframes infield-blob-cl-1 {
+  0%, 100% { transform: translate(0%, 0%) rotate(0deg); }
+  25%      { transform: translate(16%, -10%) rotate(5deg); }
+  50%      { transform: translate(-5%, 12%) rotate(-5deg); }
+  75%      { transform: translate(-13%, -7%) rotate(2deg); }
+}
+@keyframes infield-blob-cl-2 {
+  0%, 100% { transform: translate(0%, 0%) rotate(0deg); }
+  45%      { transform: translate(-14%, 11%) rotate(-10deg); }
+  80%      { transform: translate(9%, -9%) rotate(10deg); }
+}
+@keyframes infield-blob-cl-3 {
+  0%, 100% { transform: translate(0%, 0%) scale(1); }
+  30%      { transform: translate(12%, 14%) scale(1.1); }
+  65%      { transform: translate(-10%, -3%) scale(0.9); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [style*="infield-blob-cl-"] {
+    animation: none !important;
+  }
+}

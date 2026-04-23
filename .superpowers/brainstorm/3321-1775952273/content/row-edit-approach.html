@@ -1,0 +1,123 @@
+<h2>Row Detail Panel — how should editing work?</h2>
+<p class="subtitle">When a user clicks a row to view or edit it</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Slide-in panel from right</h3>
+      <p>Row detail slides in from the right edge (280ms ease, no bounce). The database view stays visible behind it. Click outside or press Escape to close. Like Notion.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Inline modal / dialog</h3>
+      <p>A centered modal dialog with a backdrop overlay. Blocks interaction with the view behind until closed. More emphatic interruption.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Inline expansion (expand in place)</h3>
+      <p>The row expands downward within the view, pushing other rows down. No sliding, no overlay. Like a table row expanding. Keeps context visible.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="d" onclick="toggleSelect(this)">
+    <div class="letter">D</div>
+    <div class="content">
+      <h3>Full-page takeover</h3>
+      <p>The entire database view is replaced by the row editor. Most space for fields, but loses view context entirely.</p>
+    </div>
+  </div>
+</div>
+
+<br>
+
+<div class="mockup">
+  <div class="mockup-header">Option A — Slide-in panel (Notion style)</div>
+  <div class="mockup-body" style="font-family: system-ui; background: #f7f6f3; padding: 12px; border-radius: 6px;">
+    <div style="display: flex; height: 180px; gap: 8px;">
+      <div style="flex: 1; background: white; border: 1px solid #e0e0e0; border-radius: 6px; padding: 16px; display: flex; flex-direction: column; gap: 8px;">
+        <div style="font-size: 11px; color: #888; margin-bottom: 4px;">[Filter ▼]  [Sort ▼]  [Group by: Status ▼]  [+ New]</div>
+        <div style="flex: 1; background: #f9f9f9; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #aaa; font-size: 12px;">Board View Content</div>
+      </div>
+      <div style="width: 280px; background: white; border: 1px solid #e0e0e0; border-radius: 6px; padding: 16px; box-shadow: -2px 0 8px rgba(0,0,0,0.08);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+          <span style="font-size: 12px; color: #888;">← Back</span>
+          <span style="font-size: 12px; color: #888;">[Delete] [···]</span>
+        </div>
+        <div style="font-size: 16px; font-weight: 600; margin-bottom: 16px;">Task Title</div>
+        <div style="border-top: 1px solid #eee; padding-top: 12px; margin-top: 12px;">
+          <div style="font-size: 10px; color: #888; margin-bottom: 6px;">STATUS</div>
+          <div style="display: flex; gap: 6px;">
+            <div style="background: #e8f0fe; color: #1a73e8; padding: 4px 10px; border-radius: 12px; font-size: 11px;">In Progress</div>
+            <div style="background: #f1f3f4; color: #666; padding: 4px 10px; border-radius: 12px; font-size: 11px;">To Do</div>
+          </div>
+        </div>
+        <div style="border-top: 1px solid #eee; padding-top: 12px; margin-top: 12px;">
+          <div style="font-size: 10px; color: #888; margin-bottom: 6px;">DUE DATE</div>
+          <div style="font-size: 12px;">April 15, 2026</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="mockup">
+  <div class="mockup-header">Option B — Centered modal</div>
+  <div class="mockup-body" style="font-family: system-ui; background: #f7f6f3; padding: 12px; border-radius: 6px; position: relative;">
+    <div style="background: white; border: 1px solid #e0e0e0; border-radius: 6px; padding: 16px; opacity: 0.5; filter: blur(1px);">
+      <div style="font-size: 11px; color: #888; margin-bottom: 8px;">Board View (blurred)</div>
+      <div style="height: 100px; background: #f9f9f9; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #aaa; font-size: 12px;">Board View Content</div>
+    </div>
+    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 320px; background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; box-shadow: 0 8px 32px rgba(0,0,0,0.15);">
+      <div style="display: flex; justify-content: space-between; margin-bottom: 16px;">
+        <span style="font-size: 14px; font-weight: 600;">Edit Row</span>
+        <span style="color: #888;">✕</span>
+      </div>
+      <div style="margin-bottom: 12px;">
+        <div style="font-size: 10px; color: #888; margin-bottom: 4px;">TITLE</div>
+        <div style="border: 1px solid #ddd; border-radius: 4px; padding: 8px; font-size: 13px;">Task Title</div>
+      </div>
+      <div style="margin-bottom: 12px;">
+        <div style="font-size: 10px; color: #888; margin-bottom: 4px;">STATUS</div>
+        <div style="display: flex; gap: 6px;">
+          <div style="background: #e8f0fe; color: #1a73e8; padding: 4px 10px; border-radius: 12px; font-size: 11px;">In Progress</div>
+          <div style="background: #f1f3f4; color: #666; padding: 4px 10px; border-radius: 12px; font-size: 11px;">To Do</div>
+        </div>
+      </div>
+      <div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid #eee; display: flex; gap: 8px; justify-content: flex-end;">
+        <button style="padding: 6px 14px; border-radius: 4px; border: 1px solid #ddd; background: white; font-size: 12px;">Cancel</button>
+        <button style="padding: 6px 14px; border-radius: 4px; background: #2563eb; color: white; border: none; font-size: 12px;">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="mockup">
+  <div class="mockup-header">Option C — Inline expansion</div>
+  <div class="mockup-body" style="font-family: system-ui; background: #f7f6f3; padding: 12px; border-radius: 6px;">
+    <div style="background: white; border: 1px solid #e0e0e0; border-radius: 6px; padding: 12px;">
+      <div style="font-size: 11px; color: #888; margin-bottom: 8px;">[Filter ▼]  [Sort ▼]  [+ New]</div>
+      <div style="background: #f9f9f9; border-radius: 4px; padding: 8px; font-size: 12px; color: #333; margin-bottom: 4px;">Row 1</div>
+      <div style="background: #f9f9f9; border-radius: 4px; padding: 8px; font-size: 12px; color: #333; margin-bottom: 4px;">Row 2</div>
+      <div style="background: white; border: 1px solid #2563eb; border-radius: 4px; padding: 12px; margin-bottom: 4px;">
+        <div style="font-size: 13px; font-weight: 600; margin-bottom: 10px;">Row 3 — Expanded</div>
+        <div style="display: grid; grid-template-columns: 80px 1fr; gap: 8px; font-size: 12px;">
+          <div style="color: #888;">Status:</div><div>In Progress</div>
+          <div style="color: #888;">Priority:</div><div>High</div>
+          <div style="color: #888;">Due:</div><div>Apr 15</div>
+        </div>
+        <div style="margin-top: 10px; display: flex; gap: 8px;">
+          <button style="padding: 4px 12px; background: #2563eb; color: white; border: none; border-radius: 4px; font-size: 11px;">Save</button>
+          <button style="padding: 4px 12px; background: white; color: #333; border: 1px solid #ddd; border-radius: 4px; font-size: 11px;">Cancel</button>
+        </div>
+      </div>
+      <div style="background: #f9f9f9; border-radius: 4px; padding: 8px; font-size: 12px; color: #333;">Row 4</div>
+    </div>
+  </div>
+</div>

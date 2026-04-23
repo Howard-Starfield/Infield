@@ -1,0 +1,167 @@
+<h2>Sidebar Width — Tree stays out of the way</h2>
+<p class="subtitle">The note editor is the main focus. Pick how much space the tree takes.</p>
+
+<div class="cards">
+
+  <!-- Option A: 200px sidebar -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="display:flex;height:260px;border-radius:8px;overflow:hidden;border:1px solid #333;font-family:system-ui;font-size:11px;">
+        <!-- Sidebar -->
+        <div style="width:72px;background:#161618;border-right:1px solid #2a2a2a;padding:8px 0;flex-shrink:0;">
+          <div style="color:#555;font-size:7px;letter-spacing:1px;text-transform:uppercase;padding:0 6px;margin-bottom:4px;">NOTES</div>
+          <div style="display:flex;align-items:center;gap:2px;height:20px;padding:0 6px;background:#232325;border-radius:3px;margin:0 3px 1px;">
+            <span style="font-size:9px;color:#888;">▼</span>
+            <span style="font-size:10px;">📁</span>
+            <span style="color:#ddd;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Work</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:2px;height:20px;padding:0 6px 0 14px;border-radius:3px;margin:0 3px 1px;">
+            <span style="font-size:10px;">⊞</span>
+            <span style="color:#999;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Tasks</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:2px;height:20px;padding:0 6px 0 14px;border-radius:3px;margin:0 3px 1px;">
+            <span style="font-size:10px;">📄</span>
+            <span style="color:#999;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Notes</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:2px;height:20px;padding:0 6px;border-radius:3px;margin:0 3px 1px;">
+            <span style="font-size:9px;color:#666;">▶</span>
+            <span style="font-size:10px;">📁</span>
+            <span style="color:#bbb;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Personal</span>
+          </div>
+        </div>
+        <!-- Editor -->
+        <div style="flex:1;background:#111113;padding:14px 16px;">
+          <div style="color:#666;font-size:8px;margin-bottom:8px;">Meeting Notes · Work</div>
+          <div style="color:#eee;font-size:14px;font-weight:600;margin-bottom:8px;">Q2 Planning</div>
+          <div style="color:#777;font-size:10px;line-height:1.6;">
+            <div style="background:#1e1e20;border-radius:3px;height:8px;margin-bottom:5px;width:90%;"></div>
+            <div style="background:#1e1e20;border-radius:3px;height:8px;margin-bottom:5px;width:75%;"></div>
+            <div style="background:#1e1e20;border-radius:3px;height:8px;margin-bottom:5px;width:85%;"></div>
+            <div style="background:#1e1e20;border-radius:3px;height:8px;margin-bottom:5px;width:60%;"></div>
+            <div style="background:#1e1e20;border-radius:3px;height:8px;margin-bottom:5px;width:80%;"></div>
+          </div>
+        </div>
+      </div>
+      <div style="text-align:center;margin-top:6px;font-size:10px;color:#666;">Tree: ~72px · Editor: ~82% of space</div>
+    </div>
+    <div class="card-body">
+      <h3>A — Icon + truncated label (72px)</h3>
+      <p>Ultra-narrow. Labels truncate but icons still identify type. Hover tooltip shows full name.</p>
+    </div>
+  </div>
+
+  <!-- Option B: 200px sidebar -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="display:flex;height:260px;border-radius:8px;overflow:hidden;border:1px solid #333;font-family:system-ui;font-size:11px;">
+        <!-- Sidebar -->
+        <div style="width:120px;background:#161618;border-right:1px solid #2a2a2a;padding:8px 0;flex-shrink:0;">
+          <div style="color:#555;font-size:7px;letter-spacing:1px;text-transform:uppercase;padding:0 6px;margin-bottom:4px;">NOTES</div>
+          <div style="display:flex;align-items:center;gap:2px;height:22px;padding:0 6px;background:#232325;border-radius:3px;margin:0 3px 1px;">
+            <span style="font-size:9px;color:#888;">▼</span>
+            <span style="font-size:11px;">📁</span>
+            <span style="color:#ddd;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Work</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:2px;height:22px;padding:0 6px 0 18px;border-radius:3px;margin:0 3px 1px;">
+            <span style="font-size:11px;">⊞</span>
+            <span style="color:#999;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Task Tracker</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:2px;height:22px;padding:0 6px 0 18px;border-radius:3px;margin:0 3px 1px;">
+            <span style="font-size:11px;">📋</span>
+            <span style="color:#999;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Sprint Board</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:2px;height:22px;padding:0 6px 0 18px;border-radius:3px;margin:0 3px 1px;">
+            <span style="font-size:11px;">📄</span>
+            <span style="color:#999;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Meeting Notes</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:2px;height:22px;padding:0 6px;border-radius:3px;margin:0 3px 1px;">
+            <span style="font-size:9px;color:#666;">▶</span>
+            <span style="font-size:11px;">📁</span>
+            <span style="color:#bbb;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Personal</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:2px;height:22px;padding:0 6px;border-radius:3px;margin:0 3px 1px;">
+            <span style="font-size:11px;">📄</span>
+            <span style="color:#888;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Quick Note</span>
+          </div>
+        </div>
+        <!-- Editor -->
+        <div style="flex:1;background:#111113;padding:14px 16px;">
+          <div style="color:#666;font-size:8px;margin-bottom:8px;">Meeting Notes · Work</div>
+          <div style="color:#eee;font-size:14px;font-weight:600;margin-bottom:8px;">Q2 Planning</div>
+          <div style="color:#777;font-size:10px;line-height:1.6;">
+            <div style="background:#1e1e20;border-radius:3px;height:8px;margin-bottom:5px;width:90%;"></div>
+            <div style="background:#1e1e20;border-radius:3px;height:8px;margin-bottom:5px;width:75%;"></div>
+            <div style="background:#1e1e20;border-radius:3px;height:8px;margin-bottom:5px;width:85%;"></div>
+            <div style="background:#1e1e20;border-radius:3px;height:8px;margin-bottom:5px;width:60%;"></div>
+            <div style="background:#1e1e20;border-radius:3px;height:8px;margin-bottom:5px;width:80%;"></div>
+            <div style="background:#1e1e20;border-radius:3px;height:8px;margin-bottom:5px;width:70%;"></div>
+          </div>
+        </div>
+      </div>
+      <div style="text-align:center;margin-top:6px;font-size:10px;color:#666;">Tree: ~120px · Editor: ~75% of space</div>
+    </div>
+    <div class="card-body">
+      <h3>B — Compact readable (120px) ✦ Recommended</h3>
+      <p>Labels fit. Full names visible. Resizable via drag handle. Collapses fully with one click.</p>
+    </div>
+  </div>
+
+  <!-- Option C: 200px sidebar -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="display:flex;height:260px;border-radius:8px;overflow:hidden;border:1px solid #333;font-family:system-ui;font-size:11px;">
+        <!-- Sidebar -->
+        <div style="width:170px;background:#161618;border-right:1px solid #2a2a2a;padding:8px 0;flex-shrink:0;">
+          <div style="color:#555;font-size:7px;letter-spacing:1px;text-transform:uppercase;padding:0 8px;margin-bottom:4px;">NOTES</div>
+          <div style="display:flex;align-items:center;gap:3px;height:22px;padding:0 8px;background:#232325;border-radius:3px;margin:0 4px 1px;">
+            <span style="font-size:9px;color:#888;">▼</span>
+            <span style="font-size:11px;">📁</span>
+            <span style="color:#ddd;font-size:12px;">Work</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:3px;height:22px;padding:0 8px 0 22px;border-radius:3px;margin:0 4px 1px;">
+            <span style="font-size:9px;color:#666;">▼</span>
+            <span style="font-size:11px;">📁</span>
+            <span style="color:#bbb;font-size:12px;">Projects</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:3px;height:22px;padding:0 8px 0 38px;border-radius:3px;margin:0 4px 1px;">
+            <span style="font-size:11px;">⊞</span>
+            <span style="color:#999;font-size:12px;">Task Tracker</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:3px;height:22px;padding:0 8px 0 38px;border-radius:3px;margin:0 4px 1px;">
+            <span style="font-size:11px;">📋</span>
+            <span style="color:#999;font-size:12px;">Sprint Board</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:3px;height:22px;padding:0 8px 0 22px;border-radius:3px;margin:0 4px 1px;">
+            <span style="font-size:11px;">📄</span>
+            <span style="color:#bbb;font-size:12px;">Meeting Notes</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:3px;height:22px;padding:0 8px;border-radius:3px;margin:0 4px 1px;">
+            <span style="font-size:9px;color:#666;">▶</span>
+            <span style="font-size:11px;">📁</span>
+            <span style="color:#ddd;font-size:12px;">Personal</span>
+          </div>
+        </div>
+        <!-- Editor -->
+        <div style="flex:1;background:#111113;padding:14px 14px;">
+          <div style="color:#666;font-size:8px;margin-bottom:8px;">Sprint Board · Projects · Work</div>
+          <div style="color:#eee;font-size:13px;font-weight:600;margin-bottom:8px;">Q2 Planning</div>
+          <div style="color:#777;font-size:10px;line-height:1.6;">
+            <div style="background:#1e1e20;border-radius:3px;height:8px;margin-bottom:5px;width:90%;"></div>
+            <div style="background:#1e1e20;border-radius:3px;height:8px;margin-bottom:5px;width:70%;"></div>
+            <div style="background:#1e1e20;border-radius:3px;height:8px;margin-bottom:5px;width:80%;"></div>
+          </div>
+        </div>
+      </div>
+      <div style="text-align:center;margin-top:6px;font-size:10px;color:#666;">Tree: ~170px · Editor: ~60% of space</div>
+    </div>
+    <div class="card-body">
+      <h3>C — Spacious (170px)</h3>
+      <p>Current sidebar width. Full nesting visible. Editor gets less room.</p>
+    </div>
+  </div>
+
+</div>
+
+<div style="margin-top:16px;background:#1e1e2a;border:1px solid #2d2d4a;border-radius:8px;padding:12px;">
+  <p style="color:#9f9fdf;font-size:12px;margin:0;"><strong>All options include:</strong> drag handle to resize, collapse button (→ icon-only mode), right-click context menu for New Space / New Note / New Grid / New Board inside any node.</p>
+</div>

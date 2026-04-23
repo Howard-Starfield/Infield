@@ -1,0 +1,28 @@
+
+• Use the stack that is already in this app. That will be the fastest and safest path:
+
+  - React 18 for UI
+  - TypeScript for all frontend code
+  - Vite for dev/build
+  - Tauri for desktop shell and native APIs
+  - Tailwind CSS v4 for utility styling
+  - Zustand + Immer for frontend state
+  - MDXEditor (@mdxeditor/editor) for rich note editing
+  - dnd-kit for drag/drop
+  - lucide-react for icons
+  - sonner for toast notifications
+  - react-i18next for translations
+  - zod for schema validation
+
+  That is confirmed in /C:/Users/howard/Downloads/Ai_script/AI_knowledge_workspace/Handy-main/package.json and /C:/Users/howard/Downloads/Ai_script/
+  AI_knowledge_workspace/Handy-main/vite.config.ts.
+
+  My recommendation: stay with React + TypeScript + Vite + Tauri, and build the AppFlowy/Obsidian-style UI on top of:
+
+  - Tailwind for layout/spacing
+  - shared CSS variables in /C:/Users/howard/Downloads/Ai_script/AI_knowledge_workspace/Handy-main/src/App.css
+  - Zustand stores for navigation and view state
+  - existing Tauri commands for backend integration
+
+  I would not switch this frontend to Flutter, Next.js, or another UI framework. It would slow the project down and fight the current architecture. If
+  you want, I can give you a clean “recommended frontend architecture” for this repo next.

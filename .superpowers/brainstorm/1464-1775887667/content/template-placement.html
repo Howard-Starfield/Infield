@@ -1,0 +1,112 @@
+<h2>Template Button Placement</h2>
+<p class="subtitle">Two actions needed: <strong>Save</strong> (from a board you built) and <strong>Load</strong> (when starting a new board). Where should each live?</p>
+
+<div class="cards">
+
+  <!-- Option A: Board toolbar -->
+  <div class="card" data-choice="toolbar" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#12121e;padding:12px;min-height:200px;display:flex;flex-direction:column;gap:8px">
+
+      <!-- Page header -->
+      <div style="font-size:13px;font-weight:600;color:#e2e8f0;padding-bottom:4px;border-bottom:1px solid #2a2a3e;margin-bottom:4px">My Sprint Board</div>
+
+      <!-- Toolbar row -->
+      <div style="display:flex;align-items:center;gap:6px;background:#1e1e35;border-radius:8px;padding:5px 8px;border:1px solid #3a3a5e">
+        <div style="font-size:10px;color:#888">View:</div>
+        <div style="font-size:10px;background:#3a3a5e;color:#ccc;padding:2px 8px;border-radius:4px">Board</div>
+        <div style="font-size:10px;color:#666;padding:2px 8px">Grid</div>
+        <div style="flex:1"></div>
+        <!-- Save template button -->
+        <div style="font-size:10px;background:#1e3a1e;border:1px solid #22c55e;color:#22c55e;padding:3px 10px;border-radius:5px;cursor:pointer;display:flex;align-items:center;gap:4px">
+          <span>⬆</span> Save template
+        </div>
+        <!-- Load template button -->
+        <div style="font-size:10px;background:#1e2a3e;border:1px solid #3b82f6;color:#3b82f6;padding:3px 10px;border-radius:5px;cursor:pointer;display:flex;align-items:center;gap:4px">
+          <span>📋</span> Templates
+        </div>
+      </div>
+
+      <!-- Board preview -->
+      <div style="display:flex;gap:8px;flex:1;align-items:flex-start;margin-top:4px">
+        <div style="width:90px;background:#1e1e35;border-radius:6px;padding:6px">
+          <span style="background:#4f46e5;color:#fff;font-size:9px;font-weight:600;padding:1px 6px;border-radius:8px">To Do</span>
+          <div style="margin-top:5px;background:#2d2d45;border-radius:4px;padding:4px 6px;font-size:9px;color:#aaa">Task A</div>
+        </div>
+        <div style="width:90px;background:#1e1e35;border-radius:6px;padding:6px">
+          <span style="background:#ec4899;color:#fff;font-size:9px;font-weight:600;padding:1px 6px;border-radius:8px">In Progress</span>
+          <div style="margin-top:5px;background:#2d2d45;border-radius:4px;padding:4px 6px;font-size:9px;color:#aaa">Task B</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Board toolbar</h3>
+      <p>Two buttons always visible at the top of every board: <em>Save template</em> saves current columns; <em>Templates</em> opens a picker to load one. Always one click away.</p>
+    </div>
+  </div>
+
+  <!-- Option B: Page ⋯ menu -->
+  <div class="card" data-choice="page-menu" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#12121e;padding:12px;min-height:200px;display:flex;flex-direction:column;gap:8px">
+
+      <!-- Page header with ⋯ -->
+      <div style="display:flex;align-items:center;gap:6px;padding-bottom:4px;border-bottom:1px solid #2a2a3e">
+        <div style="font-size:13px;font-weight:600;color:#e2e8f0;flex:1">My Sprint Board</div>
+        <div style="width:22px;height:22px;border-radius:4px;background:#3a3a5e;display:flex;align-items:center;justify-content:center;font-size:12px;color:#aaa;cursor:pointer;border:1px dashed #6366f1">⋯</div>
+      </div>
+
+      <!-- Dropdown menu -->
+      <div style="background:#2d2d45;border:1px solid #4a4a6e;border-radius:8px;width:180px;overflow:hidden;font-size:11px;margin-left:auto">
+        <div style="padding:7px 12px;color:#ccc;border-bottom:1px solid #3a3a5e;display:flex;align-items:center;gap:8px">✏️ Rename board</div>
+        <div style="padding:7px 12px;color:#ccc;border-bottom:1px solid #3a3a5e;display:flex;align-items:center;gap:8px">🔁 Switch view</div>
+        <div style="padding:7px 12px;color:#22c55e;border-bottom:1px solid #3a3a5e;background:#1e2e1e;display:flex;align-items:center;gap:8px">⬆ Save as template</div>
+        <div style="padding:7px 12px;color:#3b82f6;border-bottom:1px solid #3a3a5e;background:#1e2a3e;display:flex;align-items:center;gap:8px">📋 Load template…</div>
+        <div style="padding:7px 12px;color:#ef4444;display:flex;align-items:center;gap:8px">🗑️ Delete board</div>
+      </div>
+
+      <!-- Board preview -->
+      <div style="display:flex;gap:8px;flex:1;align-items:flex-start">
+        <div style="width:80px;background:#1e1e35;border-radius:6px;padding:5px">
+          <span style="background:#4f46e5;color:#fff;font-size:9px;font-weight:600;padding:1px 5px;border-radius:7px">To Do</span>
+        </div>
+        <div style="width:80px;background:#1e1e35;border-radius:6px;padding:5px">
+          <span style="background:#ec4899;color:#fff;font-size:9px;font-weight:600;padding:1px 5px;border-radius:7px">In Progress</span>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Page ⋯ menu</h3>
+      <p>Board-level options (rename, delete, etc.) already live in a page menu. Template save/load slots in there. Keeps the toolbar clean — templates are an occasional action.</p>
+    </div>
+  </div>
+
+  <!-- Option C: New board flow -->
+  <div class="card" data-choice="new-board-flow" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#12121e;padding:12px;min-height:200px;display:flex;flex-direction:column;gap:8px">
+
+      <!-- New board modal -->
+      <div style="background:#1e1e35;border:1px solid #4a4a6e;border-radius:10px;padding:14px;flex:1">
+        <div style="font-size:12px;font-weight:600;color:#e2e8f0;margin-bottom:10px">Create new board</div>
+        <input class="mock-input" placeholder="Board name…" style="font-size:11px;margin-bottom:10px;background:#12121e;border-color:#3a3a5e;color:#ccc">
+        <div style="font-size:10px;color:#888;margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Start from template</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+          <div style="background:#2d2d45;border:1px solid #3a3a5e;border-radius:5px;padding:4px 8px;font-size:10px;color:#ccc;cursor:pointer">Blank</div>
+          <div style="background:#1e2a3e;border:1px solid #3b82f6;border-radius:5px;padding:4px 8px;font-size:10px;color:#3b82f6;cursor:pointer">Sprint board</div>
+          <div style="background:#1e3a1e;border:1px solid #22c55e;border-radius:5px;padding:4px 8px;font-size:10px;color:#22c55e;cursor:pointer">My saved template</div>
+          <div style="background:#2d2d45;border:1px dashed #555;border-radius:5px;padding:4px 8px;font-size:10px;color:#666;cursor:pointer">+ more…</div>
+        </div>
+        <div style="font-size:9px;color:#555">↑ "Save as template" from any existing board adds it here</div>
+        <div style="margin-top:8px;display:flex;gap:6px;justify-content:flex-end">
+          <div style="background:#3a3a5e;border-radius:5px;padding:5px 10px;font-size:10px;color:#888;cursor:pointer">Cancel</div>
+          <div style="background:#6366f1;border-radius:5px;padding:5px 10px;font-size:10px;color:#fff;cursor:pointer">Create</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — New board creation flow</h3>
+      <p>Templates only surface when creating a new board. Save lives in the ⋯ menu; load appears in the "create board" modal. Templates feel intentional — not cluttering everyday use.</p>
+    </div>
+  </div>
+
+</div>
+
+<p class="subtitle" style="margin-top:16px">You can also mix these — e.g. B (save in ⋯ menu) + C (load when creating). Let me know in the terminal if a combo feels right.</p>

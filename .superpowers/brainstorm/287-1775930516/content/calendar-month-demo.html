@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Calendar — Google Style</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --surface: #f8f9fa;
+    --border: #e0e0e0;
+    --text-primary: #202124;
+    --text-secondary: #5f6368;
+    --text-muted: #9aa0a6;
+    --accent: #1a73e8;
+    --accent-light: #e8f0fe;
+    --today-bg: #1a73e8;
+    --today-text: #ffffff;
+    --ease: cubic-bezier(0.4, 0, 0.2, 1);
+    --picker-bg: #ffffff;
+    --picker-hover: #f1f3f4;
+    --chip-purple: #d2b3ff;
+    --chip-pink: #f48fb1;
+    --chip-green: #81c995;
+    --chip-blue: #4285f4;
+    --chip-orange: #ff9800;
+    --chip-yellow: #fbbc04;
+  }
+  [data-theme="dark"] {
+    --bg: #1e1e1e;
+    --surface: #2d2d2d;
+    --border: #3c4043;
+    --text-primary: #e8eaed;
+    --text-secondary: #9aa0a6;
+    --text-muted: #5f6368;
+    --accent: #8ab4f8;
+    --accent-light: #2d2d2d;
+    --today-bg: #8ab4f8;
+    --today-text: #202124;
+    --picker-bg: #2d2d2d;
+    --picker-hover: #3c4043;
+    --chip-purple: #7c4dff;
+    --chip-pink: #ec407a;
+    --chip-green: #66bb6a;
+    --chip-blue: #42a5f5;
+    --chip-orange: #ffa726;
+    --chip-yellow: #ffee58;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text-primary);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── Toolbar ── */
+  .toolbar {
+    display: flex; align-items: center; gap: 6px;
+    padding: 8px 12px; border-bottom: 1px solid var(--border);
+    background: var(--bg);
+    height: 48px;
+  }
+  .nav-btn {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; width: 28px; height: 28px;
+    cursor: pointer; font-size: 13px;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 150ms;
+  }
+  .nav-btn:hover { background: var(--accent-light); }
+  .month-label {
+    font-size: 16px; font-weight: 600; min-width: 130px;
+    text-align: center; cursor: pointer; padding: 4px 8px; border-radius: 8px;
+    transition: background 150ms; color: var(--text-primary);
+  }
+  .month-label:hover { background: var(--surface); }
+  .seg-ctl {
+    display: flex; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+  }
+  .seg-ctl button {
+    padding: 4px 10px; border: none; background: transparent;
+    cursor: pointer; font-size: 12px; font-weight: 500;
+    color: var(--text-secondary); transition: all 200ms var(--ease);
+  }
+  .seg-ctl button.active { background: var(--accent); color: #fff; }
+  .today-btn {
+    padding: 4px 10px; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 8px;
+    color: var(--text-primary); cursor: pointer;
+    font-size: 12px; font-weight: 500; transition: background 150ms;
+  }
+  .today-btn:hover { background: var(--accent-light); }
+  .add-btn {
+    display: flex; align-items: center; gap: 4px;
+    padding: 6px 12px; background: var(--accent); color: #fff;
+    border: none; border-radius: 8px; cursor: pointer;
+    font-size: 12px; font-weight: 500; transition: background 150ms;
+  }
+  .add-btn:hover { background: #1557b0; }
+  .spacer { flex: 1; }
+  .settings-btn {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; width: 28px; height: 28px;
+    cursor: pointer; font-size: 13px;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 150ms;
+  }
+  .settings-btn:hover { background: var(--accent-light); }
+
+  /* ── Google-style month view ── */
+  .google-month {
+    flex: 1; display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .g-day-headers {
+    display: grid; grid-template-columns: repeat(7, 1fr);
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+  }
+  .g-day-header {
+    padding: 4px 8px; text-align: center;
+    font-size: 11px; font-weight: 600; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 0.5px;
+    border-right: 1px solid var(--border);
+  }
+  .g-day-header:last-child { border-right: none; }
+  .g-grid {
+    flex: 1; display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    grid-template-rows: repeat(6, 1fr);
+    overflow: hidden;
+  }
+  .g-cell {
+    border-right: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    padding: 0 4px 4px; overflow: hidden;
+    cursor: pointer;
+    transition: background 100ms;
+    display: flex; flex-direction: column;
+  }
+  .g-cell:nth-child(7n) { border-right: none; }
+  .g-cell:hover { background: var(--surface); }
+  .g-cell.other-month { background: var(--surface); opacity: 0.4; }
+  .g-cell.today { background: var(--accent-light); }
+
+  .g-date-num {
+    font-size: 12px; font-weight: 400; color: var(--text-secondary);
+    width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;
+    border-radius: 50%; margin: 2px 0 1px;
+    transition: all 150ms;
+    align-self: flex-start;
+  }
+  .g-cell.today .g-date-num {
+    background: var(--today-bg); color: var(--today-text); font-weight: 700;
+  }
+
+  /* Google-style event chip: NO background, colored left border only */
+  .g-chip {
+    display: flex; align-items: center; gap: 0;
+    padding: 1px 0; font-size: 12px; font-weight: 400;
+    cursor: pointer; white-space: nowrap;
+    border-left: 4px solid transparent;
+    padding-left: 5px;
+    border-radius: 0;
+    overflow: hidden; text-overflow: ellipsis;
+    transition: background 100ms;
+    animation: chipIn 200ms var(--ease) both;
+  }
+  @keyframes chipIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .g-chip:hover { background: var(--surface); }
+  .g-chip.completed { opacity: 0.45; }
+  .g-chip.completed .g-chip-title { text-decoration: line-through; }
+
+  .g-chip-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-primary); }
+  .g-chip-time { font-size: 11px; color: var(--text-muted); flex-shrink: 0; margin-left: 4px; }
+
+  .g-more {
+    font-size: 11px; color: var(--accent); cursor: pointer;
+    padding: 2px 0; font-weight: 500;
+    margin-top: 2px;
+  }
+  .g-more:hover { text-decoration: underline; }
+
+  /* ── Day view ── */
+  .day-view {
+    flex: 1; display: none; flex-direction: column; overflow: hidden;
+  }
+  .day-view.active { display: flex; }
+  .google-month.hidden { display: none; }
+
+  .day-header-bar {
+    display: flex; align-items: center;
+    padding: 0 16px; border-bottom: 1px solid var(--border);
+    min-height: 52px; gap: 12px;
+  }
+  .day-header-date { text-align: center; }
+  .day-header-date .day-num { font-size: 26px; font-weight: 700; line-height: 1; }
+  .day-header-date .day-name { font-size: 11px; font-weight: 500; color: var(--text-muted); text-transform: uppercase; }
+  .day-header-date.today .day-num {
+    width: 40px; height: 40px; border-radius: 50%;
+    background: var(--today-bg); color: var(--today-text);
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto;
+  }
+  .day-header-sep { flex: 1; height: 1px; background: var(--border); }
+  .day-scroll { flex: 1; overflow-y: auto; position: relative; }
+  .day-grid { display: grid; grid-template-columns: 52px 1fr; grid-template-rows: repeat(24, 52px); }
+  .hour-label-col { display: flex; flex-direction: column; }
+  .hour-label { height: 52px; display: flex; align-items: flex-start; justify-content: flex-end; padding: 3px 6px 0 0; font-size: 11px; color: var(--text-muted); }
+  .hour-cell { border-top: 1px solid var(--border); position: relative; cursor: pointer; transition: background 100ms; }
+  .hour-cell:hover { background: var(--surface); }
+  .current-time-line { position: absolute; left: 52px; right: 0; height: 2px; background: #ea4335; z-index: 20; pointer-events: none; display: none; }
+  .current-time-line::before { content: ''; position: absolute; left: -4px; top: -3px; width: 8px; height: 8px; border-radius: 50%; background: #ea4335; }
+
+  .day-event {
+    position: absolute; left: 4px; right: 4px;
+    padding: 2px 6px; border-radius: 3px;
+    font-size: 12px; overflow: hidden; cursor: pointer;
+    border-left: 3px solid transparent;
+    transition: box-shadow 100ms;
+  }
+  .day-event:hover { box-shadow: 0 1px 4px rgba(0,0,0,0.12); z-index: 10; }
+  .day-event-title { font-size: 12px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .day-event-time { font-size: 11px; opacity: 0.7; }
+  .day-event.color-purple { background: rgba(210,179,255,0.2); border-left-color: var(--chip-purple); }
+  .day-event.color-pink   { background: rgba(244,143,177,0.2); border-left-color: var(--chip-pink); }
+  .day-event.color-green  { background: rgba(129,199,132,0.2); border-left-color: var(--chip-green); }
+  .day-event.color-blue   { background: rgba(66,133,244,0.15); border-left-color: var(--chip-blue); }
+  .day-event.color-orange { background: rgba(255,152,0,0.15); border-left-color: var(--chip-orange); }
+  .day-event.color-yellow { background: rgba(251,188,4,0.15); border-left-color: var(--chip-yellow); }
+  .day-event.completed { opacity: 0.5; }
+  .day-event.completed .day-event-title { text-decoration: line-through; }
+
+  /* ── Quick Add Modal ── */
+  .qa-overlay {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 600; display: flex; align-items: center; justify-content: center;
+    background: rgba(0,0,0,0.3);
+    opacity: 0; pointer-events: none;
+    transition: opacity 250ms var(--ease);
+  }
+  .qa-overlay.open { opacity: 1; pointer-events: auto; }
+  .qa-panel {
+    background: var(--bg); border-radius: 12px;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.18);
+    width: 400px; overflow: hidden;
+    transform: scale(0.97);
+    transition: transform 250ms var(--ease);
+  }
+  .qa-overlay.open .qa-panel { transform: scale(1); }
+  .qa-header { padding: 16px 16px 12px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
+  .qa-header h3 { flex: 1; font-size: 14px; font-weight: 600; }
+  .qa-close { width: 28px; height: 28px; border-radius: 50%; border: none; background: transparent; cursor: pointer; font-size: 14px; color: var(--text-secondary); display: flex; align-items: center; justify-content: center; transition: background 150ms; }
+  .qa-close:hover { background: var(--surface); }
+  .qa-body { padding: 14px 16px; }
+  .qa-input {
+    width: 100%; padding: 10px 12px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--surface);
+    color: var(--text-primary); font-size: 14px; font-family: inherit; outline: none;
+    transition: border-color 150ms;
+  }
+  .qa-input:focus { border-color: var(--accent); }
+  .qa-input::placeholder { color: var(--text-muted); }
+  .qa-hint {
+    font-size: 11px; color: var(--text-muted); margin-top: 6px;
+    padding: 0 2px;
+  }
+  .qa-hint strong { color: var(--text-secondary); }
+  .qa-suggestions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+  .qa-suggestion {
+    padding: 4px 8px; border-radius: 12px; border: 1px solid var(--border);
+    background: var(--surface); font-size: 11px; cursor: pointer;
+    color: var(--text-secondary); transition: background 150ms;
+  }
+  .qa-suggestion:hover { background: var(--accent-light); color: var(--accent); }
+  .qa-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border); }
+  .qa-btn-cancel { padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border); background: transparent; color: var(--text-secondary); font-size: 13px; cursor: pointer; transition: background 150ms; }
+  .qa-btn-cancel:hover { background: var(--surface); }
+  .qa-btn-save { padding: 8px 14px; border-radius: 8px; border: none; background: var(--accent); color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; transition: background 150ms; }
+  .qa-btn-save:hover { background: #1557b0; }
+
+  /* ── Event Detail (slide-in) ── */
+  .ed-overlay {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 600; display: flex;
+    opacity: 0; pointer-events: none;
+    transition: opacity 250ms var(--ease);
+  }
+  .ed-overlay.open { opacity: 1; pointer-events: auto; }
+  .ed-overlay.open .ed-panel { transform: translateX(0); }
+  .ed-backdrop { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.3); }
+  .ed-panel {
+    position: absolute; top: 0; right: 0; bottom: 0;
+    width: 440px; max-width: 100%;
+    background: var(--bg);
+    box-shadow: -4px 0 20px rgba(0,0,0,0.1);
+    display: flex; flex-direction: column;
+    transform: translateX(100%);
+    transition: transform 280ms var(--ease);
+    overflow: hidden;
+  }
+  .ed-header { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--border); }
+  .ed-color-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+  .ed-title-input { flex: 1; font-size: 16px; font-weight: 600; border: none; background: transparent; color: var(--text-primary); outline: none; }
+  .ed-title-input::placeholder { color: var(--text-muted); }
+  .ed-close { width: 28px; height: 28px; border-radius: 8px; border: none; background: transparent; cursor: pointer; font-size: 14px; color: var(--text-secondary); display: flex; align-items: center; justify-content: center; transition: background 150ms; }
+  .ed-close:hover { background: var(--surface); }
+  .ed-body { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+  .ed-section { display: flex; flex-direction: column; gap: 4px; }
+  .ed-label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .ed-time-row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .ed-badge { display: flex; align-items: center; gap: 5px; padding: 5px 10px; border-radius: 8px; background: var(--surface); border: 1px solid var(--border); font-size: 12px; cursor: pointer; transition: background 150ms; }
+  .ed-badge:hover { background: var(--accent-light); }
+  .ed-badge .icon { font-size: 11px; opacity: 0.6; }
+  .ed-color-row { display: flex; gap: 5px; }
+  .ed-swatch { width: 22px; height: 22px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: transform 150ms; }
+  .ed-swatch:hover { transform: scale(1.15); }
+  .ed-swatch.selected { border-color: var(--text-primary); }
+  .ed-description { width: 100%; min-height: 90px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text-primary); font-size: 13px; font-family: inherit; line-height: 1.6; resize: vertical; outline: none; transition: border-color 150ms; }
+  .ed-description:focus { border-color: var(--accent); }
+  .ed-description::placeholder { color: var(--text-muted); }
+  .ed-meta { font-size: 11px; color: var(--text-muted); padding: 8px 0; border-top: 1px solid var(--border); line-height: 1.8; }
+  .ed-footer { display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border); }
+  .ed-delete-btn { padding: 8px 12px; border-radius: 8px; border: none; background: rgba(200,50,50,0.1); color: #dc3545; font-size: 12px; font-weight: 500; cursor: pointer; transition: background 150ms; }
+  .ed-delete-btn:hover { background: rgba(200,50,50,0.2); }
+  .ed-save-btn { flex: 1; padding: 8px; border-radius: 8px; border: none; background: var(--accent); color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; transition: background 150ms; }
+  .ed-save-btn:hover { background: #1557b0; }
+
+  /* ── Overflow overlay ── */
+  .ov-overlay {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 500; display: flex; align-items: center; justify-content: center;
+    background: rgba(0,0,0,0.3);
+    opacity: 0; pointer-events: none;
+    transition: opacity 250ms var(--ease);
+  }
+  .ov-overlay.open { opacity: 1; pointer-events: auto; }
+  .ov-panel {
+    background: var(--bg); border-radius: 12px;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.18);
+    width: 400px; max-height: 70vh; overflow: hidden;
+    display: flex; flex-direction: column;
+    transform: scale(0.96);
+    transition: transform 250ms var(--ease);
+  }
+  .ov-overlay.open .ov-panel { transform: scale(1); }
+  .ov-header { display: flex; align-items: center; padding: 14px 16px; border-bottom: 1px solid var(--border); gap: 8px; }
+  .ov-today-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--today-bg); }
+  .ov-title { flex: 1; font-size: 14px; font-weight: 600; }
+  .ov-count { font-size: 12px; color: var(--text-muted); }
+  .ov-close { width: 26px; height: 26px; border-radius: 50%; border: none; background: transparent; cursor: pointer; font-size: 13px; color: var(--text-secondary); display: flex; align-items: center; justify-content: center; transition: background 150ms; }
+  .ov-close:hover { background: var(--surface); }
+  .ov-list { overflow-y: auto; padding: 6px 0; }
+  .ov-item { display: flex; align-items: center; gap: 10px; padding: 9px 16px; cursor: pointer; transition: background 150ms; }
+  .ov-item:hover { background: var(--surface); }
+  .ov-item-color { width: 4px; height: 34px; border-radius: 2px; flex-shrink: 0; }
+  .ov-item-info { flex: 1; }
+  .ov-item-title { font-size: 13px; font-weight: 500; }
+  .ov-item-time { font-size: 11px; color: var(--text-muted); }
+  .ov-item.completed .ov-item-title { text-decoration: line-through; opacity: 0.5; }
+
+  /* ── Settings panel ── */
+  .settings-panel {
+    position: absolute; top: calc(100% + 6px); right: 12px;
+    width: 210px; background: var(--picker-bg);
+    border: 1px solid var(--border); border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+    z-index: 200; padding: 6px 0;
+    opacity: 0; transform: translateY(-6px);
+    pointer-events: none;
+    transition: opacity 200ms var(--ease), transform 200ms var(--ease);
+  }
+  .settings-panel.open { opacity: 1; transform: translateY(0); pointer-events: auto; }
+  .settings-label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; padding: 8px 14px 4px; }
+  .settings-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 14px; cursor: pointer; transition: background 150ms; }
+  .settings-row:hover { background: var(--picker-hover); }
+  .settings-row-label { font-size: 13px; }
+  .toggle-switch { width: 34px; height: 18px; border-radius: 9px; background: var(--accent); position: relative; cursor: pointer; transition: background 200ms; }
+  .toggle-switch.off { background: var(--text-muted); }
+  .toggle-switch::after { content: ''; position: absolute; width: 14px; height: 14px; border-radius: 50%; background: #fff; top: 2px; left: 2px; transition: transform 200ms var(--ease); }
+  .toggle-switch.off::after { transform: translateX(16px); }
+
+  .legend { display: flex; gap: 14px; padding: 5px 12px; border-top: 1px solid var(--border); font-size: 11px; color: var(--text-muted); }
+</style>
+</head>
+<body data-theme="light">
+
+<div class="toolbar">
+  <button class="nav-btn" id="navPrev">&#139;</button>
+  <div class="month-label" id="monthLabel">April 2026</div>
+  <button class="nav-btn" id="navNext">&#155;</button>
+  <div class="seg-ctl">
+    <button class="active" id="segMonth">Month</button>
+    <button id="segDay">Day</button>
+  </div>
+  <button class="today-btn" id="todayBtn">Today</button>
+  <button class="add-btn" id="addBtn">+ Create</button>
+  <div class="spacer"></div>
+  <button class="settings-btn" id="settingsBtn">&#9881;</button>
+  <div class="settings-panel" id="settingsPanel">
+    <div class="settings-label">Display</div>
+    <div class="settings-row" onclick="toggleSetting('showTime')">
+      <span class="settings-row-label">Show time</span>
+      <div class="toggle-switch" id="toggleShowTime"></div>
+    </div>
+    <div class="settings-label" style="margin-top:4px">Appearance</div>
+    <div class="settings-row" onclick="toggleSetting('darkMode')">
+      <span class="settings-row-label">Dark mode</span>
+      <div class="toggle-switch" id="toggleDarkMode"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Month view -->
+<div class="google-month" id="monthView">
+  <div class="g-day-headers">
+    <div class="g-day-header">Mon</div><div class="g-day-header">Tue</div><div class="g-day-header">Wed</div>
+    <div class="g-day-header">Thu</div><div class="g-day-header">Fri</div><div class="g-day-header">Sat</div>
+    <div class="g-day-header">Sun</div>
+  </div>
+  <div class="g-grid" id="monthGrid"></div>
+</div>
+
+<!-- Day view -->
+<div class="day-view" id="dayView">
+  <div class="day-header-bar">
+    <div class="day-header-date" id="dayHeaderDate">
+      <div class="day-name" id="dayNameLabel">Tuesday</div>
+      <div class="day-num" id="dayNumLabel">14</div>
+    </div>
+    <div class="day-header-sep"></div>
+  </div>
+  <div class="day-scroll" id="dayScroll">
+    <div class="day-grid" id="dayGrid"></div>
+    <div class="current-time-line" id="currentTimeLine"></div>
+  </div>
+</div>
+
+<!-- Quick Add modal -->
+<div class="qa-overlay" id="qaOverlay">
+  <div class="qa-panel">
+    <div class="qa-header">
+      <h3>Quick add event</h3>
+      <button class="qa-close" id="qaClose">&#10005;</button>
+    </div>
+    <div class="qa-body">
+      <input type="text" class="qa-input" id="qaInput" placeholder='Try: "Team standup 3pm tomorrow" or "Lunch with Sam Monday at 12"' />
+      <div class="qa-hint">Type naturally — the date and time will be detected automatically. Press <strong>Enter</strong> to create.</div>
+      <div class="qa-suggestions" id="qaSuggestions">
+        <div class="qa-suggestion" onclick="qaFill('Team standup tomorrow at 9')">Team standup 9am tomorrow</div>
+        <div class="qa-suggestion" onclick="qaFill('Lunch at 12:30')">Lunch at 12:30</div>
+        <div class="qa-suggestion" onclick="qaFill('Weekly review Friday 3pm')">Weekly review Fri 3pm</div>
+      </div>
+    </div>
+    <div class="qa-footer">
+      <button class="qa-btn-cancel" id="qaCancel">Cancel</button>
+      <button class="qa-btn-save" id="qaSave">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- Event detail panel -->
+<div class="ed-overlay" id="edOverlay">
+  <div class="ed-backdrop" id="edBackdrop"></div>
+  <div class="ed-panel" id="edPanel"></div>
+</div>
+
+<!-- Overflow panel -->
+<div class="ov-overlay" id="ovOverlay">
+  <div class="ov-panel">
+    <div class="ov-header">
+      <div class="ov-today-dot" id="ovDot"></div>
+      <div class="ov-title" id="ovTitle">November 17</div>
+      <div class="ov-count" id="ovCount">6 events</div>
+      <button class="ov-close" id="ovClose">&#10005;</button>
+    </div>
+    <div class="ov-list" id="ovList"></div>
+  </div>
+</div>
+
+<div class="legend">
+  Click empty cell &#8594; Quick add &nbsp;|&nbsp; Click event chip &#8594; Detail &nbsp;|&nbsp;
+  Click header date &#8594; Picker &nbsp;|&nbsp; Day tab &#8594; Time grid &nbsp;|&nbsp; + Create &#8594; New event
+</div>
+
+<script>
+(function() {
+  var MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  var DAYS_ISO = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  var DAYS_FULL = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+
+  var currentDate = new Date(2026, 3, 1);
+  var view = 'month';
+  var deletedIds = {};
+  var activeEvent = null;
+  var settings = { showTime: true, darkMode: false };
+  var qaPresetDate = null; // date pre-filled when clicking a cell
+  var selectedColor = 'blue';
+
+  var events = [
+    { id: 1,  title: 'Team standup',    day: 2,  hour: 9,  color: 'purple', done: false, description: 'Daily standup with the engineering team. Discuss sprint progress, blockers, and cross-team dependencies.' },
+    { id: 2,  title: 'Design review',  day: 3,  hour: 14, color: 'pink',   done: false, description: 'Review new mockups for the calendar view component. Feedback on chip design and date picker.' },
+    { id: 3,  title: 'Sprint planning', day: 5,  hour: 10, color: 'blue',   done: false, description: 'Q2 Sprint planning session. Define stories, point, and assign owners for the next two weeks.' },
+    { id: 4,  title: 'Client call',    day: 5,  hour: 15, color: 'green',  done: true,  description: 'Wrap-up call with the Acme Corp client. Confirm deliverables and sign-off on Phase 1.' },
+    { id: 5,  title: 'API sync',       day: 7,  hour: 11, color: 'purple', done: false, description: 'Technical sync with the API team. Discuss versioning strategy and deprecation timeline.' },
+    { id: 6,  title: 'Product review', day: 9,  hour: 13, color: 'orange', done: false, description: 'Weekly product review with stakeholders. Demo new calendar feature and gather feedback.' },
+    { id: 7,  title: '1-on-1 Sam',     day: 11, hour: 9,  color: 'pink',   done: false, description: 'Bi-weekly 1-on-1 with Sam. Career growth, current projects, and feedback discussion.' },
+    { id: 8,  title: 'All hands',       day: 14, hour: 16, color: 'blue',   done: false, description: 'Company-wide all hands. Executive updates, team spotlights, and Q&A session.' },
+    // Apr 14 — many events to trigger overflow
+    { id: 9,  title: 'Morning standup', day: 14, hour: 8,  color: 'green',  done: false },
+    { id: 10, title: 'Focus time',      day: 14, hour: 9,  color: 'purple', done: false },
+    { id: 11, title: 'Design critique', day: 14, hour: 9,  color: 'pink',   done: false },
+    { id: 12, title: 'Lunch',           day: 14, hour: 12, color: 'yellow', done: false },
+    { id: 13, title: 'Product sync',    day: 14, hour: 13, color: 'blue',   done: false },
+    { id: 14, title: 'Call with Sam',   day: 14, hour: 14, color: 'pink',  done: false },
+    { id: 15, title: 'All hands',       day: 14, hour: 16, color: 'blue',   done: false },
+    { id: 16, title: 'Write strategy', day: 14, hour: 17, color: 'purple', done: false },
+    { id: 17, title: 'Deep work',       day: 14, hour: 18, color: 'green',  done: false },
+    { id: 18, title: 'Prep standup',   day: 14, hour: 19, color: 'orange', done: false },
+    { id: 19, title: 'Launch 🚀',        day: 17, hour: 9,  color: 'green',  done: true,  description: 'Feature launch day! Coordinate final release steps with engineering and marketing.' },
+    { id: 20, title: 'Retrospective',  day: 18, hour: 15, color: 'purple', done: false },
+    { id: 21, title: 'Strategy doc',   day: 22, hour: 10, color: 'yellow', done: false },
+    { id: 22, title: 'Budget review',  day: 24, hour: 14, color: 'orange', done: false },
+    { id: 23, title: 'Dev planning',   day: 28, hour: 11, color: 'blue',   done: false },
+  ];
+
+  var COLORS = [
+    { key: 'purple', hex: '#d2b3ff' },
+    { key: 'pink',   hex: '#f48fb1' },
+    { key: 'green',  hex: '#81c995' },
+    { key: 'blue',   hex: '#4285f4' },
+    { key: 'orange', hex: '#ff9800' },
+    { key: 'yellow', hex: '#fbbc04' },
+  ];
+  var COLOR_MAP = {
+    purple:'#d2b3ff', pink:'#f48fb1', green:'#81c995',
+    blue:'#4285f4', orange:'#ff9800', yellow:'#fbbc04'
+  };
+
+  function getDaysInMonth(y, m) { return new Date(y, m + 1, 0).getDate(); }
+  function getFirstDay(y, m) { return (new Date(y, m, 1).getDay() + 6) % 7; }
+  function fmtTime(h) { return (h < 10 ? '0' : '') + h + ':00'; }
+  function isoDay(d) { return (d.getDay() + 6) % 7; } // 0=Mon
+
+  /* ── Month view ── */
+  function renderMonthView() {
+    var y = currentDate.getFullYear();
+    var m = currentDate.getMonth();
+    document.getElementById('monthLabel').textContent = MONTHS[m] + ' ' + y;
+    var grid = document.getElementById('monthGrid');
+    while (grid.firstChild) grid.removeChild(grid.firstChild);
+    var dim = getDaysInMonth(y, m);
+    var first = getFirstDay(y, m);
+    var today = new Date(2026, 3, 14);
+
+    var pm = m === 0 ? 11 : m - 1;
+    var py = m === 0 ? y - 1 : y;
+    var daysInPrev = getDaysInMonth(py, pm);
+    for (var i = first - 1; i >= 0; i--) {
+      var d = daysInPrev - i;
+      grid.appendChild(makeGCell(d, py, pm, true));
+    }
+    for (var d = 1; d <= dim; d++) {
+      var isToday = d === today.getDate() && m === today.getMonth() && y === today.getFullYear();
+      grid.appendChild(makeGCell(d, y, m, false, isToday));
+    }
+    var total = first + dim;
+    var rem = total % 7 === 0 ? 0 : 7 - (total % 7);
+    var nm = m === 11 ? 0 : m + 1;
+    var ny = m === 11 ? y + 1 : y;
+    for (var d = 1; d <= rem; d++) {
+      grid.appendChild(makeGCell(d, ny, nm, true));
+    }
+  }
+
+  function makeGCell(day, year, month, otherMonth, isToday) {
+    var cell = document.createElement('div');
+    cell.className = 'g-cell' + (otherMonth ? ' other-month' : '') + (isToday ? ' today' : '');
+    cell.dataset.day = day; cell.dataset.month = month; cell.dataset.year = year;
+
+    var num = document.createElement('div');
+    num.className = 'g-date-num';
+    num.textContent = day;
+    cell.appendChild(num);
+
+    var evs = events.filter(function(ev) {
+      return ev.day === day && !deletedIds[ev.id];
+    });
+
+    var maxVisible = 3;
+    var visible = evs.slice(0, maxVisible);
+    var extra = evs.length - maxVisible;
+
+    visible.forEach(function(ev) { cell.appendChild(makeGChip(ev)); });
+    if (extra > 0) {
+      var more = document.createElement('div');
+      more.className = 'g-more';
+      more.textContent = '+' + extra + ' more';
+      more.onclick = function(e) {
+        e.stopPropagation();
+        openOverflow(day, month, year, evs);
+      };
+      cell.appendChild(more);
+    }
+
+    cell.onclick = function(e) {
+      // Only open quick add if clicking empty area, not a chip
+      if (e.target === cell || e.target === num) {
+        openQuickAdd(month, year, day);
+      }
+    };
+
+    return cell;
+  }
+
+  function makeGChip(ev) {
+    var chip = document.createElement('div');
+    chip.className = 'g-chip color-' + ev.color + (ev.done ? ' completed' : '');
+    chip.dataset.evId = ev.id;
+    chip.onclick = function(e) {
+      e.stopPropagation();
+      openEventDetail(ev);
+    };
+
+    var title = document.createElement('span');
+    title.className = 'g-chip-title';
+    title.textContent = ev.title;
+    var time = document.createElement('span');
+    time.className = 'g-chip-time';
+    time.textContent = fmtTime(ev.hour);
+    chip.appendChild(title);
+    chip.appendChild(time);
+    return chip;
+  }
+
+  /* ── Day view ── */
+  function renderDayView() {
+    var y = currentDate.getFullYear();
+    var m = currentDate.getMonth();
+    var d = currentDate.getDate();
+    document.getElementById('monthLabel').textContent = MONTHS[m] + ' ' + y;
+    document.getElementById('dayNameLabel').textContent = DAYS_FULL[isoDay(currentDate)];
+    document.getElementById('dayNumLabel').textContent = d;
+
+    var today = new Date(2026, 3, 14);
+    var isTodayDay = d === today.getDate() && m === today.getMonth() && y === today.getFullYear();
+    var hdr = document.getElementById('dayHeaderDate');
+    hdr.className = 'day-header-date' + (isTodayDay ? ' today' : '');
+
+    var grid = document.getElementById('dayGrid');
+    while (grid.firstChild) grid.removeChild(grid.firstChild);
+
+    for (var h = 0; h < 24; h++) {
+      var lblCol = document.createElement('div');
+      lblCol.className = 'hour-label-col';
+      var lbl = document.createElement('div');
+      lbl.className = 'hour-label';
+      lbl.textContent = fmtTime(h);
+      lblCol.appendChild(lbl);
+
+      var cell = document.createElement('div');
+      cell.className = 'hour-cell';
+      cell.dataset.hour = h;
+      cell.onclick = function(e) {
+        var hour = parseInt(this.dataset.hour, 10);
+        openQuickAdd(currentDate.getMonth(), currentDate.getFullYear(), currentDate.getDate(), hour);
+      };
+
+      var hourEvents = events.filter(function(ev) {
+        return ev.day === d && ev.hour === h && !deletedIds[ev.id];
+      });
+      hourEvents.forEach(function(ev) {
+        cell.appendChild(makeDayEvent(ev));
+      });
+
+      grid.appendChild(lblCol);
+      grid.appendChild(cell);
+    }
+
+    var line = document.getElementById('currentTimeLine');
+    if (isTodayDay) {
+      line.style.top = (10 * 52 + 30) + 'px'; // 10:30am
+      line.style.display = 'block';
+    } else {
+      line.style.display = 'none';
+    }
+  }
+
+  function makeDayEvent(ev) {
+    var el = document.createElement('div');
+    el.className = 'day-event color-' + ev.color + (ev.done ? ' completed' : '');
+    el.style.cssText = 'top:' + (ev.min || 0) + 'px;height:' + Math.max(ev.dur || 30, 16) + 'px';
+    el.dataset.evId = ev.id;
+    el.onclick = function(e) {
+      e.stopPropagation();
+      openEventDetail(ev);
+    };
+    var title = document.createElement('div');
+    title.className = 'day-event-title';
+    title.textContent = ev.title;
+    var time = document.createElement('div');
+    time.className = 'day-event-time';
+    time.textContent = fmtTime(ev.hour);
+    el.appendChild(title); el.appendChild(time);
+    return el;
+  }
+
+  function scrollDayToNow() {
+    var scrollEl = document.getElementById('dayScroll');
+    var topPx = (10 * 52) - 80;
+    scrollEl.scrollTop = Math.max(0, topPx);
+  }
+
+  /* ── Quick Add ── */
+  function openQuickAdd(month, year, day, presetHour) {
+    qaPresetDate = { month: month, year: year, day: day, hour: presetHour || 9 };
+    var d = new Date(year, month, day);
+    document.getElementById('qaInput').value = '';
+    document.getElementById('qaOverlay').classList.add('open');
+    setTimeout(function() { document.getElementById('qaInput').focus(); }, 250);
+  }
+  function closeQuickAdd() {
+    document.getElementById('qaOverlay').classList.remove('open');
+  }
+  function qaFill(text) {
+    document.getElementById('qaInput').value = text;
+    document.getElementById('qaInput').focus();
+  }
+  function parseQA(text) {
+    // Simple NLP parser — detects date/time patterns
+    var result = { title: text.trim(), hour: qaPresetDate ? qaPresetDate.hour : 9, day: qaPresetDate ? qaPresetDate.day : currentDate.getDate(), month: qaPresetDate ? qaPresetDate.month : currentDate.getMonth(), year: qaPresetDate ? qaPresetDate.year : currentDate.getFullYear() };
+    var t = text.toLowerCase();
+
+    // Time patterns: "3pm", "14:00", "at 3", "at 14"
+    var hm = t.match(/(\d{1,2}):(\d{2})\s*(am|pm)?/);
+    if (!hm) {
+      var ampm = t.match(/\d{1,2}\s*(am|pm)/);
+      if (ampm) {
+        var h = parseInt(ampm[0]);
+        if (ampm[0].includes('pm') && h < 12) h += 12;
+        if (ampm[0].includes('am') && h === 12) h = 0;
+        result.hour = h;
+      }
+    } else {
+      var h = parseInt(hm[1]);
+      if (hm[3] === 'pm' && h < 12) h += 12;
+      if (hm[3] === 'am' && h === 12) h = 0;
+      result.hour = h;
+      result.title = t.replace(hm[0], '').replace(/at\s*/, '').trim();
+    }
+
+    // Relative day names
+    var relMap = { 'tomorrow': 1, 'today': 0 };
+    for (var key in relMap) {
+      if (t.indexOf(key) !== -1) {
+        var nd = new Date(result.year, result.month, result.day + relMap[key]);
+        result.day = nd.getDate();
+        result.month = nd.getMonth();
+        result.year = nd.getFullYear();
+        result.title = t.replace(key, '').trim();
+        break;
+      }
+    }
+
+    // Weekday names — next occurrence
+    var weekdayMap = { 'monday':0,'tuesday':1,'wednesday':2,'thursday':3,'friday':4,'saturday':5,'sunday':5 };
+    for (var wd in weekdayMap) {
+      if (t.indexOf(wd) !== -1) {
+        var currDow = (result.day + 6) % 7; // current day of week
+        var targetDow = weekdayMap[wd];
+        var daysUntil = (targetDow - currDow + 7) % 7 || 7;
+        if (daysUntil === 0) daysUntil = 7; // next week
+        var nd = new Date(result.year, result.month, result.day + daysUntil);
+        result.day = nd.getDate();
+        result.month = nd.getMonth();
+        result.year = nd.getFullYear();
+        result.title = t.replace(wd, '').trim();
+        break;
+      }
+    }
+
+    result.title = result.title.replace(/^(at|on|in)\s+/, '').replace(/\s+/g, ' ').trim();
+    return result;
+  }
+  function saveQA() {
+    var text = document.getElementById('qaInput').value.trim();
+    if (!text) { closeQuickAdd(); return; }
+    var parsed = parseQA(text);
+    if (!parsed.title) { closeQuickAdd(); return; }
+    var newId = Math.max.apply(Math, events.map(function(e) { return e.id; })) + 1;
+    events.push({
+      id: newId, title: parsed.title, day: parsed.day, month: parsed.month, year: parsed.year,
+      hour: parsed.hour, color: selectedColor, done: false, description: ''
+    });
+    closeQuickAdd();
+    if (view === 'month') renderMonthView(); else renderDayView();
+  }
+
+  /* ── Event Detail ── */
+  function openEventDetail(ev) {
+    activeEvent = ev;
+    document.getElementById('edOverlay').classList.add('open');
+    renderEventDetail(ev);
+  }
+  function closeEventDetail() {
+    activeEvent = null;
+    document.getElementById('edOverlay').classList.remove('open');
+  }
+  function renderEventDetail(ev) {
+    var panel = document.getElementById('edPanel');
+    while (panel.firstChild) panel.removeChild(panel.firstChild);
+
+    var header = document.createElement('div'); header.className = 'ed-header';
+    var dot = document.createElement('div'); dot.className = 'ed-color-dot'; dot.style.background = COLOR_MAP[ev.color] || '#4285f4';
+    var titleInp = document.createElement('input'); titleInp.className = 'ed-title-input'; titleInp.value = ev.title; titleInp.placeholder = 'Event title';
+    var closeBtn = document.createElement('button'); closeBtn.className = 'ed-close'; closeBtn.textContent = '\u2715'; closeBtn.onclick = closeEventDetail;
+    header.appendChild(dot); header.appendChild(titleInp); header.appendChild(closeBtn);
+
+    var body = document.createElement('div'); body.className = 'ed-body';
+
+    var timeSection = document.createElement('div'); timeSection.className = 'ed-section';
+    var timeLabel = document.createElement('div'); timeLabel.className = 'ed-label'; timeLabel.textContent = 'Date & Time';
+    var timeRow = document.createElement('div'); timeRow.className = 'ed-time-row';
+    var dateBadge = document.createElement('div'); dateBadge.className = 'ed-badge';
+    dateBadge.innerHTML = '<span class="icon">&#128197;</span> ' + MONTHS[ev.month !== undefined ? ev.month : 3] + ' ' + ev.day + ', ' + (ev.year || 2026) + ' at ' + fmtTime(ev.hour);
+    var allDay = document.createElement('div'); allDay.className = 'ed-badge'; allDay.textContent = 'All-day';
+    timeRow.appendChild(dateBadge); timeRow.appendChild(allDay); timeSection.appendChild(timeLabel); timeSection.appendChild(timeRow);
+
+    var colorSection = document.createElement('div'); colorSection.className = 'ed-section';
+    var colorLabel = document.createElement('div'); colorLabel.className = 'ed-label'; colorLabel.textContent = 'Color';
+    var colorRow = document.createElement('div'); colorRow.className = 'ed-color-row';
+    COLORS.forEach(function(c) {
+      var sw = document.createElement('div'); sw.className = 'ed-swatch' + (ev.color === c.key ? ' selected' : '');
+      sw.style.background = c.hex;
+      sw.onclick = function() { ev.color = c.key; renderEventDetail(ev); };
+      colorRow.appendChild(sw);
+    });
+    colorSection.appendChild(colorLabel); colorSection.appendChild(colorRow);
+
+    var descSection = document.createElement('div'); descSection.className = 'ed-section';
+    var descLabel = document.createElement('div'); descLabel.className = 'ed-label'; descLabel.textContent = 'Description';
+    var desc = document.createElement('textarea'); desc.className = 'ed-description'; desc.placeholder = 'Add a description... notes, links, context...';
+    desc.value = ev.description || '';
+    descSection.appendChild(descLabel); descSection.appendChild(desc);
+
+    var meta = document.createElement('div'); meta.className = 'ed-meta';
+    meta.innerHTML = '<div>&#128269; Saved as SQLite row — searchable by text</div><div>&#9679; Description text is embedded with BGE-M3 at index time for semantic search</div>';
+
+    body.appendChild(timeSection); body.appendChild(colorSection); body.appendChild(descSection); body.appendChild(meta);
+
+    var footer = document.createElement('div'); footer.className = 'ed-footer';
+    var delBtn = document.createElement('button'); delBtn.className = 'ed-delete-btn'; delBtn.textContent = 'Delete';
+    delBtn.onclick = function() {
+      deletedIds[ev.id] = true;
+      closeEventDetail();
+      if (view === 'month') renderMonthView(); else renderDayView();
+    };
+    var saveBtn = document.createElement('button'); saveBtn.className = 'ed-save-btn'; saveBtn.textContent = 'Save';
+    saveBtn.onclick = function() {
+      ev.title = titleInp.value; ev.description = desc.value;
+      if (view === 'month') renderMonthView(); else renderDayView();
+      closeEventDetail();
+    };
+    footer.appendChild(delBtn); footer.appendChild(saveBtn);
+    panel.appendChild(header); panel.appendChild(body); panel.appendChild(footer);
+  }
+
+  /* ── Overflow ── */
+  function openOverflow(day, month, year, evs) {
+    document.getElementById('ovTitle').textContent = MONTHS[month] + ' ' + day;
+    document.getElementById('ovCount').textContent = evs.length + ' events';
+    var list = document.getElementById('ovList');
+    while (list.firstChild) list.removeChild(list.firstChild);
+    evs.forEach(function(ev) {
+      var item = document.createElement('div');
+      item.className = 'ov-item' + (ev.done ? ' completed' : '');
+      var colorBar = document.createElement('div');
+      colorBar.className = 'ov-item-color';
+      colorBar.style.background = COLOR_MAP[ev.color] || '#4285f4';
+      var info = document.createElement('div');
+      info.className = 'ov-item-info';
+      var title = document.createElement('div');
+      title.className = 'ov-item-title';
+      title.textContent = ev.title;
+      var time = document.createElement('div');
+      time.className = 'ov-item-time';
+      time.textContent = fmtTime(ev.hour);
+      info.appendChild(title); info.appendChild(time);
+      item.appendChild(colorBar); item.appendChild(info);
+      item.onclick = function() { closeOverflow(); openEventDetail(ev); };
+      list.appendChild(item);
+    });
+    document.getElementById('ovOverlay').classList.add('open');
+  }
+  function closeOverflow() {
+    document.getElementById('ovOverlay').classList.remove('open');
+  }
+
+  /* ── Settings ── */
+  function toggleSettings() {
+    document.getElementById('settingsPanel').classList.toggle('open');
+  }
+  function toggleSetting(key) {
+    if (key === 'darkMode') {
+      settings.darkMode = !settings.darkMode;
+      document.body.setAttribute('data-theme', settings.darkMode ? 'dark' : 'light');
+      document.getElementById('toggleDarkMode').classList.toggle('off', !settings.darkMode);
+    } else if (key === 'showTime') {
+      settings.showTime = !settings.showTime;
+      document.getElementById('toggleShowTime').classList.toggle('off', !settings.showTime);
+      if (view === 'month') renderMonthView(); else renderDayView();
+    }
+  }
+
+  function setView(v) {
+    view = v;
+    document.getElementById('segMonth').classList.toggle('active', v === 'month');
+    document.getElementById('segDay').classList.toggle('active', v === 'day');
+    document.getElementById('monthView').classList.toggle('active', v === 'month');
+    document.getElementById('monthView').classList.toggle('hidden', v !== 'month');
+    document.getElementById('dayView').classList.toggle('hidden', v !== 'day');
+    if (v === 'day') { renderDayView(); setTimeout(scrollDayToNow, 100); }
+    else renderMonthView();
+  }
+
+  /* ── Event listeners ── */
+  document.getElementById('navPrev').onclick = function() {
+    currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
+    if (view === 'month') renderMonthView(); else renderDayView();
+  };
+  document.getElementById('navNext').onclick = function() {
+    currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1);
+    if (view === 'month') renderMonthView(); else renderDayView();
+  };
+  document.getElementById('todayBtn').onclick = function() {
+    currentDate = new Date(2026, 3, 14);
+    if (view === 'month') renderMonthView(); else { renderDayView(); scrollDayToNow(); }
+  };
+  document.getElementById('addBtn').onclick = function() {
+    openQuickAdd(currentDate.getMonth(), currentDate.getFullYear(), currentDate.getDate(), 9);
+  };
+  document.getElementById('segMonth').onclick = function() { setView('month'); };
+  document.getElementById('segDay').onclick = function() { setView('day'); };
+  document.getElementById('settingsBtn').onclick = toggleSettings;
+  document.getElementById('qaClose').onclick = closeQuickAdd;
+  document.getElementById('qaCancel').onclick = closeQuickAdd;
+  document.getElementById('qaSave').onclick = saveQA;
+  document.getElementById('qaInput').onkeydown = function(e) { if (e.key === 'Enter') saveQA(); };
+  document.getElementById('edBackdrop').onclick = closeEventDetail;
+  document.getElementById('ovClose').onclick = closeOverflow;
+  document.getElementById('ovOverlay').onclick = function(e) { if (e.target === this) closeOverflow(); };
+  document.getElementById('qaOverlay').onclick = function(e) { if (e.target === this) closeQuickAdd(); };
+  document.getElementById('toggleDarkMode').classList.add('off');
+  document.getElementById('toggleShowTime').classList.add('off');
+
+  renderMonthView();
+})();
+</script>
+</body>
+</html>

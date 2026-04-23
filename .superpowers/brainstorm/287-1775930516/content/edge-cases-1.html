@@ -1,0 +1,234 @@
+<h2>Edge Cases — Professional Reference (1/2)</h2>
+<p class="subtitle">How Apple Calendar, Google Calendar, Notion & Linear handle these</p>
+
+<div class="mockup-header">1. Multi-day Events — Month View</div>
+<div class="mockup-body">
+  <div style="background:#fff;border:1px solid #e0e0e0;border-radius:10px;padding:20px;font-family:system-ui,sans-serif">
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:16px">
+      <div style="text-align:center;font-size:10px;color:#aaa;font-weight:500;padding:4px">Mon</div>
+      <div style="text-align:center;font-size:10px;color:#aaa;font-weight:500;padding:4px">Tue</div>
+      <div style="text-align:center;font-size:10px;color:#aaa;font-weight:500;padding:4px">Wed</div>
+      <div style="text-align:center;font-size:10px;color:#aaa;font-weight:500;padding:4px">Thu</div>
+      <div style="text-align:center;font-size:10px;color:#aaa;font-weight:500;padding:4px">Fri</div>
+      <div style="text-align:center;font-size:10px;color:#aaa;font-weight:500;padding:4px">Sat</div>
+      <div style="text-align:center;font-size:10px;color:#aaa;font-weight:500;padding:4px">Sun</div>
+
+      <!-- Week row 1 -->
+      <div style="border:1px solid #eee;padding:4px;min-height:64px;position:relative;background:#f8f4ff"></div>
+      <div style="border:1px solid #eee;padding:4px;min-height:64px;position:relative;background:#f8f4ff">
+        <!-- Multi-day event: starts Mon, ends Thu -->
+        <div style="position:absolute;left:-1px;right:0;top:4px;height:18px;background:#6366f1;border-radius:4px;padding:2px 6px;display:flex;align-items:center;overflow:hidden;box-shadow:0 1px 3px rgba(99,102,241,0.3)">
+          <div style="width:8px;height:8px;border-radius:50%;background:#fff;margin-right:4px;flex-shrink:0"></div>
+          <span style="font-size:10px;color:#fff;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Conference</span>
+        </div>
+        <!-- Multi-day event 2: starts Wed, ends Fri -->
+        <div style="position:absolute;left:0;right:-1px;top:26px;height:18px;background:#f97316;border-radius:4px;padding:2px 6px;display:flex;align-items:center">
+          <span style="font-size:10px;color:#fff;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Offsite ›</span>
+        </div>
+      </div>
+      <div style="border:1px solid #eee;padding:4px;min-height:64px;position:relative;background:#f8f4ff">
+        <div style="position:absolute;left:0;right:0;top:4px;height:18px;background:#6366f1;border-radius:4px;padding:2px 6px;display:flex;align-items:center">
+          <span style="font-size:10px;color:#fff;font-weight:500">‹ Conference ›</span>
+        </div>
+        <div style="position:absolute;left:0;right:0;top:26px;height:18px;background:#f97316;border-radius:4px;padding:2px 6px;display:flex;align-items:center">
+          <span style="font-size:10px;color:#fff;font-weight:500">Offsite ›</span>
+        </div>
+      </div>
+      <div style="border:1px solid #eee;padding:4px;min-height:64px;position:relative;background:#f8f4ff">
+        <div style="position:absolute;left:0;right:0;top:4px;height:18px;background:#6366f1;border-radius:4px;padding:2px 6px;display:flex;align-items:center">
+          <span style="font-size:10px;color:#fff;font-weight:500">‹ Conference ›</span>
+        </div>
+        <div style="position:absolute;left:0;right:0;top:26px;height:18px;background:#f97316;border-radius:4px;padding:2px 6px;display:flex;align-items:center">
+          <span style="font-size:10px;color:#fff;font-weight:500">Offsite ›</span>
+        </div>
+      </div>
+      <div style="border:1px solid #eee;padding:4px;min-height:64px;position:relative;background:#f8f4ff">
+        <div style="position:absolute;left:0;right:0;top:4px;height:18px;background:#6366f1;border-radius:4px;padding:2px 6px;display:flex;align-items:center">
+          <span style="font-size:10px;color:#fff;font-weight:500">‹ Conference</span>
+        </div>
+        <div style="position:absolute;left:0;right:-1px;top:26px;height:18px;background:#f97316;border-radius:4px;padding:2px 6px;display:flex;align-items:center">
+          <div style="width:8px;height:8px;border-radius:50%;background:#fff;margin-right:4px;flex-shrink:0"></div>
+          <span style="font-size:10px;color:#fff;font-weight:500">Offsite</span>
+        </div>
+      </div>
+      <div style="border:1px solid #eee;padding:4px;min-height:64px;position:relative;background:#f8f4ff"></div>
+      <div style="border:1px solid #eee;padding:4px;min-height:64px;position:relative;background:#f8f4ff"></div>
+
+      <!-- Week row 2 -->
+      <div style="border:1px solid #eee;padding:4px;min-height:64px"></div>
+      <div style="border:1px solid #eee;padding:4px;min-height:64px"></div>
+      <div style="border:1px solid #eee;padding:4px;min-height:64px"></div>
+      <div style="border:1px solid #eee;padding:4px;min-height:64px"></div>
+      <div style="border:1px solid #eee;padding:4px;min-height:64px"></div>
+      <div style="border:1px solid #eee;padding:4px;min-height:64px"></div>
+      <div style="border:1px solid #eee;padding:4px;min-height:64px"></div>
+    </div>
+
+    <!-- Legend -->
+    <div style="display:flex;gap:16px;font-size:11px;color:#666;align-items:center">
+      <span style="font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:#aaa">Key:</span>
+      <div style="display:flex;align-items:center;gap:6px">
+        <div style="width:20px;height:10px;background:#6366f1;border-radius:3px"></div>
+        <span>Start/end spans — rounded left on first day, right on last</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <div style="width:8px;height:8px;border-radius:50%;background:#fff;border:1px solid #6366f1"></div>
+        <span>Dot = all-day indicator</span>
+      </div>
+    </div>
+  </div>
+</div>
+<p style="margin-top:8px;font-size:12px;color:#555;text-align:center">
+  Apple Calendar & Google Calendar pattern: bars span full width of each day cell<br>
+  Left cap on first day, right cap on last day, middle days show only color bar
+</p>
+
+<div style="height:24px"></div>
+
+<div class="mockup-header">2. Unscheduled Events Panel</div>
+<div class="mockup-body">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+    <!-- AppFlowy style: button in toolbar opens popover -->
+    <div style="background:#fff;border:1px solid #e0e0e0;border-radius:10px;padding:20px;font-family:system-ui,sans-serif">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:#aaa;margin-bottom:12px">AppFlowy / Notion approach</div>
+      <div style="border:1px solid #eee;border-radius:8px;padding:10px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between">
+        <span style="font-size:12px;color:#555">Sprint planning</span>
+        <div style="font-size:10px;color:#aaa;background:#f5f5f5;border-radius:4px;padding:2px 6px">No date</div>
+      </div>
+      <div style="border:1px solid #eee;border-radius:8px;padding:10px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between">
+        <span style="font-size:12px;color:#555">Design review notes</span>
+        <div style="font-size:10px;color:#aaa;background:#f5f5f5;border-radius:4px;padding:2px 6px">No date</div>
+      </div>
+      <div style="border:1px solid #eee;border-radius:8px;padding:10px;display:flex;align-items:center;justify-content:space-between">
+        <span style="font-size:12px;color:#555">Client follow-up</span>
+        <div style="font-size:10px;color:#aaa;background:#f5f5f5;border-radius:4px;padding:2px 6px">No date</div>
+      </div>
+    </div>
+
+    <!-- Google style: bottom sheet / floating panel -->
+    <div style="background:#fff;border:1px solid #e0e0e0;border-radius:10px;padding:20px;font-family:system-ui,sans-serif">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:#aaa;margin-bottom:12px">Google Calendar / Fantastical approach</div>
+      <div style="background:#fafafa;border:1px solid #e5e5e5;border-radius:8px;overflow:hidden;margin-bottom:12px">
+        <div style="padding:8px 12px;border-bottom:1px solid #eee;display:flex;align-items:center;justify-content:space-between">
+          <span style="font-size:12px;font-weight:600;color:#333">Unscheduled</span>
+          <span style="font-size:11px;background:#6366f1;color:#fff;border-radius:10px;padding:1px 8px">3</span>
+        </div>
+        <div style="padding:10px 12px;border-bottom:1px solid #eee">
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="width:8px;height:8px;border-radius:50%;background:#6366f1;flex-shrink:0"></div>
+            <span style="font-size:12px;color:#333">Sprint planning</span>
+          </div>
+          <div style="font-size:10px;color:#aaa;margin-left:16px;margin-top:2px">Drag to calendar to schedule</div>
+        </div>
+        <div style="padding:10px 12px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="width:8px;height:8px;border-radius:50%;background:#f97316;flex-shrink:0"></div>
+            <span style="font-size:12px;color:#333">Client follow-up</span>
+          </div>
+          <div style="font-size:10px;color:#aaa;margin-left:16px;margin-top:2px">Drag to calendar to schedule</div>
+        </div>
+      </div>
+      <div style="font-size:10px;color:#aaa;text-align:center">Drag items from here onto calendar days</div>
+    </div>
+  </div>
+</div>
+<p style="margin-top:8px;font-size:12px;color:#555;text-align:center">
+  Both approaches work — AppFlowy: popover from toolbar button · Google: collapsible section at bottom<br>
+  Both allow drag FROM the unscheduled panel TO a calendar day to assign a date
+</p>
+
+<div style="height:24px"></div>
+
+<div class="mockup-header">3. Drag Board Card → Calendar Day</div>
+<div class="mockup-body">
+  <div style="background:#fff;border:1px solid #e0e0e0;border-radius:10px;padding:20px;font-family:system-ui,sans-serif">
+    <div style="display:grid;grid-template-columns:200px 1fr;gap:24px;align-items:center">
+      <!-- Source: Board column -->
+      <div>
+        <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:#aaa;margin-bottom:8px">From Board</div>
+        <div style="background:#f8f4ff;border:1px solid #ddd;border-radius:8px;padding:10px">
+          <div style="font-size:11px;font-weight:600;color:#7c3aed;margin-bottom:6px">In Progress</div>
+          <div style="background:#fff;border:1px solid #ddd;padding:8px;border-radius:6px;cursor:grab;box-shadow:0 2px 8px rgba(0,0,0,0.08);transform:rotate(-1deg)">
+            <div style="font-size:12px;font-weight:500;color:#333;margin-bottom:4px">Write API docs</div>
+            <div style="display:flex;gap:6px">
+              <div style="font-size:9px;background:#f3e8ff;color:#7c3aed;border-radius:4px;padding:1px 6px">API</div>
+              <div style="font-size:9px;background:#fef3c7;color:#92400e;border-radius:4px;padding:1px 6px">High</div>
+            </div>
+          </div>
+          <div style="font-size:9px;color:#aaa;margin-top:6px;text-align:center">↑ drag to calendar</div>
+        </div>
+      </div>
+
+      <!-- Arrow -->
+      <div style="display:flex;flex-direction:column;align-items:center;gap:8px">
+        <div style="font-size:40px;color:#d0d0d0">→</div>
+        <div style="font-size:10px;color:#aaa;text-align:center">drop on day cell</div>
+      </div>
+
+      <!-- Target: Calendar day with ghost -->
+      <div>
+        <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:#aaa;margin-bottom:8px">To Calendar (Week view)</div>
+        <div style="border:1px solid #ddd;border-radius:8px;padding:12px;position:relative">
+          <div style="font-size:13px;font-weight:600;color:#333;margin-bottom:12px">Wednesday, Apr 15</div>
+          <div style="position:relative;min-height:80px">
+            <!-- Existing event -->
+            <div style="position:absolute;left:0;right:60px;top:0;height:28px;background:#dddde0;border-radius:4px;padding:4px 8px">
+              <span style="font-size:11px;color:#555">Team standup</span>
+            </div>
+            <!-- Drop zone highlight -->
+            <div style="position:absolute;left:0;right:60px;top:36px;height:24px;background:#f0f0ff;border:2px dashed #6366f1;border-radius:4px;display:flex;align-items:center;justify-content:center">
+              <span style="font-size:10px;color:#6366f1;font-weight:500">Drop here</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Time chip after drop -->
+    <div style="margin-top:16px;border-top:1px solid #eee;padding-top:16px">
+      <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:#aaa;margin-bottom:10px">After drop — quick time chip appears</div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="background:#fff;border:1px solid #ddd;padding:8px 12px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.08)">
+          <div style="font-size:12px;font-weight:500;color:#333;margin-bottom:4px">Write API docs</div>
+          <div style="font-size:11px;color:#6366f1;background:#f0f0ff;display:inline-flex;align-items:center;gap:4px;border-radius:4px;padding:2px 8px">
+            <span>📅</span>
+            <span>Apr 15</span>
+          </div>
+        </div>
+        <div style="font-size:20px;color:#ccc">→</div>
+        <!-- Time chip -->
+        <div style="border:1px solid #ddd;border-radius:8px;padding:10px 14px;box-shadow:0 2px 8px rgba(0,0,0,0.08);background:#fff">
+          <div style="font-size:10px;color:#aaa;margin-bottom:4px">Time (tap to change)</div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <select style="font-size:13px;font-weight:500;color:#333;border:1px solid #ddd;border-radius:6px;padding:4px 8px;background:#f8f8f8">
+              <option>9:00 AM</option>
+              <option selected>9:30 AM</option>
+              <option>10:00 AM</option>
+            </select>
+            <span style="color:#aaa;font-size:13px">–</span>
+            <select style="font-size:13px;font-weight:500;color:#333;border:1px solid #ddd;border-radius:6px;padding:4px 8px;background:#f8f8f8">
+              <option selected>10:00 AM</option>
+              <option>10:30 AM</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<p style="margin-top:8px;font-size:12px;color:#555;text-align:center">
+  Apple Calendar / Fantastical: drag from any source → drop on day → quick time chip appears below the card<br>
+  User taps time to adjust, or it defaults to 9:00 AM
+</p>
+
+<div style="height:24px"></div>
+
+<div class="options">
+  <div class="option" data-choice="unscheduled-both" onclick="toggleSelect(this)">
+    <div class="letter">✓</div>
+    <div class="content">
+      <h3>Include Unscheduled panel + drag-to-date</h3>
+      <p>Show "Unscheduled (N)" button in toolbar. Open panel with draggable items. Allow drag from board card directly onto calendar day. Show quick time chip after drop.</p>
+    </div>
+  </div>
+</div>

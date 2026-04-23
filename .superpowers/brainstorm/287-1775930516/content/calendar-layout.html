@@ -1,0 +1,161 @@
+<h2>Calendar Layout — which feels right?</h2>
+<p class="subtitle">Dragging cards between days should feel as fluid as dragging board cards between columns</p>
+
+<div class="mockup-header">Option A — Month Grid (AppFlowy style)</div>
+<div class="mockup-body">
+  <div style="background:#fff;border:1px solid #e0e0e0;border-radius:8px;padding:16px;font-family:system-ui,sans-serif">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <span style="font-weight:600;font-size:15px">April 2026</span>
+      <div style="display:flex;gap:8px">
+        <div style="width:28px;height:28px;border:1px solid #ddd;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;color:#666">‹</div>
+        <div style="width:60px;height:28px;border:1px solid #ddd;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;color:#666">Today</div>
+        <div style="width:28px;height:28px;border:1px solid #ddd;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;color:#666">›</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:4px">
+      <div style="text-align:center;font-size:11px;color:#999;font-weight:500;padding:4px">Mon</div>
+      <div style="text-align:center;font-size:11px;color:#999;font-weight:500;padding:4px">Tue</div>
+      <div style="text-align:center;font-size:11px;color:#999;font-weight:500;padding:4px">Wed</div>
+      <div style="text-align:center;font-size:11px;color:#999;font-weight:500;padding:4px">Thu</div>
+      <div style="text-align:center;font-size:11px;color:#999;font-weight:500;padding:4px">Fri</div>
+      <div style="text-align:center;font-size:11px;color:#999;font-weight:500;padding:4px">Sat</div>
+      <div style="text-align:center;font-size:11px;color:#999;font-weight:500;padding:4px">Sun</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);grid-template-rows:repeat(5,72px);gap:2px">
+      <!-- Week 1 -->
+      <div style="border:1px solid #eee;padding:4px;position:relative;min-height:72px">
+        <div style="position:absolute;top:4px;right:6px;font-size:10px;color:#ccc">30</div>
+      </div>
+      <div style="border:1px solid #eee;padding:4px;position:relative;min-height:72px">
+        <div style="position:absolute;top:4px;right:6px;font-size:10px;color:#ccc">31</div>
+      </div>
+      <div style="border:1px solid #eee;padding:4px;position:relative;min-height:72px;background:#f8f4ff">
+        <div style="position:absolute;top:4px;right:6px;font-size:10px;font-weight:600;color:#7c3aed">1</div>
+        <div style="margin-top:22px;background:#dddde0;border-radius:4px;padding:3px 6px;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#555">Sprint planning</div>
+      </div>
+      <div style="border:1px solid #eee;padding:4px;position:relative;min-height:72px;background:#f8f4ff">
+        <div style="position:absolute;top:4px;right:6px;font-size:10px;font-weight:600;color:#7c3aed">2</div>
+      </div>
+      <div style="border:1px solid #eee;padding:4px;position:relative;min-height:72px;background:#f8f4ff">
+        <div style="position:absolute;top:4px;right:6px;font-size:10px;font-weight:600;color:#7c3aed">3</div>
+        <div style="margin-top:22px;background:#fde8e8;border-radius:4px;padding:3px 6px;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#c44">Design review</div>
+      </div>
+      <div style="border:1px solid #eee;padding:4px;position:relative;min-height:72px;background:#f8f4ff">
+        <div style="position:absolute;top:4px;right:6px;font-size:10px;font-weight:600;color:#7c3aed">4</div>
+      </div>
+      <div style="border:1px solid #eee;padding:4px;position:relative;min-height:72px;background:#f8f4ff">
+        <div style="position:absolute;top:4px;right:6px;font-size:10px;font-weight:600;color:#7c3aed">5</div>
+      </div>
+      <!-- Week 2 (partial) -->
+      <div style="border:1px solid #eee;padding:4px;position:relative;min-height:72px;background:#f8f4ff">
+        <div style="position:absolute;top:4px;right:6px;font-size:10px;font-weight:600;color:#7c3aed">6</div>
+        <div style="margin-top:22px;background:#dcfce7;border-radius:4px;padding:3px 6px;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#166">Ship v1.2</div>
+      </div>
+      <div style="border:1px solid #eee;padding:4px;position:relative;min-height:72px;background:#fff">
+        <div style="position:absolute;top:4px;right:6px;font-size:10px;font-weight:600">7</div>
+      </div>
+      <div style="border:1px solid #eee;padding:4px;position:relative;min-height:72px;background:#fff">
+        <div style="position:absolute;top:4px;right:6px;font-size:10px;font-weight:600">8</div>
+      </div>
+      <div style="border:1px solid #eee;padding:4px;position:relative;min-height:72px;background:#fff">
+        <div style="position:absolute;top:4px;right:6px;font-size:10px;font-weight:600">9</div>
+      </div>
+      <div style="border:1px solid #eee;padding:4px;position:relative;min-height:72px;background:#fff">
+        <div style="position:absolute;top:4px;right:6px;font-size:10px;font-weight:600">10</div>
+      </div>
+      <div style="border:1px solid #eee;padding:4px;position:relative;min-height:72px;background:#fff">
+        <div style="position:absolute;top:4px;right:6px;font-size:10px;font-weight:600">11</div>
+      </div>
+      <div style="border:1px solid #eee;padding:4px;position:relative;min-height:72px;background:#fff;opacity:0.4">
+        <div style="position:absolute;top:4px;right:6px;font-size:10px;font-weight:600;color:#999">12</div>
+      </div>
+    </div>
+    <div style="margin-top:12px;display:flex;justify-content:flex-end">
+      <div style="font-size:11px;color:#888;border:1px solid #ddd;border-radius:6px;padding:4px 10px">📋 Unscheduled (3)</div>
+    </div>
+  </div>
+</div>
+<p style="margin-top:8px;font-size:12px;color:#666;text-align:center">Classic monthly grid — familiar, dense, shows more days at once</p>
+
+<div style="height:24px"></div>
+
+<div class="mockup-header">Option B — Week Strip + Agenda (Linear/Notion style)</div>
+<div class="mockup-body">
+  <div style="background:#fff;border:1px solid #e0e0e0;border-radius:8px;padding:16px;font-family:system-ui,sans-serif">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <span style="font-weight:600;font-size:15px">Week of Apr 6</span>
+      <div style="display:flex;gap:6px">
+        <div style="width:28px;height:28px;border:1px solid #ddd;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;color:#666">‹</div>
+        <div style="width:60px;height:28px;border:1px solid #ddd;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;color:#666">Today</div>
+        <div style="width:28px;height:28px;border:1px solid #ddd;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;color:#666">›</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:60px repeat(7,1fr);gap:0;border:1px solid #eee;border-radius:6px;overflow:hidden">
+      <!-- Time column -->
+      <div style="border-right:1px solid #eee;padding:8px 6px;font-size:10px;color:#aaa">
+        <div style="padding:4px 0">9am</div>
+        <div style="padding:4px 0">10</div>
+        <div style="padding:4px 0">11</div>
+        <div style="padding:4px 0">12</div>
+        <div style="padding:4px 0">1pm</div>
+        <div style="padding:4px 0">2</div>
+        <div style="padding:4px 0">3</div>
+        <div style="padding:4px 0">4</div>
+      </div>
+      <!-- Mon -->
+      <div style="border-right:1px solid #eee;position:relative;min-height:200px">
+        <div style="position:absolute;top:0;left:0;right:0;background:#dddde0;border-radius:4px;margin:4px;padding:6px 8px;font-size:11px;font-weight:500;color:#333;transform:rotate(0deg)">Sprint planning</div>
+        <div style="position:absolute;top:60px;left:0;right:0;background:#fde8e8;border-radius:4px;margin:4px;padding:6px 8px;font-size:11px;font-weight:500;color:#c44">Design review</div>
+      </div>
+      <!-- Tue -->
+      <div style="border-right:1px solid #eee;position:relative;min-height:200px"></div>
+      <!-- Wed -->
+      <div style="border-right:1px solid #eee;position:relative;min-height:200px">
+        <div style="position:absolute;top:0;left:0;right:0;background:#dcfce7;border-radius:4px;margin:4px;padding:6px 8px;font-size:11px;font-weight:500;color:#166">Ship v1.2</div>
+      </div>
+      <!-- Thu -->
+      <div style="border-right:1px solid #eee;position:relative;min-height:200px"></div>
+      <!-- Fri -->
+      <div style="border-right:1px solid #eee;position:relative;min-height:200px"></div>
+      <!-- Sat -->
+      <div style="border-right:1px solid #eee;position:relative;min-height:200px;background:#f9f9f9"></div>
+      <!-- Sun -->
+      <div style="position:relative;min-height:200px;background:#f9f9f9"></div>
+    </div>
+    <div style="margin-top:12px;display:flex;justify-content:space-between;align-items:center">
+      <div style="font-size:12px;color:#555">
+        <span style="background:#dddde0;width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:4px"></span>Sprint
+        <span style="background:#fde8e8;width:8px;height:8px;border-radius:50%;display:inline-block;margin-left:12px;margin-right:4px"></span>Design
+        <span style="background:#dcfce7;width:8px;height:8px;border-radius:50%;display:inline-block;margin-left:12px;margin-right:4px"></span>Ship
+      </div>
+      <div style="font-size:11px;color:#888;border:1px solid #ddd;border-radius:6px;padding:4px 10px">📋 Unscheduled (3)</div>
+    </div>
+  </div>
+</div>
+<p style="margin-top:8px;font-size:12px;color:#666;text-align:center">Time-based week view — events sized by duration, vertically positioned by time of day</p>
+
+<div style="height:24px"></div>
+
+<div class="options">
+  <div class="option" data-choice="month" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Month Grid</h3>
+      <p>Classic monthly calendar. Drag events between day cells to reschedule. Dense — shows 35 days at once. Best for overview planning.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="week" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Week + Agenda</h3>
+      <p>7-day week strip with time slots. Events sized by duration. Drag vertically to change time, horizontally to change day. Best for time-blocked work.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="both" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Both (toggle)</h3>
+      <p>Tab or toggle between Month view and Week view. Both support drag-to-reschedule. Most flexible — but more UI surface to build and maintain.</p>
+    </div>
+  </div>
+</div>

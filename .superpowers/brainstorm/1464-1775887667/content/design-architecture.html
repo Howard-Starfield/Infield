@@ -1,0 +1,91 @@
+<h2>Design — Section 1 of 4: Architecture</h2>
+<p class="subtitle">What exists today · what changes · what's new · phase boundaries</p>
+
+<div class="section">
+  <h3>Phase A — Board UI Rebuild <span style="font-size:11px;color:#22c55e;background:#1e3a1e;padding:2px 8px;border-radius:10px;margin-left:6px">ships first</span></h3>
+
+  <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
+
+    <!-- Frontend -->
+    <div style="flex:1;min-width:260px">
+      <div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Frontend <code style="background:#1e1e35;padding:1px 5px;border-radius:3px;font-size:9px">src/components/database/</code></div>
+      <div style="display:flex;flex-direction:column;gap:4px;font-size:11px">
+        <div style="background:#2d1e1e;border:1px solid #7f1d1d;border-radius:5px;padding:5px 10px;color:#fca5a5">🗑 <s>BoardView.tsx</s> — replaced entirely</div>
+        <div style="background:#1e2d1e;border:1px solid #14532d;border-radius:5px;padding:5px 10px;color:#86efac">+ BoardView.tsx — new root (DnD context, column list, trailing +)</div>
+        <div style="background:#1e2d1e;border:1px solid #14532d;border-radius:5px;padding:5px 10px;color:#86efac">+ BoardColumn.tsx — column shell (header + cards + footer)</div>
+        <div style="background:#1e2d1e;border:1px solid #14532d;border-radius:5px;padding:5px 10px;color:#86efac">+ BoardColumnHeader.tsx — badge, ⋯ menu, + button, drag handle</div>
+        <div style="background:#1e2d1e;border:1px solid #14532d;border-radius:5px;padding:5px 10px;color:#86efac">+ BoardCard.tsx — draggable card with ghost state</div>
+        <div style="background:#1e2d1e;border:1px solid #14532d;border-radius:5px;padding:5px 10px;color:#86efac">+ ColorPickerPopover.tsx — preset color swatches</div>
+        <div style="background:#1e2d1e;border:1px solid #14532d;border-radius:5px;padding:5px 10px;color:#86efac">+ ColumnContextMenu.tsx — Rename / Delete dropdown</div>
+        <div style="background:#1e2a3e;border:1px solid #1e3a5f;border-radius:5px;padding:5px 10px;color:#93c5fd">~ databaseStore.ts — add group/option CRUD + createRowInGroup</div>
+      </div>
+    </div>
+
+    <!-- Backend -->
+    <div style="flex:1;min-width:260px">
+      <div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Backend <code style="background:#1e1e35;padding:1px 5px;border-radius:3px;font-size:9px">src-tauri/src/</code></div>
+      <div style="display:flex;flex-direction:column;gap:4px;font-size:11px">
+        <div style="background:#1e2a3e;border:1px solid #1e3a5f;border-radius:5px;padding:5px 10px;color:#93c5fd">~ commands/database.rs — 4 new commands</div>
+        <div style="background:#1e2a3e;border:1px solid #1e3a5f;border-radius:5px;padding:5px 10px;color:#93c5fd">~ managers/database/manager.rs — option CRUD methods</div>
+        <div style="background:#1e2a3e;border:1px solid #1e3a5f;border-radius:5px;padding:5px 10px;color:#93c5fd">~ managers/database/field.rs — color field on SelectOption</div>
+      </div>
+      <div style="margin-top:10px;font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">New Tauri commands</div>
+      <div style="background:#12121e;border:1px solid #2a2a3e;border-radius:6px;padding:8px 10px;font-size:10px;color:#a5b4fc;font-family:monospace;line-height:1.8">
+        create_select_option(db_id, field_id, name)<br>
+        rename_select_option(field_id, option_id, name)<br>
+        delete_select_option(field_id, option_id)<br>
+        create_row_in_group(db_id, field_id, option_id)
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:16px">
+  <h3>Phase B — Database Shell <span style="font-size:11px;color:#f97316;background:#2d1a0a;padding:2px 8px;border-radius:10px;margin-left:6px">after A ships</span></h3>
+  <div style="display:flex;gap:16px;flex-wrap:wrap">
+    <div style="flex:1;min-width:260px;display:flex;flex-direction:column;gap:4px;font-size:11px">
+      <div style="background:#1e2d1e;border:1px solid #14532d;border-radius:5px;padding:5px 10px;color:#86efac">+ DatabaseShell.tsx — tab bar, + view picker, far-right toolbar</div>
+      <div style="background:#1e2d1e;border:1px solid #14532d;border-radius:5px;padding:5px 10px;color:#86efac">+ AddViewPopup.tsx — Board / Grid / Calendar / Chart / List picker</div>
+      <div style="background:#1e2d1e;border:1px solid #14532d;border-radius:5px;padding:5px 10px;color:#86efac">+ TemplateManager.tsx — save/load template panel</div>
+      <div style="background:#1e2a3e;border:1px solid #1e3a5f;border-radius:5px;padding:5px 10px;color:#93c5fd">~ notesSpacesStore.ts — auto-create folder on database creation</div>
+      <div style="background:#1e2a3e;border:1px solid #1e3a5f;border-radius:5px;padding:5px 10px;color:#93c5fd">~ databaseStore.ts — add view tabs state (type, name, config)</div>
+      <div style="background:#1e2a3e;border:1px solid #1e3a5f;border-radius:5px;padding:5px 10px;color:#93c5fd">~ commands/database.rs — create_view, delete_view, reorder_views</div>
+    </div>
+    <div style="flex:1;min-width:220px;background:#12121e;border:1px solid #2a2a3e;border-radius:6px;padding:10px;font-size:10px;color:#888;line-height:1.7">
+      Grid / Calendar / Chart / List views can be <strong style="color:#f97316">stubs</strong> in Phase B — the shell just needs to render the tab bar and switch. Real implementations come later. Templates stored in <strong style="color:#93c5fd">localStorage</strong> temporarily.
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:16px">
+  <h3>Phase C — JSON Portability <span style="font-size:11px;color:#a855f7;background:#1e1035;padding:2px 8px;border-radius:10px;margin-left:6px">after B ships</span></h3>
+  <div style="display:flex;gap:16px;flex-wrap:wrap">
+    <div style="flex:1;min-width:260px;display:flex;flex-direction:column;gap:4px;font-size:11px">
+      <div style="background:#1e2d1e;border:1px solid #14532d;border-radius:5px;padding:5px 10px;color:#86efac">+ managers/database/json_store.rs — read/write .db.json files</div>
+      <div style="background:#1e2a3e;border:1px solid #1e3a5f;border-radius:5px;padding:5px 10px;color:#93c5fd">~ managers/database/manager.rs — writes to JSON first, SQLite second</div>
+      <div style="background:#1e2a3e;border:1px solid #1e3a5f;border-radius:5px;padding:5px 10px;color:#93c5fd">~ commands/folder.rs — vault_dir exposed for JSON path resolution</div>
+    </div>
+    <div style="flex:1;min-width:220px;background:#12121e;border:1px solid #2a2a3e;border-radius:6px;padding:10px;font-size:10px;color:#888;line-height:1.7">
+      Vault layout:<br>
+      <code style="color:#c4b5fd">vault/<br>
+      ├── notes/*.md<br>
+      └── databases/<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;└── Sprint Q2.db.json</code><br><br>
+      Templates migrate from localStorage into the JSON file. SQLite becomes a rebuild cache only.
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:16px">
+  <h3>Does this architecture section look right?</h3>
+  <div class="options">
+    <div class="option" data-choice="yes" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content"><h3>Yes — continue to Section 2</h3><p>Component breakdown and drag-and-drop design</p></div>
+    </div>
+    <div class="option" data-choice="change" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content"><h3>Change something</h3><p>I'll describe in terminal</p></div>
+    </div>
+  </div>
+</div>

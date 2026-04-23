@@ -1,0 +1,115 @@
+<h2>AddViewPopup — the "+" button behavior</h2>
+<p class="subtitle">When the user clicks [+] on the right side of the tab bar</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Popover below [+] button</h3>
+      <p>A small dropdown/popover appears directly below the [+] button with the list of view types. Clicking outside dismisses it. Instant, unobtrusive.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Modal dialog (centered)</h3>
+      <p>A centered modal with a larger preview of each view type and descriptions. More ceremonial — good if views are unfamiliar to the user.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Slide-out panel from right</h3>
+      <p>The panel slides in from the right edge of the tab bar, showing view types with mini-previews. Slightly more spacious, stays out of center screen.</p>
+    </div>
+  </div>
+</div>
+
+<br>
+
+<div class="mockup">
+  <div class="mockup-header">Option A — Popover below [+] (Notion style)</div>
+  <div class="mockup-body" style="font-family: system-ui; background: #f7f6f3; padding: 12px; border-radius: 6px;">
+    <div style="background: white; border: 1px solid #e0e0e0; border-radius: 6px; padding: 10px 12px; display: flex; align-items: center; gap: 4px; margin-bottom: 8px; position: relative;">
+      <div style="display: flex; gap: 4px; background: #f0f0f0; padding: 3px; border-radius: 6px;">
+        <div style="background: white; padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 600; border-bottom: 2px solid #2563eb;">Board</div>
+        <div style="padding: 3px 10px; border-radius: 4px; font-size: 11px; color: #666;">Grid</div>
+        <div style="padding: 3px 10px; border-radius: 4px; font-size: 11px; color: #666;">Calendar</div>
+      </div>
+      <div style="margin-left: auto;">
+        <button style="background: #f0f0f0; border: none; border-radius: 4px; padding: 3px 8px; font-size: 14px; cursor: pointer;">+</button>
+      </div>
+      <div style="position: absolute; top: 100%; right: 12px; margin-top: 4px; background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 8px; min-width: 160px; box-shadow: 0 4px 16px rgba(0,0,0,0.12); z-index: 100;">
+        <div style="font-size: 10px; color: #888; padding: 4px 8px; margin-bottom: 4px;">ADD A VIEW</div>
+        <div style="display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 4px; cursor: pointer;" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background='transparent'">
+          <span style="font-size: 14px;">📋</span><span style="font-size: 12px;">Board</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 4px; cursor: pointer;" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background='transparent'">
+          <span style="font-size: 14px;">⊞</span><span style="font-size: 12px;">Grid</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 4px; cursor: pointer;" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background='transparent'">
+          <span style="font-size: 14px;">📅</span><span style="font-size: 12px;">Calendar</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 4px; cursor: pointer;" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background='transparent'">
+          <span style="font-size: 14px;">≡</span><span style="font-size: 12px;">List</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 4px; cursor: pointer;" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background='transparent'">
+          <span style="font-size: 14px;">☰</span><span style="font-size: 12px;">Table</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 4px; cursor: pointer;" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background='transparent'">
+          <span style="font-size: 14px;">🖼</span><span style="font-size: 12px;">Gallery</span>
+        </div>
+      </div>
+    </div>
+    <div style="background: white; border: 1px solid #e0e0e0; border-radius: 6px; padding: 16px; text-align: center; color: #aaa; font-size: 12px;">Board View Content</div>
+  </div>
+</div>
+
+<div class="mockup">
+  <div class="mockup-header">Option B — Modal dialog</div>
+  <div class="mockup-body" style="font-family: system-ui; background: #f7f6f3; padding: 12px; border-radius: 6px; position: relative;">
+    <div style="background: white; border: 1px solid #e0e0e0; border-radius: 6px; padding: 16px; opacity: 0.5; filter: blur(1px);">
+      <div style="display: flex; gap: 4px; background: #f0f0f0; padding: 3px; border-radius: 6px; width: 200px;">
+        <div style="background: white; padding: 3px 10px; border-radius: 4px; font-size: 11px;">Board</div>
+        <div style="padding: 3px 10px; border-radius: 4px; font-size: 11px; color: #666;">Grid</div>
+      </div>
+    </div>
+    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 360px; background: white; border: 1px solid #e0e0e0; border-radius: 10px; padding: 20px; box-shadow: 0 8px 32px rgba(0,0,0,0.15);">
+      <div style="font-size: 14px; font-weight: 600; margin-bottom: 16px;">Add a view</div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+        <div style="border: 1px solid #e0e0e0; border-radius: 6px; padding: 12px; cursor: pointer;">
+          <div style="font-size: 18px; margin-bottom: 4px;">📋</div>
+          <div style="font-size: 12px; font-weight: 600;">Board</div>
+          <div style="font-size: 10px; color: #888;">Kanban cards grouped by tag</div>
+        </div>
+        <div style="border: 1px solid #e0e0e0; border-radius: 6px; padding: 12px; cursor: pointer;">
+          <div style="font-size: 18px; margin-bottom: 4px;">⊞</div>
+          <div style="font-size: 12px; font-weight: 600;">Grid</div>
+          <div style="font-size: 10px; color: #888;">Card grid overview</div>
+        </div>
+        <div style="border: 1px solid #e0e0e0; border-radius: 6px; padding: 12px; cursor: pointer;">
+          <div style="font-size: 18px; margin-bottom: 4px;">📅</div>
+          <div style="font-size: 12px; font-weight: 600;">Calendar</div>
+          <div style="font-size: 10px; color: #888;">Items on a calendar</div>
+        </div>
+        <div style="border: 1px solid #e0e0e0; border-radius: 6px; padding: 12px; cursor: pointer;">
+          <div style="font-size: 18px; margin-bottom: 4px;">≡</div>
+          <div style="font-size: 12px; font-weight: 600;">List</div>
+          <div style="font-size: 10px; color: #888;">Compact row list</div>
+        </div>
+        <div style="border: 1px solid #e0e0e0; border-radius: 6px; padding: 12px; cursor: pointer;">
+          <div style="font-size: 18px; margin-bottom: 4px;">☰</div>
+          <div style="font-size: 12px; font-weight: 600;">Table</div>
+          <div style="font-size: 10px; color: #888;">Spreadsheet with columns</div>
+        </div>
+        <div style="border: 1px solid #e0e0e0; border-radius: 6px; padding: 12px; cursor: pointer;">
+          <div style="font-size: 18px; margin-bottom: 4px;">🖼</div>
+          <div style="font-size: 12px; font-weight: 600;">Gallery</div>
+          <div style="font-size: 10px; color: #888;">Image card grid</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

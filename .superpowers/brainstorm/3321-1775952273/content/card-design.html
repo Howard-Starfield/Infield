@@ -1,0 +1,105 @@
+<h2>Board & Grid card — what shows on a card?</h2>
+<p class="subtitle">What fields appear on a card in Board and Grid views</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Title + up to 2 secondary fields</h3>
+      <p>Card shows: primary field (title) prominently, then up to 2 key secondary fields as small colored chips or muted text lines. Consistent with Notion.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Title + all non-empty fields as chips</h3>
+      <p>Card shows the title, then ALL other populated fields as small colored chips. More information density, noisier.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Title + cover image + 1 subtitle</h3>
+      <p>Card has an optional cover image area at top (from a URL field or gradient), title below, then one subtitle field. More visual, better for image-heavy databases.</p>
+    </div>
+  </div>
+</div>
+
+<br>
+
+<div class="mockup">
+  <div class="mockup-header">Option A — Title + 2 secondary fields</div>
+  <div class="mockup-body" style="font-family: system-ui; background: #f7f6f3; padding: 12px; border-radius: 6px;">
+    <div style="display: flex; gap: 8px;">
+      <div style="flex: 1; background: white; border: 1px solid #e0e0e0; border-radius: 6px; padding: 10px;">
+        <div style="font-size: 11px; font-weight: 600; color: #333; margin-bottom: 8px;">To Do <span style="color: #aaa; font-weight: 400;">(2)</span></div>
+        <div style="background: #f9f9f9; border-radius: 4px; padding: 10px; margin-bottom: 6px; border-left: 3px solid #e5e5e5;">
+          <div style="font-size: 12px; font-weight: 500; color: #333; margin-bottom: 6px;">Write quarterly report</div>
+          <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+            <span style="background: #fce8d4; color: #b25a00; font-size: 10px; padding: 2px 6px; border-radius: 3px;">High</span>
+            <span style="font-size: 10px; color: #888;">Apr 15</span>
+          </div>
+        </div>
+        <div style="background: #f9f9f9; border-radius: 4px; padding: 10px; border-left: 3px solid #e5e5e5;">
+          <div style="font-size: 12px; font-weight: 500; color: #333; margin-bottom: 6px;">Review marketing budget</div>
+          <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+            <span style="background: #fce8d4; color: #b25a00; font-size: 10px; padding: 2px 6px; border-radius: 3px;">Medium</span>
+            <span style="font-size: 10px; color: #888;">Apr 18</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="mockup">
+  <div class="mockup-header">Option B — Title + all populated fields as chips</div>
+  <div class="mockup-body" style="font-family: system-ui; background: #f7f6f3; padding: 12px; border-radius: 6px;">
+    <div style="display: flex; gap: 8px;">
+      <div style="flex: 1; background: white; border: 1px solid #e0e0e0; border-radius: 6px; padding: 10px;">
+        <div style="font-size: 11px; font-weight: 600; color: #333; margin-bottom: 8px;">To Do <span style="color: #aaa; font-weight: 400;">(2)</span></div>
+        <div style="background: #f9f9f9; border-radius: 4px; padding: 10px; margin-bottom: 6px; border-left: 3px solid #e5e5e5;">
+          <div style="font-size: 12px; font-weight: 500; color: #333; margin-bottom: 6px;">Write quarterly report</div>
+          <div style="display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 4px;">
+            <span style="background: #fce8d4; color: #b25a00; font-size: 10px; padding: 2px 6px; border-radius: 3px;">High</span>
+            <span style="background: #e8f0fe; color: #1a73e8; font-size: 10px; padding: 2px 6px; border-radius: 3px;">Marketing</span>
+            <span style="background: #e6f4ea; color: #1e8e3e; font-size: 10px; padding: 2px 6px; border-radius: 3px;">Q2</span>
+          </div>
+          <div style="font-size: 10px; color: #888;">Due: Apr 15</div>
+        </div>
+        <div style="background: #f9f9f9; border-radius: 4px; padding: 10px; border-left: 3px solid #e5e5e5;">
+          <div style="font-size: 12px; font-weight: 500; color: #333; margin-bottom: 6px;">Review marketing budget</div>
+          <div style="display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 4px;">
+            <span style="background: #fce8d4; color: #b25a00; font-size: 10px; padding: 2px 6px; border-radius: 3px;">Medium</span>
+            <span style="background: #e8f0fe; color: #1a73e8; font-size: 10px; padding: 2px 6px; border-radius: 3px;">Finance</span>
+          </div>
+          <div style="font-size: 10px; color: #888;">Due: Apr 18</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="mockup">
+  <div class="mockup-header">Option C — Cover image + title + subtitle</div>
+  <div class="mockup-body" style="font-family: system-ui; background: #f7f6f3; padding: 12px; border-radius: 6px;">
+    <div style="display: flex; gap: 8px;">
+      <div style="flex: 1; background: white; border: 1px solid #e0e0e0; border-radius: 6px; overflow: hidden;">
+        <div style="height: 60px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);"></div>
+        <div style="padding: 10px;">
+          <div style="font-size: 12px; font-weight: 600; color: #333; margin-bottom: 4px;">Write quarterly report</div>
+          <div style="font-size: 10px; color: #888;">Marketing · Q2</div>
+        </div>
+      </div>
+      <div style="flex: 1; background: white; border: 1px solid #e0e0e0; border-radius: 6px; overflow: hidden;">
+        <div style="height: 60px; background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);"></div>
+        <div style="padding: 10px;">
+          <div style="font-size: 12px; font-weight: 600; color: #333; margin-bottom: 4px;">Review budget</div>
+          <div style="font-size: 10px; color: #888;">Finance · Q2</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

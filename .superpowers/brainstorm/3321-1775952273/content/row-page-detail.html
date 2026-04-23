@@ -1,0 +1,110 @@
+<h2>Row-as-Page — full page navigation</h2>
+<p class="subtitle">Click any row → navigate into it as a full page. Back button returns to database.</p>
+
+<div class="mockup">
+  <div class="mockup-header">Row page — properties sidebar + body content</div>
+  <div class="mockup-body" style="font-family: system-ui; background: #f7f6f3; padding: 12px; border-radius: 6px;">
+    <div style="display: flex; gap: 8px; height: 320px;">
+      <!-- Row page — full width -->
+      <div style="flex: 1; background: white; border: 1px solid #e0e0e0; border-radius: 6px; display: flex; flex-direction: column; overflow: hidden;">
+        <!-- Page header breadcrumb -->
+        <div style="padding: 10px 16px; border-bottom: 1px solid #f0f0f0; display: flex; align-items: center; gap: 6px; font-size: 11px; color: #888;">
+          <span>📊 Project Tracker</span>
+          <span>›</span>
+          <span style="color: #333; font-weight: 500;">Q2 Campaign planning</span>
+        </div>
+        <!-- Page title -->
+        <div style="padding: 16px 20px 8px;">
+          <div style="font-size: 20px; font-weight: 700; color: #1a1a1a; outline: none; cursor: text;" contenteditable="true">Q2 Campaign planning</div>
+        </div>
+        <!-- Properties sidebar (right side) + body (left) -->
+        <div style="flex: 1; display: flex; overflow: hidden;">
+          <!-- Body content area -->
+          <div style="flex: 1; padding: 0 20px 16px; overflow-y: auto; border-right: 1px solid #f0f0f0;">
+            <div style="font-size: 13px; color: #555; margin-bottom: 12px; line-height: 1.6;">
+              Notes and content for this project go here. This is the page <em>body</em> — freeform rich text that rows-as-pages can have.
+            </div>
+            <div style="font-size: 13px; color: #555; line-height: 1.6;">
+              Unlike a modal, this is a real page you can navigate to, link to from other pages, and embed.
+            </div>
+          </div>
+          <!-- Properties sidebar -->
+          <div style="width: 260px; padding: 12px 16px; overflow-y: auto;">
+            <div style="font-size: 10px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Properties</div>
+            <!-- Status -->
+            <div style="margin-bottom: 10px;">
+              <div style="font-size: 11px; color: #888; margin-bottom: 4px;">Status</div>
+              <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+                <div style="background: #e8f0fe; color: #1a73e8; font-size: 11px; padding: 3px 10px; border-radius: 12px; cursor: pointer;">In Progress</div>
+                <div style="background: #f1f3f4; color: #666; font-size: 11px; padding: 3px 10px; border-radius: 12px; cursor: pointer;">To Do</div>
+                <div style="background: #f1f3f4; color: #666; font-size: 11px; padding: 3px 10px; border-radius: 12px; cursor: pointer;">Done</div>
+              </div>
+            </div>
+            <!-- Priority -->
+            <div style="margin-bottom: 10px;">
+              <div style="font-size: 11px; color: #888; margin-bottom: 4px;">Priority</div>
+              <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+                <div style="background: #fce8d4; color: #b25a00; font-size: 11px; padding: 3px 10px; border-radius: 12px; cursor: pointer;">High</div>
+                <div style="background: #f1f3f4; color: #666; font-size: 11px; padding: 3px 10px; border-radius: 12px; cursor: pointer;">Medium</div>
+                <div style="background: #f1f3f4; color: #666; font-size: 11px; padding: 3px 10px; border-radius: 12px; cursor: pointer;">Low</div>
+              </div>
+            </div>
+            <!-- Due date -->
+            <div style="margin-bottom: 10px;">
+              <div style="font-size: 11px; color: #888; margin-bottom: 4px;">Due date</div>
+              <div style="font-size: 12px; color: #333; cursor: pointer;">📅 April 15, 2026</div>
+            </div>
+            <!-- Projects (Relation) -->
+            <div style="margin-bottom: 10px;">
+              <div style="font-size: 11px; color: #888; margin-bottom: 4px;">Projects</div>
+              <div style="display: flex; flex-direction: column; gap: 4px;">
+                <div style="background: #e8f0fe; color: #1a73e8; font-size: 11px; padding: 4px 10px; border-radius: 4px; cursor: pointer;">→ Project Alpha</div>
+                <div style="background: #e8f0fe; color: #1a73e8; font-size: 11px; padding: 4px 10px; border-radius: 4px; cursor: pointer;">→ Project Beta</div>
+              </div>
+            </div>
+            <!-- Comments -->
+            <div style="margin-bottom: 10px;">
+              <div style="font-size: 11px; color: #888; margin-bottom: 4px;">Comments</div>
+              <div style="display: flex; gap: 4px; align-items: center;">
+                <span style="font-size: 11px;">💬</span>
+                <span style="font-size: 11px; color: #333;">3 comments</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h3>Database as expandable tree node</h3>
+<div class="mockup">
+  <div class="mockup-body" style="font-family: system-ui; background: #f7f6f3; padding: 12px; border-radius: 6px;">
+    <div style="background: white; border: 1px solid #e0e0e0; border-radius: 6px; padding: 8px 12px; max-width: 300px;">
+      <div style="padding: 4px 8px; font-size: 12px; color: #333; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+        <span style="color: #aaa; font-size: 10px;">▼</span>
+        <span>📊</span>
+        <span>Project Tracker</span>
+        <span style="margin-left: auto; font-size: 10px; color: #aaa;">···</span>
+      </div>
+      <div style="padding: 4px 8px 4px 32px; font-size: 12px; color: #555; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+        <span>📋</span>
+        <span>Q2 Campaign planning</span>
+        <span style="margin-left: auto; background: #e8f0fe; color: #1a73e8; font-size: 10px; padding: 1px 6px; border-radius: 8px;">In Progress</span>
+      </div>
+      <div style="padding: 4px 8px 4px 32px; font-size: 12px; color: #555; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+        <span>📋</span>
+        <span>Website redesign</span>
+        <span style="margin-left: auto; background: #fce8d4; color: #b25a00; font-size: 10px; padding: 1px 6px; border-radius: 8px;">High</span>
+      </div>
+      <div style="padding: 4px 8px 4px 32px; font-size: 12px; color: #555; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+        <span>📋</span>
+        <span>Mobile app v2</span>
+        <span style="margin-left: auto; background: #e6f4ea; color: #1e8e3e; font-size: 10px; padding: 1px 6px; border-radius: 8px;">Done</span>
+      </div>
+      <div style="padding: 4px 8px 4px 32px; font-size: 11px; color: #aaa; cursor: pointer;">
+        + Add row
+      </div>
+    </div>
+  </div>
+</div>
