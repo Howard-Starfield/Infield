@@ -20,6 +20,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 
 import { commands, type ModelInfo } from "@/bindings";
+import { HerOSPanel, HerOSButton } from "@/shell/primitives";
 import type { StepProps } from "./OnboardingShell";
 
 const BGE_MODEL_ID = "bge-small-en-v1.5";
@@ -287,41 +288,41 @@ export function OnboardingStepModels({ advance, isSubmitting, error }: StepProps
 
   if (registryLoading) {
     return (
-      <section className="onboarding-panel" aria-label="Models">
-        <p className="onboarding-eyebrow">Step 5 of 6</p>
-        <h1 className="onboarding-title">Preparing…</h1>
-        <p className="onboarding-body">Loading the model registry.</p>
-      </section>
+      <HerOSPanel>
+        <section aria-label="Models">
+          <p className="onboarding-eyebrow">Step 3 of 4</p>
+          <h1 className="onboarding-title">Preparing…</h1>
+          <p className="onboarding-body">Loading the model registry.</p>
+        </section>
+      </HerOSPanel>
     );
   }
 
   if (whisperOptions.length === 0 || !bge) {
     return (
-      <section className="onboarding-panel" aria-label="Models">
-        <p className="onboarding-eyebrow">Step 5 of 6</p>
-        <h1 className="onboarding-title">Model registry unavailable</h1>
-        <p className="onboarding-body">
-          We couldn't find the model registry on this system. You can finish
-          setup and install models later from Settings → Models.
-        </p>
-        {finalError && <div className="onboarding-error">{finalError}</div>}
-        <div className="onboarding-actions">
-          <button
-            type="button"
-            className="onboarding-cta onboarding-cta--secondary"
-            onClick={handleSkip}
-            disabled={busy}
-          >
-            Skip
-          </button>
-        </div>
-      </section>
+      <HerOSPanel>
+        <section aria-label="Models">
+          <p className="onboarding-eyebrow">Step 3 of 4</p>
+          <h1 className="onboarding-title">Model registry unavailable</h1>
+          <p className="onboarding-body">
+            We couldn't find the model registry on this system. You can finish
+            setup and install models later from Settings → Models.
+          </p>
+          {finalError && <div className="onboarding-error">{finalError}</div>}
+          <div className="onboarding-actions">
+            <HerOSButton type="button" onClick={handleSkip} disabled={busy}>
+              Skip
+            </HerOSButton>
+          </div>
+        </section>
+      </HerOSPanel>
     );
   }
 
   return (
-    <section className="onboarding-panel" aria-label="Download models">
-      <p className="onboarding-eyebrow">Step 5 of 6</p>
+    <HerOSPanel>
+      <section aria-label="Download models">
+      <p className="onboarding-eyebrow">Step 3 of 4</p>
       <h1 className="onboarding-title">Download models</h1>
       <p className="onboarding-body">
         Infield runs everything locally. Pick a Whisper size for
@@ -392,23 +393,19 @@ export function OnboardingStepModels({ advance, isSubmitting, error }: StepProps
       )}
 
       <div className="onboarding-actions">
-        <button
+        <HerOSButton
           type="button"
-          className="onboarding-cta"
+          className="heros-btn-brand"
           onClick={() => void handleStart()}
           disabled={busy || !whisperChoice}
         >
           {busy ? "Downloading…" : finalError ? "Retry" : "Start download"}
-        </button>
-        <button
-          type="button"
-          className="onboarding-cta onboarding-cta--secondary"
-          onClick={handleSkip}
-          disabled={busy}
-        >
+        </HerOSButton>
+        <HerOSButton type="button" onClick={handleSkip} disabled={busy}>
           Skip
-        </button>
+        </HerOSButton>
       </div>
-    </section>
+      </section>
+    </HerOSPanel>
   );
 }

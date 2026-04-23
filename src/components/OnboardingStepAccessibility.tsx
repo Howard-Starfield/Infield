@@ -15,6 +15,7 @@ import {
   requestAccessibilityPermission,
 } from "tauri-plugin-macos-permissions-api";
 
+import { HerOSPanel, HerOSButton } from "@/shell/primitives";
 import type { StepProps } from "./OnboardingShell";
 import type { PermissionState } from "./onboardingBridge";
 
@@ -60,57 +61,58 @@ export function OnboardingStepAccessibility({
   // useful message instead of the macOS-specific one.
   if (os !== "macos") {
     return (
-      <section className="onboarding-panel" aria-label="Accessibility">
-        <p className="onboarding-eyebrow">Step 4 of 6</p>
-        <h1 className="onboarding-title">Not required on this platform</h1>
-        <p className="onboarding-body">
-          Accessibility permissions are a macOS concept. You're all set on
-          this system.
-        </p>
-        <div className="onboarding-actions">
-          <button
-            type="button"
-            className="onboarding-cta"
-            onClick={() => void advance({ accessibility_permission: "not_applicable" })}
-            disabled={busy}
-          >
-            Continue
-          </button>
-        </div>
-      </section>
+      <HerOSPanel>
+        <section aria-label="Accessibility">
+          <p className="onboarding-eyebrow">Step 2 of 4</p>
+          <h1 className="onboarding-title">Not required on this platform</h1>
+          <p className="onboarding-body">
+            Accessibility permissions are a macOS concept. You're all set on
+            this system.
+          </p>
+          <div className="onboarding-actions">
+            <HerOSButton
+              type="button"
+              className="heros-btn-brand"
+              onClick={() =>
+                void advance({ accessibility_permission: "not_applicable" })
+              }
+              disabled={busy}
+            >
+              Continue
+            </HerOSButton>
+          </div>
+        </section>
+      </HerOSPanel>
     );
   }
 
   return (
-    <section className="onboarding-panel" aria-label="Accessibility permission">
-      <p className="onboarding-eyebrow">Step 4 of 6</p>
-      <h1 className="onboarding-title">Accessibility access</h1>
-      <p className="onboarding-body">
-        macOS requires this to send global keyboard shortcuts — push-to-talk,
-        quick-open, any hotkey that works outside the app window. Open System
-        Settings, tick the box next to Infield, then come back.
-      </p>
-      {(error || localError) && (
-        <div className="onboarding-error">{error ?? localError}</div>
-      )}
-      <div className="onboarding-actions">
-        <button
-          type="button"
-          className="onboarding-cta"
-          onClick={() => void handleGrant()}
-          disabled={busy}
-        >
-          {busy ? "Opening…" : "Open System Settings"}
-        </button>
-        <button
-          type="button"
-          className="onboarding-cta onboarding-cta--secondary"
-          onClick={handleSkip}
-          disabled={busy}
-        >
-          Skip
-        </button>
-      </div>
-    </section>
+    <HerOSPanel>
+      <section aria-label="Accessibility permission">
+        <p className="onboarding-eyebrow">Step 2 of 4</p>
+        <h1 className="onboarding-title">Accessibility access</h1>
+        <p className="onboarding-body">
+          macOS requires this to send global keyboard shortcuts — push-to-talk,
+          quick-open, any hotkey that works outside the app window. Open System
+          Settings, tick the box next to Infield, then come back.
+        </p>
+        {(error || localError) && (
+          <div className="onboarding-error">{error ?? localError}</div>
+        )}
+        <div className="onboarding-actions">
+          <HerOSButton
+            type="button"
+            className="heros-btn-brand"
+            onClick={() => void handleGrant()}
+            disabled={busy}
+          >
+            {busy ? "Opening…" : "Open System Settings"}
+          </HerOSButton>
+          <HerOSButton type="button" onClick={handleSkip} disabled={busy}>
+            Skip
+          </HerOSButton>
+        </div>
+      </section>
+    </HerOSPanel>
   );
 }

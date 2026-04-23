@@ -23,6 +23,7 @@ import { useCallback, useEffect, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 
 import { commands } from "@/bindings";
+import { HerOSPanel, HerOSButton } from "@/shell/primitives";
 import type { StepProps } from "./OnboardingShell";
 
 // `Infield` vault directory name, mirroring `VAULT_DIR_NAME` in
@@ -107,61 +108,68 @@ export function OnboardingStepVault({ advance, isSubmitting, error }: StepProps)
   const isCustom = chosenPath !== null;
 
   return (
-    <section className="onboarding-panel" aria-label="Vault location">
-      <p className="onboarding-eyebrow">Step 6 of 6</p>
-      <h1 className="onboarding-title">Where should your vault live?</h1>
-      <p className="onboarding-body">
-        Infield stores your notes as Markdown files — readable, backup-able,
-        yours to move. By default we put them in a managed app folder; pick
-        a location you already back up if you'd prefer.
-      </p>
-
-      <div
-        style={{
-          padding: "calc(12px * var(--ui-scale, 1)) calc(14px * var(--ui-scale, 1))",
-          borderRadius: "var(--radius-container)",
-          border: "1px solid color-mix(in srgb, var(--on-surface) 14%, transparent)",
-          background: "color-mix(in srgb, var(--on-surface) 5%, transparent)",
-          fontSize: "calc(13px * var(--ui-scale, 1))",
-          lineHeight: 1.5,
-          wordBreak: "break-all",
-          fontFamily: "var(--font-mono, ui-monospace, 'SF Mono', monospace)",
-          opacity: activePath ? 1 : 0.5,
-        }}
-      >
-        {activePath ?? "Resolving…"}
-      </div>
-
-      {isCustom && (
-        <p className="onboarding-body" style={{ fontSize: "calc(12px * var(--ui-scale, 1))", opacity: 0.62 }}>
-          Custom locations land in a future release — for this build, your
-          vault still uses the default path. Your choice is saved so it
-          applies automatically once the integration ships.
+    <HerOSPanel>
+      <section aria-label="Vault location">
+        <p className="onboarding-eyebrow">Step 4 of 4</p>
+        <h1 className="onboarding-title">Where should your vault live?</h1>
+        <p className="onboarding-body">
+          Infield stores your notes as Markdown files — readable, backup-able,
+          yours to move. By default we put them in a managed app folder; pick
+          a location you already back up if you'd prefer.
         </p>
-      )}
 
-      {(error || localError) && (
-        <div className="onboarding-error">{error ?? localError}</div>
-      )}
+        <div
+          style={{
+            padding: "calc(12px * var(--ui-scale, 1)) calc(14px * var(--ui-scale, 1))",
+            borderRadius: "var(--radius-container)",
+            border: "1px solid color-mix(in srgb, var(--on-surface) 14%, transparent)",
+            background: "color-mix(in srgb, var(--on-surface) 5%, transparent)",
+            fontSize: "calc(13px * var(--ui-scale, 1))",
+            lineHeight: 1.5,
+            wordBreak: "break-all",
+            fontFamily: "var(--font-mono, ui-monospace, 'SF Mono', monospace)",
+            opacity: activePath ? 1 : 0.5,
+          }}
+        >
+          {activePath ?? "Resolving…"}
+        </div>
 
-      <div className="onboarding-actions">
-        <button
-          type="button"
-          className="onboarding-cta"
-          onClick={isCustom ? handleUseChosen : handleUseDefault}
-          disabled={busy || !activePath}
-        >
-          {busy ? "Saving…" : isCustom ? "Use this folder" : "Use default"}
-        </button>
-        <button
-          type="button"
-          className="onboarding-cta onboarding-cta--secondary"
-          onClick={() => void handlePick()}
-          disabled={busy}
-        >
-          {isCustom ? "Pick different folder" : "Choose a folder…"}
-        </button>
-      </div>
-    </section>
+        {isCustom && (
+          <p
+            className="onboarding-body"
+            style={{
+              fontSize: "calc(12px * var(--ui-scale, 1))",
+              opacity: 0.62,
+            }}
+          >
+            Custom locations land in a future release — for this build, your
+            vault still uses the default path. Your choice is saved so it
+            applies automatically once the integration ships.
+          </p>
+        )}
+
+        {(error || localError) && (
+          <div className="onboarding-error">{error ?? localError}</div>
+        )}
+
+        <div className="onboarding-actions">
+          <HerOSButton
+            type="button"
+            className="heros-btn-brand"
+            onClick={isCustom ? handleUseChosen : handleUseDefault}
+            disabled={busy || !activePath}
+          >
+            {busy ? "Saving…" : isCustom ? "Use this folder" : "Use default"}
+          </HerOSButton>
+          <HerOSButton
+            type="button"
+            onClick={() => void handlePick()}
+            disabled={busy}
+          >
+            {isCustom ? "Pick different folder" : "Choose a folder…"}
+          </HerOSButton>
+        </div>
+      </section>
+    </HerOSPanel>
   );
 }

@@ -27,9 +27,11 @@ import {
   type OnboardingStatePatch,
   type OnboardingStepId,
 } from "./onboardingBridge";
-import { OnboardingStepWelcome } from "./OnboardingStepWelcome";
-// OnboardingStepTheme deleted in H1 Task 3 (theme module removed). The
-// "theme" step is stubbed below to auto-advance; H2 redesigns onboarding.
+// OnboardingStepWelcome deleted in H2.6 (per D-H2 — drop welcome marketing
+// + theme picker; ship 4-step onboarding Mic/Accessibility/Models/Vault).
+// "welcome" + "theme" stages are stubbed below to auto-advance so any
+// existing onboarding_state row that landed mid-welcome flow still resumes.
+// OnboardingStepTheme was deleted in H1 Task 3 (theme module removed).
 import { OnboardingStepMic } from "./OnboardingStepMic";
 import { OnboardingStepAccessibility } from "./OnboardingStepAccessibility";
 import { OnboardingStepModels } from "./OnboardingStepModels";
@@ -191,9 +193,9 @@ export function OnboardingShell({ onComplete }: OnboardingShellProps) {
 function renderStep(step: OnboardingStepId, props: StepProps) {
   switch (step) {
     case "welcome":
-      return <OnboardingStepWelcome {...props} />;
+      return <OnboardingStepAutoAdvanceStub {...props} />;
     case "theme":
-      return <OnboardingStepThemeStub {...props} />;
+      return <OnboardingStepAutoAdvanceStub {...props} />;
     case "mic":
       return <OnboardingStepMic {...props} />;
     case "accessibility":
@@ -212,11 +214,13 @@ function renderStep(step: OnboardingStepId, props: StepProps) {
   }
 }
 
-// H1 Task 3 stub: theme module deleted, so the legacy "theme" step has no
-// component to render. Auto-advance on mount so existing onboarding state
-// machines that still pass through "theme" don't get stuck. H2 redesigns
-// onboarding and removes "theme" from STEP_ORDER + OnboardingStepId.
-function OnboardingStepThemeStub({ advance }: StepProps) {
+// Auto-advance stub: shared by the deprecated "welcome" (H2.6) and
+// "theme" (H1) steps. Renders nothing and immediately calls advance() so
+// existing onboarding_state rows that landed mid-deprecated-flow still
+// resume. Once the Rust onboarding_state default is updated to start at
+// "mic", these stubs become unreachable and can be removed alongside the
+// "welcome" / "theme" entries in OnboardingStepId.
+function OnboardingStepAutoAdvanceStub({ advance }: StepProps) {
   useEffect(() => {
     void advance();
   }, [advance]);
