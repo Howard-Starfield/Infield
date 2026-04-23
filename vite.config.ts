@@ -34,21 +34,22 @@ export default defineConfig(async () => ({
     ],
   },
 
-  // Multiple entry points for main app and overlay
+  // Single entry: src/overlay/ was deleted in the wholesale-swap
+  // (third_party_selling_desktop has no overlay surface). H6 wires
+  // the Glide data-grid overlay back if Notes/Databases needs it.
   build: {
     rollupOptions: {
       input: {
         main: resolve(__dirname, "index.html"),
-        overlay: resolve(__dirname, "src/overlay/index.html"),
       },
     },
   },
 
-  // Vitest configuration
+  // Vitest configuration. src/test-setup.ts was deleted in the
+  // wholesale-swap — third_party's test files don't rely on it.
   test: {
     globals: true,
     environment: 'jsdom',
-    setupFiles: ['./src/test-setup.ts'],
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
   },
 
