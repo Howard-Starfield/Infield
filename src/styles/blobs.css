@@ -1,0 +1,106 @@
+/* ============================================================
+   HerOS kinetic blob atmosphere
+   Ported verbatim from copy/src/app.css (lines 633-702).
+   H1 Task 5 of HerOS frontend port.
+
+   Class layout:
+     .blob-container — absolutely positioned overlay with the
+       deep charcoal foundation; hosts the .blob-bg children.
+     .blob-bg        — generic positioning marker for blob children
+       (no visual properties of its own).
+     .blob-cluster-a/b/c — three radial-gradient blobs that drift
+       on independent timing curves (blob-cl-1/2/3) for a
+       non-repeating organic motion field.
+
+   The reduced-motion gate from src/App.css covers these via the
+   global `* { animation-duration: 0.01ms }` rule — no separate
+   prefers-reduced-motion block needed here.
+
+   meshShift @keyframes from copy/ omitted: zero consumers.
+   ============================================================ */
+
+/* HerOS Liquid Blob Background (kinetic mesh) */
+.blob-container {
+  position: absolute;
+  inset: -2px;             /* overscan to prevent edge bleeding */
+  overflow: hidden;
+  z-index: 0;
+  background: var(--heros-bg-foundation, #0a0b0f);
+  transform: scale(1.01);  /* subtle scale to ensure fill */
+}
+
+.blob-bg {
+  position: absolute;
+  will-change: transform;
+  pointer-events: none;
+}
+
+/* Cluster A — main orange glow */
+.blob-cluster-a {
+  left: -16%;
+  top: -20%;
+  width: 160%;
+  height: 160%;
+  background: radial-gradient(
+    ellipse at 38% 35%,
+    rgb(180, 80, 20) 0%,
+    rgb(120, 40, 10) 50%,
+    transparent 80%
+  );
+  filter: blur(80px);
+  animation: blob-cl-1 11s ease-in-out infinite;
+  opacity: 0.55;           /* increased to fight 'pure black' panels */
+}
+
+/* Cluster B — deep red/terracotta accent */
+.blob-cluster-b {
+  left: 48%;
+  top: 40%;
+  width: 140%;
+  height: 140%;
+  background: radial-gradient(
+    ellipse at 24% 67%,
+    rgb(140, 20, 10) 0%,
+    rgb(80, 5, 5) 50%,
+    transparent 78%
+  );
+  filter: blur(75px);
+  animation: blob-cl-2 14s ease-in-out infinite;
+  opacity: 0.45;
+}
+
+/* Cluster C — bright orange highlight */
+.blob-cluster-c {
+  left: 20%;
+  top: 5%;
+  width: 140%;
+  height: 140%;
+  background: radial-gradient(
+    ellipse at 70% 40%,
+    rgb(200, 100, 40) 0%,
+    rgb(160, 60, 20) 45%,
+    transparent 76%
+  );
+  filter: blur(70px);
+  animation: blob-cl-3 9s ease-in-out infinite;
+  opacity: 0.5;
+}
+
+@keyframes blob-cl-1 {
+  0%, 100% { transform: translate(0%, 0%) rotate(0deg); }
+  25%      { transform: translate(16%, -10%) rotate(5deg); }
+  50%      { transform: translate(-5%, 12%) rotate(-5deg); }
+  75%      { transform: translate(-13%, -7%) rotate(2deg); }
+}
+
+@keyframes blob-cl-2 {
+  0%, 100% { transform: translate(0%, 0%) rotate(0deg); }
+  45%      { transform: translate(-14%, 11%) rotate(-10deg); }
+  80%      { transform: translate(9%, -9%) rotate(10deg); }
+}
+
+@keyframes blob-cl-3 {
+  0%, 100% { transform: translate(0%, 0%) scale(1); }
+  30%      { transform: translate(12%, 14%) scale(1.1); }
+  65%      { transform: translate(-10%, -3%) scale(0.9); }
+}

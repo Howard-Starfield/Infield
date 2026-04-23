@@ -1,8 +1,8 @@
 /* HerOS concern files — load before :root so blob/heros classes can
  * reference HerOS tokens declared further down without a flash of
- * unstyled content. Per Rule 18, concern files stay under ~500 lines.
- * blobs.css is added in H1 Task 5. */
+ * unstyled content. Per Rule 18, concern files stay under ~500 lines. */
 @import "./styles/heros.css";
+@import "./styles/blobs.css";
 
 /* ─── Theme primitives — @property registration ─────────────────────────────
  *
