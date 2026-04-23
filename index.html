@@ -6,59 +6,32 @@
     <title>Infield</title>
 
     <!--
-      FOUT guard — runs SYNCHRONOUSLY before React mounts.
-
-      Reads the pre-derived CSS variable bag that ThemeProvider wrote to
-      localStorage on the previous session and applies it directly to the
-      root element. Without this, the LoadingScreen flashes default colors
-      for ~100-300ms before React + ThemeProvider hydrate.
-
-      Version-gated: EXPECTED_SCHEMA_VERSION must match the number in
-      `src/theme/themeStorage.ts → SCHEMA_VERSION`. Any mismatched payload
-      is cleared from both storage keys so returning users after a preset
-      rewrite (e.g. Sovereign Glass migration) don't flash the stale DNA.
-
-      This script MUST NOT import from src/theme/ — it runs before the module
-      graph loads. It consumes the pre-derived `vars` map keyed by `--kebab`
-      property names; derivation logic stays in `tokens.ts`. Keep the shape
-      contract (`{ version, vars, mode }`) in sync with
-      `themeStorage.ts → writeLocalVars`.
+      Theme-module FOUT guard removed in H1 (theme module deleted). All
+      tokens now live statically in src/App.css :root, so there's
+      nothing to hydrate from localStorage before React mounts. This
+      script also defensively clears any stale theme localStorage keys
+      and any inline CSS variables the old script may have written on a
+      previous boot — without this, light-theme IRS colors persist as
+      `style="..."` on <html> and shadow the HerOS dark tokens.
     -->
     <script>
       (function () {
-        var EXPECTED_SCHEMA_VERSION = 2;
-        var VARS_KEY = 'infield:theme:vars';
-        var STATE_KEY = 'infield:theme:state';
         try {
-          var raw = localStorage.getItem(VARS_KEY);
-          if (!raw) return;
-          var data = JSON.parse(raw);
-          if (!data || typeof data !== 'object' || data.version !== EXPECTED_SCHEMA_VERSION) {
-            // Stale schema — drop both blobs so ThemeProvider hydrates the
-            // default preset on mount instead of reviving dead vars.
-            try { localStorage.removeItem(VARS_KEY); } catch (_e) {}
-            try { localStorage.removeItem(STATE_KEY); } catch (_e) {}
-            return;
-          }
+          localStorage.removeItem('infield:theme:vars');
+          localStorage.removeItem('infield:theme:state');
+        } catch (_e) {}
+        try {
           var root = document.documentElement;
-          var vars = data.vars;
-          if (vars && typeof vars === 'object') {
-            for (var k in vars) {
-              if (
-                Object.prototype.hasOwnProperty.call(vars, k) &&
-                k.indexOf('--') === 0 &&
-                typeof vars[k] === 'string'
-              ) {
-                root.style.setProperty(k, vars[k]);
-              }
-            }
+          var inline = root.getAttribute('style');
+          if (inline && inline.indexOf('--') !== -1) {
+            // Stale custom-property declarations from the old FOUT
+            // script. Strip them; CSS :root values take over.
+            root.removeAttribute('style');
           }
-          if (data.mode === 'light' || data.mode === 'dark') {
-            root.setAttribute('data-theme-mode', data.mode);
+          if (root.hasAttribute('data-theme-mode')) {
+            root.removeAttribute('data-theme-mode');
           }
-        } catch (e) {
-          /* Corrupt storage — fall back to CSS defaults. */
-        }
+        } catch (_e) {}
       })();
     </script>
 
