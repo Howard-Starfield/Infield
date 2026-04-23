@@ -758,8 +758,8 @@ preserved from current pipeline).
 - Per-area architecture:
   - [docs/architecture/atmospheric-stack.md](docs/architecture/atmospheric-stack.md)
   - [docs/architecture/entry-experience.md](docs/architecture/entry-experience.md)
-  - [docs/architecture/theme-module.md](docs/architecture/theme-module.md)
   - [docs/architecture/vault-database-storage.md](docs/architecture/vault-database-storage.md)
   - [docs/architecture/panel-system.md](docs/architecture/panel-system.md)
+- HerOS port plan: [docs/superpowers/plans/2026-04-23-heros-frontend-port.md](docs/superpowers/plans/2026-04-23-heros-frontend-port.md)
 - Legacy docs: [old/](old/) — retired planning history (includes the
   archived PROJECT_HANDOVER.md, historical only)

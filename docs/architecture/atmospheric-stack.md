@@ -1,13 +1,13 @@
 # Atmospheric Stack
 
 > The three-layer backdrop recipe that gives Infield its "elegant
-> radiant" cinematic feel. All three layers derive from theme tokens, so
-> a new preset retints the entire atmosphere by overriding CSS variables
-> — never by forking components.
+> radiant" cinematic feel. After H1, atmosphere is delivered by
+> `src/styles/blobs.css` (verbatim from copy/) plus the `--heros-*`
+> tokens declared statically in `src/App.css :root`. There is no
+> runtime theme switching — see CLAUDE.md → Invariant #3.
 >
-> Companion docs: [theme-module.md](theme-module.md) (how tokens flow
-> from ThemeProvider to `:root`), [entry-experience.md](entry-experience.md)
-> (where this stack first lands).
+> Companion docs: [entry-experience.md](entry-experience.md)
+> (where the atmospheric stack first lands at boot).
 
 ## The three layers
 
