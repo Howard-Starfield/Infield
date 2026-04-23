@@ -1,15 +1,8 @@
-@import "tailwindcss";
-
-@theme {
-  /* Agentic Architect warm editorial tokens */
-  --color-text: #1c1c19;
-  --color-background: #fdf9f3;
-  --color-background-ui: #f1ede800;
-  --color-logo-primary: #b72301;
-  --color-logo-stroke: #ff5733;
-  --color-text-stroke: #fdf9f3;
-  --color-mid-gray: #5b403a;
-}
+/* HerOS concern files — load before :root so blob/heros classes can
+ * reference HerOS tokens declared further down without a flash of
+ * unstyled content. Per Rule 18, concern files stay under ~500 lines.
+ * blobs.css is added in H1 Task 5. */
+@import "./styles/heros.css";
 
 /* ─── Theme primitives — @property registration ─────────────────────────────
  *
@@ -701,12 +694,6 @@ select:focus {
 
 .sa-transcript-scroll::-webkit-scrollbar-thumb:hover {
   background-color: var(--sa-scrollbar-thumb-hover);
-}
-
-@layer utilities {
-  .text-stroke {
-    -webkit-text-stroke: 2px var(--color-text-stroke);
-  }
 }
 
 .workspace-grid-scroll::-webkit-scrollbar {
@@ -1897,30 +1884,8 @@ button.workspace-menu-item:focus-visible {
   animation-delay: 0ms;
 }
 
-/* ── Kinetic blob atmosphere — drives AtmosphericBackground ───────────────
- * Three cluster drift animations ported from HerOS_UI_Kit (blob-cl-1/2/3).
- * The `--duration-scale` divisor in the consumer lets the theme editor
- * globally slow or freeze motion without touching these keyframes.
- * `prefers-reduced-motion` gates them to a static pose below. */
-@keyframes infield-blob-cl-1 {
-  0%, 100% { transform: translate(0%, 0%) rotate(0deg); }
-  25%      { transform: translate(16%, -10%) rotate(5deg); }
-  50%      { transform: translate(-5%, 12%) rotate(-5deg); }
-  75%      { transform: translate(-13%, -7%) rotate(2deg); }
-}
-@keyframes infield-blob-cl-2 {
-  0%, 100% { transform: translate(0%, 0%) rotate(0deg); }
-  45%      { transform: translate(-14%, 11%) rotate(-10deg); }
-  80%      { transform: translate(9%, -9%) rotate(10deg); }
-}
-@keyframes infield-blob-cl-3 {
-  0%, 100% { transform: translate(0%, 0%) scale(1); }
-  30%      { transform: translate(12%, 14%) scale(1.1); }
-  65%      { transform: translate(-10%, -3%) scale(0.9); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  [style*="infield-blob-cl-"] {
-    animation: none !important;
-  }
-}
+/* Legacy infield-blob-cl-{1,2,3} keyframes removed in H1 Task 4.
+ * Replaced by copy/'s blob-cl-{1,2,3} keyframes in src/styles/blobs.css.
+ * AtmosphericBackground.tsx still references infield-blob-cl-* names —
+ * that animation will be silently dropped (no-op) until H2 retires the
+ * primitive in favor of HerOSBackground using .blob-cluster-* classes. */

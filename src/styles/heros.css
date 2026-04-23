@@ -1,0 +1,324 @@
+/* ============================================================
+   HerOS unified design system — .heros-* classes
+   Ported verbatim from copy/src/app.css (lines 126-278 + 704-834
+   + 2374-2390). H1 Task 4 of HerOS frontend port.
+
+   Two definitions exist in copy/ for .heros-shell, .heros-glass-panel,
+   and .heros-btn. Both are preserved — the cascade merges non-
+   conflicting properties and the later block overrides where they
+   collide, matching copy/'s original behavior.
+
+   Rule 12 carve-out: HerOS literals (rgba whites, brand-tinted
+   shadows) are intentionally preserved as authored values. The
+   primitives most often referenced (--heros-glass-fill,
+   --surface-container-*, --heros-brand) are available for future
+   tokenization sweeps.
+   ============================================================ */
+
+/* ── HerOS Unified Design System ──────────────────────────── */
+.heros-shell {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.heros-page-container {
+  flex: 1;
+  width: 100%;
+  padding: 5px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  overflow-y: auto;
+  color: var(--heros-text-premium);
+}
+
+.heros-glass-panel,
+.heros-glass-card {
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+
+  background-clip: padding-box;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 20px;
+
+  box-shadow: none;
+
+  overflow: hidden;
+  transition: transform 0.4s var(--ease-spring), box-shadow 0.3s ease;
+  z-index: 10;
+
+  /* GPU acceleration for smoother filtering */
+  transform: translateZ(0);
+  will-change: transform, backdrop-filter;
+
+  /* Unified text halo for content inside glass */
+  text-shadow: var(--heros-text-shadow);
+}
+
+.heros-shadow {
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
+}
+
+/* Amber backlight glow for primary panels */
+.heros-glow-amber {
+  position: relative;
+}
+
+.heros-glow-amber::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 50%, rgba(204, 76, 43, 0.25), transparent 70%);
+  filter: blur(40px);
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* Glass card hover intentionally disabled by copy/ — kept for selector parity. */
+.heros-glass-card:hover {
+  /* No animation */
+}
+
+/* Glass message bubbles */
+.heros-glass-bubble {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  padding: 12px 18px;
+  line-height: 1.6;
+  color: #e2e8f0;
+  font-size: 14px;
+  font-weight: 450;
+}
+
+.heros-glass-bubble-me {
+  background: color-mix(in srgb, var(--heros-brand) 15%, rgba(0, 0, 0, 0.3));
+  border: 1px solid color-mix(in srgb, var(--heros-brand) 30%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--heros-brand) 50%, transparent);
+  color: #fff;
+  box-shadow:
+    0 8px 32px rgba(204, 76, 43, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* Tactile HerOS buttons — base definition */
+.heros-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 9999px;
+  padding: 0.75rem 1.5rem;
+  color: var(--heros-text-premium);
+  font-family: inherit;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: all 0.4s var(--ease-spring);
+  backdrop-filter: blur(12px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  outline: none;
+}
+
+.heros-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateY(-2px);
+  color: #fff;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+}
+
+.heros-btn:active {
+  transform: translateY(1px) scale(0.98);
+}
+
+/* Brand variant */
+.heros-btn-brand {
+  background: color-mix(in srgb, var(--heros-brand) 80%, white);
+  color: white;
+  border: none;
+}
+
+.heros-btn-brand:hover {
+  background: var(--heros-brand);
+  box-shadow: 0 0 20px color-mix(in srgb, var(--heros-brand) 40%, transparent);
+}
+
+/* Danger variant */
+.heros-btn-danger {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #f87171;
+}
+
+.heros-btn-danger:hover {
+  background: #ef4444;
+  color: white;
+  border-color: #ef4444;
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.4);
+}
+
+/* ── Second-layer overrides (copy/src/app.css 704-834) ───── */
+
+.heros-dynamic-bg {
+  /* Kept for class-name compatibility; new system uses blob clusters. */
+  display: none;
+}
+
+.heros-shell {
+  position: relative;
+  border-radius: 24px;
+}
+
+.heros-glass-panel {
+  position: relative;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(24px) saturate(120%);
+  -webkit-backdrop-filter: blur(24px) saturate(120%);
+  border-radius: 24px;
+  padding: 48px 40px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow:
+    0 12px 40px 0 rgba(0, 0, 0, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+/* Pressed / carved input element */
+.heros-input-wrapper {
+  background: rgba(0, 0, 0, 0.08);
+  border: 1px solid transparent;
+  border-radius: 14px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow:
+    inset 0 4px 12px rgba(0, 0, 0, 0.1),
+    inset 0 1px 2px rgba(0, 0, 0, 0.2),
+    0 1px 1px rgba(255, 255, 255, 0.15);
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.heros-input-wrapper:focus-within {
+  background: rgba(0, 0, 0, 0.25);
+  box-shadow:
+    inset 0 4px 12px rgba(0, 0, 0, 0.2),
+    inset 0 1px 2px rgba(0, 0, 0, 0.3),
+    0 0 12px rgba(0, 0, 0, 0.15),
+    0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+.heros-input-wrapper input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: #fdf9f3;
+  font-size: 15px;
+  outline: none !important; /* override third-party form resets */
+  box-shadow: none !important; /* override browser focus ring */
+}
+
+.heros-input-wrapper input::placeholder {
+  color: rgba(253, 249, 243, 0.4);
+}
+
+.heros-input-wrapper input::selection {
+  background: rgba(204, 76, 43, 0.6);
+  color: #fff;
+}
+
+.heros-icon-animate-focus {
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.heros-input-wrapper:focus-within .heros-icon-animate-focus {
+  transform: rotate(-15deg);
+  color: #fff !important; /* override icon library default fill */
+}
+
+/* Floating light-source button (overrides earlier .heros-btn) */
+.heros-btn {
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid transparent;
+  border-top-color: rgba(255, 255, 255, 0.3);
+  border-left-color: rgba(255, 255, 255, 0.2);
+  border-right-color: rgba(255, 255, 255, 0.05);
+  border-bottom-color: rgba(255, 255, 255, 0.05);
+  box-shadow:
+    0 12px 32px rgba(120, 20, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  color: #fff;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.heros-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.heros-btn .heros-icon-animate-hover {
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.heros-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.18);
+  box-shadow:
+    0 24px 48px rgba(120, 20, 0, 0.4),
+    0 0 40px rgba(255, 180, 140, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  transform: translateY(-2px);
+}
+
+.heros-btn:hover:not(:disabled) .heros-icon-animate-hover {
+  transform: translateX(4px);
+}
+
+.heros-btn:active:not(:disabled) {
+  transform: translateY(2px);
+  background: rgba(0, 0, 0, 0.08);
+  box-shadow:
+    0 2px 8px rgba(120, 20, 0, 0.2),
+    inset 0 6px 20px rgba(0, 0, 0, 0.2),
+    inset 0 1px 2px rgba(0, 0, 0, 0.3),
+    0 1px 1px rgba(255, 255, 255, 0.15);
+  border-color: transparent;
+}
+
+/* ── Login mode overrides (copy/src/app.css 2374-2390) ─────
+ * Applied via document.body.classList.toggle('login-mode'). Blob
+ * tweaks reference .blob-container which is defined in blobs.css. */
+.login-mode {
+  --heros-bg-foundation: #1a1b23;
+  --heros-glass-fill: rgba(255, 255, 255, 0.12);
+}
+
+.login-mode .blob-container {
+  filter: brightness(1.4) saturate(1.2);
+  opacity: 0.8;
+}
+
+.login-mode .heros-glass-card {
+  box-shadow:
+    0 30px 60px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 0 40px rgba(204, 76, 43, 0.1);
+}
