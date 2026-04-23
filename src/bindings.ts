@@ -1903,6 +1903,21 @@ async importDatabaseFromVault(vaultRelPath: string) : Promise<Result<number, str
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+/**
+ * Sets the webview zoom level for the main window.
+ * 
+ * Range clamped 0.25–3.0 (WebView2's hard limits); typical UX range
+ * is 0.5–1.5. Values outside the allowed range error rather than
+ * silently clamping so callers can surface the limit to users.
+ */
+async setAppZoom(scale: number) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("set_app_zoom", { scale }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 

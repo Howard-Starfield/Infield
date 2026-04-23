@@ -19,70 +19,84 @@
 
 ---
 
-## Rebuild in progress (2026-04-23 — HerOS port)
+## Rebuild in progress (2026-04-23 — wholesale frontend swap)
 
-Infield is being re-frontended. The previous IRS-style "Sovereign Glass"
-direction is **superseded by the HerOS / OS1 verbatim port** from
-`copy/` (mirror at `C:\Users\howard\Downloads\Ai_script\IRS_Software\
-third_party_selling_desktop\src\` — same source). The Rust backend is
-**stable and untouched** by the port.
+Infield's frontend was **wholesale-replaced** with the frontend from
+`C:\Users\howard\Downloads\Ai_script\IRS_Software\third_party_selling_desktop\src\`
+(a mirror of `copy/` at the time) in commit `49f0386`. The incremental
+H1–H6 port plan was abandoned at H2 because per-file porting kept
+producing "remade" deviations from the source. Wholesale copy is
+100% verbatim by definition; wiring Handy's backend into the ported
+shell is the remaining work.
 
-**Strategy:** port copy/'s frontend **100% verbatim** as cosmetic
-shells, then wire Handy's existing backend (vault, workspace.db,
-sqlite-vec, transcription, AI) into them in dedicated wiring phases.
-Visual fidelity first; behaviour comes later.
+**Current state of src/:**
+- `src/App.tsx`, `main.tsx`, `app.css`, `types.ts`, `tauri-bridge.ts`,
+  `scheduler.ts`, `crypto-vault.ts`, `ebay-*.ts`, `vault-migration.ts`
+  — verbatim from third_party
+- `src/components/` — 35 components (HerOS primitives, AppShell,
+  TitleBar, IconRail, LoadingScreen, all Views, widgets, eBay views)
+- `src/contexts/VaultContext.tsx` — **Handy-backed adapter** (same
+  interface as third_party, backed by Handy state; eBay methods
+  stub with console.warn)
+- `src/contexts/LayoutContext.tsx` — verbatim
+- `src/services/` — verbatim (Celebration, Sound, Theme)
+- `src/hooks/` — useResizable + useStorageConfig (third_party's)
+- `src/Resume_site/` — copied in (required by App.tsx import)
+- `src/i18n/locales/` — RESTORED post-swap; only the Rust tray-menu
+  build script reads these. Frontend hardcodes English.
+- `src/assets/`, `src/bindings.ts`, `src/vite-env.d.ts` — preserved
 
-**Phase pipeline (HerOS port):**
-- **H1** — Token + CSS foundation (HerOS `:root` tokens in `src/App.css`,
-  `.heros-*` classes in `src/styles/heros.css`, blob atmosphere in
-  `src/styles/blobs.css`). Theme module deleted. ✅ Complete (2026-04-23).
-- **H2** — Entry surfaces reskinned (LoadingScreen, LoginPage as Cmd+L
-  lock, AtmosphericBackground, 4-step onboarding in HerOS style).
-- **H3** — Shell chrome port (AppShell, TitleBar, IconRail, HerOS
-  primitives `HerOSPanel` / `HerOSInput` / `HerOSButton` / `HerOSViewport`).
-- **H4** — View skeletons + generic widgets ported verbatim. eBay-domain
-  views (Inbox, Conversation, Inspector, Account, etc.) ported as
-  dormant stubs gated behind `<EmptyState>`. Handy-feature-adjacent
-  views (Notes, Databases, Audio, Search, Settings, Capture, Import,
-  Dashboard, Activity, Security, About) ported as visual shells; their
-  Handy backend wiring lives in H6.
-- **H5** — Legacy deletion (`src/components/workspace/`, `database/`,
-  `editor/`, `home/`, `chat/`, `search/`, `import/`, plus
-  `TopBar.tsx` / `BottomBar.tsx` / `Sidebar.tsx`). Zustand stores
-  deleted. CLAUDE.md + PLAN.md doc updates land.
-- **H6** — Wiring phase: connect Handy backend (workspace tree, MDX
-  editor, transcription, search, AI chat) to the cosmetic shells.
+**Rust backend (src-tauri/) — STABLE and UNTOUCHED by the swap:**
+- Phase A complete: sqlite-vec migration, `vec_embeddings`,
+  `embedding_model_info`, `embed_backfill_queue`, bge-small-en-v1.5
+  `MultiFile` in `ModelInfo`
+- `managers::embedding_ort::InferenceHandle` (Rule 16/16a/19)
+- `app_identity::VaultLock` (Rule 15 / D11)
+- Workspace / transcription / audio / AI / search / import / vault-
+  sync / onboarding commands all registered + functional
+- UI-scale command added post-swap: `commands::ui::set_app_zoom`
+  wraps Tauri's native webview zoom (WebView2::SetZoomFactor on
+  Windows, etc.). Driven from `VaultContext` slider + Cmd+=/-/0
+  keybindings; persists via localStorage `ui-scale`. Window also
+  resizes asymmetrically: scale < 1.0 leaves window alone (so
+  zoom-out gives more visible content); scale ≥ 1.0 grows window
+  proportionally (capped at 95% of monitor).
 
-**What's already rebuilt and live (post-H1):**
-- `src/App.css :root` — HerOS primitive tokens (`--heros-brand`,
-  `--heros-bg-foundation`, `--heros-glass-fill`, etc.) declared
-  statically; ~70 tokens total
-- `src/styles/heros.css` — `.heros-shell`, `.heros-glass-panel`,
-  `.heros-btn*`, `.heros-input-wrapper`, etc. (verbatim from copy/)
-- `src/styles/blobs.css` — `.blob-container` + `.blob-cluster-{a,b,c}`
-  + `@keyframes blob-cl-{1,2,3}` (verbatim from copy/)
-- `src-tauri/src/managers/embedding_ort.rs` — ORT worker thread
-  (Rule 16) + sentinel (Rule 16a) + Rule 19 reindex check
-- `src-tauri/src/managers/embedding_worker.rs` — queue-driven drain
-  against `embed_backfill_queue`
-- `src-tauri/src/app_identity.rs` `VaultLock` — Rule 15 / D11
-- sqlite-vec migration: `vec_embeddings` + `embedding_model_info` +
-  `embed_backfill_queue`
-- bge-small-en-v1.5 `MultiFile` entry in `ModelInfo` registry
+**What was deleted in the swap (H5 fully executed ahead of schedule):**
+- `src/entry/`, `src/shell/`, `src/overlay/`, `src/types/`, `src/styles/`
+- `src/components/{workspace,database,editor,home,chat,search,import,
+  icons,model-selector,sidebar,settings,shared,ui,update-checker}/`
+- `src/components/{TopBar,BottomBar,Sidebar,AppSidebarChrome,
+  ConfirmDialog,PromptDialog,ModelCard,AccessibilityPermissions,
+  AudioWaveform,Onboarding*}.tsx` + `onboardingBridge.ts`
+- `src/lib/`, `src/stores/`, `src/utils/`, `src/workspace.css`,
+  `src/test-setup.ts`, `src/glide-data-grid-overlay-preload.ts`
 
-**What's retired or scheduled for retirement:**
-- `usearch` + `handy-embedding-sidecar` → sqlite-vec (Phase A, done)
-- `src/theme/` module — deleted in H1 (no runtime theme switching)
-- `src/components/workspace/`, `database/`, `editor/`, `home/`,
-  `chat/`, `search/`, `import/` + `TopBar.tsx` / `BottomBar.tsx` /
-  `Sidebar.tsx` — H5 deletion after H4 dormant port stable
-- `src/stores/` — H5 deletion after store consumers replaced by
-  `currentPage` + `VaultContext` pattern
-- Tailwind import + `@theme {}` block — already removed in H1
+**The H1–H6 plan is retired.** Remaining work is the wiring phase
+(formerly H6), now renamed the **Backend Wiring Phase** — see
+[PLAN.md](PLAN.md) for the current roadmap.
 
-See [PLAN.md](PLAN.md) for the active phase status and
-[docs/superpowers/plans/2026-04-23-heros-frontend-port.md](docs/superpowers/plans/2026-04-23-heros-frontend-port.md)
-for the H1-H6 plan detail.
+**Known dormant surfaces** that need backend wiring:
+- Notes tab → Handy workspace tree + MDX editor (the `NotesView`
+  in copy/ is an eBay-style note list; Handy needs a different
+  integration, likely a tree + editor pane inside `NotesView`'s
+  glass frame)
+- Databases tab → Handy database (grid / board / calendar / list /
+  gallery views) inside `DatabasesView`'s glass frame
+- Audio tab → Handy mic transcribe + system audio capture
+- Search tab → Handy hybrid FTS + vector search (Rust backend ready)
+- Settings tab → Handy settings forms (language, models, audio
+  devices, keybindings, accessibility). `SettingsView` already has
+  glass sections that can be wired.
+- Onboarding → **no component exists**. copy/ doesn't ship one
+  because the third_party app starts with a password unlock, not
+  a first-run flow. Must be designed from scratch using copy/'s
+  primitives (`HerOSPanel`, `HerOSInput`, `HerOSButton`,
+  `SpotlightOverlay`, etc.). See "Spotlight-style onboarding design"
+  note in PLAN.md.
+- eBay views (Inbox / Conversation / Inspector / Account) remain
+  dormant — not wiring to Handy. EbayConnectModal stays as visual
+  stub; eBay methods in VaultContext console.warn.
 
 ---
 
@@ -543,6 +557,65 @@ an mtime-keyed sha256 side-file (`model.onnx.sha256`) to avoid the
 600-900ms recompute cost on every boot. Surface outcomes:
 `FirstInstall` / `UnchangedModel` / `OrphanVectorsRequeued` (no prior
 identity row but vec_embeddings had rows) / `ModelSwapped`.
+
+### Rule 20 — Global UI scaling via native webview zoom, never CSS zoom
+
+For app-wide UI scaling (the "UI Scale" slider in Settings →
+Appearance + Cmd/Ctrl+=/-/0 keybindings), use the **native webview
+zoom** via the `set_app_zoom` Tauri command
+(`src-tauri/src/commands/ui.rs`). It wraps the browser's built-in
+zoom (WebView2::SetZoomFactor on Windows, WKWebView::setPageZoom on
+macOS, webkit2gtk set_zoom_level on Linux) — the same mechanism
+Ctrl+`+`/Ctrl+`-` uses in any Chromium browser.
+
+**Never use CSS `zoom`** (the non-standard property) for global
+scale. CSS `zoom`:
+- Shrinks the element's declared size at sub-1.0 scales, leaving
+  black gutters on right / bottom (a compensation with
+  `width: calc(100vw / zoom)` sounds right mathematically but is
+  unreliable in Chromium with nested viewport units)
+- Has unpredictable behaviour with `position: fixed`, backdrop
+  filters, SVG, and canvas rendering
+- Is a non-standardised WebKit-ism that Chromium inherited; W3C
+  draft exists but no engine implements it consistently
+
+Native webview zoom reflows layout at the effective viewport,
+scales every pixel uniformly (including inline-px literals from
+copy/'s ported components), and composes correctly with drag-drop,
+fixed positioning, and canvas elements. That's why we use it.
+
+The `--ui-scale` CSS token may still be consulted by token-aware
+surfaces for finer-grained typography control, but it is NOT the
+primary scaling mechanism. `--app-zoom` is kept informational only.
+
+See the commit history from `ba9eced → 3bee86a → 2da70e2` for the
+learning journey (three failed CSS-layer attempts before pivoting
+to native). Don't repeat it.
+
+### Rule 21 — UI-scale window coupling is asymmetric
+
+When the user changes UI scale, the Tauri window resizes
+**asymmetrically** per user browser-zoom intuition:
+
+- **scale < 1.0** → window stays the same size. The zoom-out
+  gives the user more visible content density (standard Ctrl+−
+  semantic). Shrinking the window too would cancel the benefit.
+- **scale = 1.0** → window returns to BASE_WINDOW (2016×1200,
+  matches `src-tauri/src/lib.rs` WebviewWindowBuilder default).
+- **scale > 1.0** → window grows proportionally (2016 × scale by
+  1200 × scale), capped at 95% of the user's monitor so chrome
+  never overflows. Prevents content clipping at larger text sizes.
+
+The resize is implemented in
+`src/contexts/VaultContext.tsx::resizeWindowToScale` via
+`getCurrentWindow().setSize(new LogicalSize(...))` with
+`currentMonitor()` for the bound calculation. BASE_WINDOW and the
+Rust default must stay in sync.
+
+Trade-off accepted: changing scale clobbers any manual window
+resize. If this becomes annoying, add a "lock window to scale"
+preference toggle — it's not worth the added config surface until
+someone actually trips on it.
 
 ---
 

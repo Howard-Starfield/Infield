@@ -5,8 +5,135 @@
 > rules and invariants; this file carries the roadmap, per-phase
 > blueprint, and open decisions.
 >
-> **Last updated:** 2026-04-22
-> **Current phase:** B (ready for kickoff — Phase A complete 2026-04-22)
+> **Last updated:** 2026-04-23 (post wholesale-swap)
+> **Current phase:** Backend Wiring Phase (W — see below)
+> **Rust backend (Phase A):** ✅ complete 2026-04-22
+> **Frontend port (H1-H6):** ✅ superseded by wholesale swap on
+>   2026-04-23 (commit `49f0386`). Frontend is now 100% verbatim
+>   from `third_party_selling_desktop/src/` with a Handy-backed
+>   VaultContext adapter, native UI zoom via set_app_zoom command,
+>   and asymmetric window-scale coupling.
+>
+> **What's still pending** lives in the Backend Wiring Phase
+> (W) roadmap near the top of this file.
+
+---
+
+## Backend Wiring Phase (W) — current work
+
+Frontend shell is 100% the ported third_party frontend. Rust backend
+(Phase A) is stable and has every command/manager Handy needs
+(workspace tree, MDX, transcription, system audio, hybrid search,
+AI chat scaffolding, vault sync, onboarding state machine). The
+remaining work is **connecting the two** so the dormant views
+actually do something.
+
+**W-phases** are listed roughly in user-visible-value order. Each
+phase is a self-contained "wire this surface to that Rust command"
+swap. The list below is a checklist; the ordering can change.
+
+### W0 — Spotlight-style onboarding (first-run) 🔜 NEXT
+
+Copy/ ships no onboarding component (third_party starts with a
+password unlock). Handy needs one: mic permission → accessibility
+(macOS) → Whisper + bge-small download → vault path. Design it
+using copy/'s `SpotlightOverlay` pattern so it feels native to the
+rest of the app — a command-palette-like overlay that sweeps the
+user through each step with minimal chrome. The Rust
+`commands::onboarding::{get,update,reset}_onboarding_state` +
+`get_settings / write_settings` commands are all registered and
+ready; frontend just needs to call them through Spotlight-style
+steps.
+
+**Contract:** first-run detection via `get_onboarding_state()`
+`current_step !== "done"`. Show Spotlight onboarding until
+`current_step === "done"`, then boot into AppShell.
+
+### W1 — Voice transcribe wire-up
+
+Handy's Rust transcription (ORT sessions via `transcribe-rs`,
+multiple engines: Whisper / Parakeet / Moonshine / SenseVoice /
+GigaAM / Canary) is fully functional. The ported `AudioView` in
+`src/components/AudioView.tsx` renders a mic UI but doesn't call
+any command. Wire:
+- Mic record button → `commands::audio::start_recording`
+- Transcription stream → listen for backend events and render
+- "Voice Memo" target doc → auto-create workspace document under
+  "Mic Transcribe" folder per Rule 9 (ISO title "Voice Memos —
+  YYYY-MM-DD") and append `::voice_memo_recording{...}` directives
+  + transcript text
+- Transcribe-rs live partials → stream into AudioView's waveform
+  + caption area
+- System audio capture → wire into the same pipeline behind a
+  toggle (backend already supports via `system_audio::*`)
+
+### W2 — Workspace tree + MDX editor
+
+The ported `NotesView` is an eBay note-list shell. Handy needs a
+**tree + editor split pane** inside `NotesView`'s glass frame:
+- Left pane: workspace tree (drag/drop via `@dnd-kit`, fractional
+  positions) fed by `commands::workspace_nodes::list_children`
+- Right pane: MDX editor (wraps `@mdxeditor/editor`) with:
+  - Wikilink `[[` autocomplete (query `searchNodes`, 150ms debounce)
+  - `node://uuid` click handler → navigate to that page
+  - Autosave (300ms debounce) through `update_node` with Rule 13
+    conflict guard + banner for external edits
+  - Voice-memo pill rendering per Rule 9
+
+### W3 — Hybrid search
+
+`commands::search::search_workspace_hybrid` is already in the
+Rust backend (single SQL CTE joining `workspace_fts` +
+`vec_embeddings`). Wire to `SearchView`. Also wire `SpotlightOverlay`
+(Cmd/Ctrl+K) to the same command for quick-open results.
+
+### W4 — Databases views
+
+`DatabasesView` renders a glass frame; internals are eBay mock-ups.
+Replace with Handy's database system:
+- Grid view (Glide Data Grid + `tokenBridge.ts` to consume tokens
+  as hex strings per Rule 12 canvas exception)
+- Board / Calendar / List / Gallery views
+- Database files on disk per vault-database-storage.md contract
+
+### W5 — Settings
+
+`SettingsView` has Appearance (glass intensity, grain, bg, UI
+scale slider ✅ already wired) + other sections dormant. Wire:
+- Audio devices (input/output selection, PTT config)
+- Models (Whisper size, bge-small status, download/delete)
+- Keybindings (global shortcut config through shortcut commands)
+- Accessibility (mic + a11y permission status + re-request)
+- Vault location
+- Advanced (reset onboarding, clear caches, debug log)
+
+### W6 — AI chat (later)
+
+Gemini/Vertex via user's Google OAuth (per Phase G from old plan).
+Deferred until W1-W5 land and the base app is fully usable.
+
+### W7 — Cleanup
+
+- Delete eBay-specific files that no Handy surface uses
+  (`ebay-*.ts`, `crypto-vault.ts`, `vault-migration.ts`,
+  `tauri-bridge.ts` eBay functions, `Resume_site/`). Keep the
+  eBay view components as dormant cosmetic shells per
+  Cosmetic-Port Discipline — they don't hurt anything at rest.
+- Rebuild `src-tauri/src/overlay.rs` recording-overlay to work
+  with new frontend structure (currently broken — references
+  deleted `src/overlay/index.html`)
+- Re-introduce frontend i18n for the wired surfaces if multi-
+  language support is still a goal (copy/ hardcodes English;
+  `src/i18n/locales/` files are preserved for Rust tray menu).
+
+---
+
+## Previous plan (Phase A, superseded Phases B-I)
+
+Phase A (sqlite-vec migration) shipped as documented below and is
+live in `src-tauri/`. Phases B-I were written against the pre-swap
+frontend and are now **superseded by W0-W7 above**. They're kept
+here for historical context — do not execute them.
 
 ---
 
