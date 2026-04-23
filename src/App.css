@@ -333,8 +333,18 @@ html, body {
 }
 
 #root {
-  width: 100vw;
-  height: 100vh;
+  /* Width/height compensate for CSS zoom so #root visually fills
+   * the full viewport at any scale. Without the `calc(.. / zoom)`
+   * dividing, `#root` renders at scale × 100vw — leaving black
+   * gutters below 100% and overflowing above 100%.
+   *
+   * Derivation: rendered_size = logical_size × zoom.
+   * If we want rendered_size = 100vw/vh, logical_size = 100 / zoom.
+   *
+   * Fallback to 1 via var() default so if --app-zoom is ever
+   * unset, the layout collapses to 100vw × 100vh cleanly. */
+  width: calc(100vw / var(--app-zoom, 1));
+  height: calc(100vh / var(--app-zoom, 1));
   position: relative;
   background-color: var(--heros-bg-foundation); /* Match foundation */
   border-radius: 18px; /* Restored window roundness */
