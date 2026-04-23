@@ -77,16 +77,25 @@ html, body {
   --conversation-list-width: 320px;
   --inspector-panel-width: 260px;
 
-  /* ── UI Scaling (Edge case: 4K/UltraWide support) ──
-   * 0.85 reduces typography + spacing scales by 15% vs copy/'s
-   * default 1.0 (per user request after wholesale-swap text felt
-   * oversized). Affects every token that uses
-   * `calc(N * var(--ui-scale))`: --text-{xs..2xl}, --space-{1..12}.
-   * Inline px in ported components (LoadingScreen wordmark 112px,
-   * etc.) are NOT scaled — they're verbatim from copy/. Adjust
-   * further by editing this value; main.tsx still honors
-   * localStorage 'ui-scale' if user overrides per-session. */
-  --ui-scale: 0.85;
+  /* ── UI Scaling — coordinated two-tier system ──
+   *
+   * --app-zoom drives `#root { zoom: var(--app-zoom) }` (rule below).
+   *   This catches EVERY rendered pixel including inline `fontSize:
+   *   '112px'` literals copy/'s components author verbatim. Chromium-only
+   *   CSS property — fine for Tauri's webview; would need a fallback if
+   *   Handy ever ports to a non-Chromium engine.
+   *
+   * --ui-scale drives `calc(N * var(--ui-scale))` on --text-{xs..2xl}
+   *   and --space-{1..12}. Token-only multiplier; useful for fine-tuning
+   *   text density independent of overall zoom.
+   *
+   * Both default to 1.0 (true to copy/'s authored intent). VaultContext
+   * + Settings → Appearance → "UI Scale" slider keep them in sync to
+   * vaultData.uiPreferences.uiScale. main.tsx pre-React hydrates from
+   * localStorage 'ui-scale' so the first paint is at the user's chosen
+   * scale (no FOUT). Cmd/Ctrl + = / - / 0 nudge / reset. */
+  --app-zoom: 1;
+  --ui-scale: 1.0;
 
   /* ── Typography Scale (Dynamic) ── */
   --text-xs:   calc(11px * var(--ui-scale));
@@ -330,6 +339,9 @@ html, body {
   background-color: var(--heros-bg-foundation); /* Match foundation */
   border-radius: 18px; /* Restored window roundness */
   overflow: hidden; /* Clips children to the rounded corners */
+  /* Global zoom — see :root --app-zoom comment. Chromium-only CSS;
+   * scales every descendant pixel including inline px literals. */
+  zoom: var(--app-zoom);
 }
 
 /* ── Professional Scrollbar Styling ──────────────────────── */

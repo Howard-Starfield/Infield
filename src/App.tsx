@@ -21,11 +21,36 @@ import { LandingPage as ResumeSite } from './Resume_site/LandingPage';
 
 function AppContent() {
   const [currentPage, setCurrentPage] = useState('inbox');
-  const { isLocked, isBooting, unlock, error, vaultData } = useVault();
+  const { isLocked, isBooting, unlock, error, vaultData, updateUiPreferences } = useVault();
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isUnlockingLocal, setIsUnlockingLocal] = useState(false);
   const [isSpotlightOpen, setIsSpotlightOpen] = useState(false);
+
+  // Cmd/Ctrl + = / - / 0 → nudge / reset UI scale (5% steps,
+  // clamped 0.5–1.5 by VaultContext.applyUiScale). Persists via
+  // updateUiPreferences which writes vaultData + localStorage.
+  React.useEffect(() => {
+    if (!vaultData) return;
+    const onKey = (e: KeyboardEvent) => {
+      const meta = e.metaKey || e.ctrlKey;
+      if (!meta) return;
+      const current = (vaultData.uiPreferences?.uiScale ?? 1.0) as number;
+      // `=` and `+` share a key on most US keyboards; accept either.
+      if (e.key === '=' || e.key === '+') {
+        e.preventDefault();
+        updateUiPreferences({ ...vaultData.uiPreferences, uiScale: Math.min(1.5, current + 0.05) });
+      } else if (e.key === '-') {
+        e.preventDefault();
+        updateUiPreferences({ ...vaultData.uiPreferences, uiScale: Math.max(0.5, current - 0.05) });
+      } else if (e.key === '0') {
+        e.preventDefault();
+        updateUiPreferences({ ...vaultData.uiPreferences, uiScale: 1.0 });
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [vaultData, updateUiPreferences]);
 
   // Global Spotlight Keyboard Listener
   React.useEffect(() => {

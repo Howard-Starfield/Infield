@@ -201,6 +201,14 @@ export interface UiPreferences {
   bgColorA?: string;
   bgColorB?: string;
   bgColorC?: string;
+  /**
+   * Global UI density multiplier. Drives both `#root { zoom: var(--app-zoom) }`
+   * (catches inline px literals authored verbatim from copy/) and
+   * `--ui-scale` (the existing token-system multiplier). Range 0.5–1.5,
+   * default 1.0. Hydrated from localStorage at boot via main.tsx, kept
+   * in sync via VaultContext.
+   */
+  uiScale?: number;
 }
 
 export interface EbayMediaRecord {

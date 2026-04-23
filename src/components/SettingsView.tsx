@@ -105,7 +105,8 @@ export function SettingsView() {
     bgColorA: '#2a145c',
     bgColorB: '#b5369c',
     bgColorC: '#1a8bb5',
-    spotlightTrigger: 'KeyF'
+    spotlightTrigger: 'KeyF',
+    uiScale: 1.0
   };
 
   const handleUpdateUiPref = (key: keyof UiPreferences, value: any) => {
@@ -451,7 +452,61 @@ export function SettingsView() {
                 </div>
 
                 <div style={{ height: '1px', background: 'rgba(255,255,255,0.05)' }} />
-                
+
+                {/* UI Scale — coordinated app-wide pixel multiplier (zoom + token).
+                    Range 0.5–1.5; preset rail jumps to common sizes. Cmd/Ctrl + = / - / 0
+                    nudges by 5% / resets. Persists via localStorage on every change
+                    (VaultContext.applyUiScale). */}
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+                    <span style={{ fontSize: '14px', fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>UI Scale</span>
+                    <span style={{ fontSize: '14px', color: 'var(--heros-brand)', fontWeight: 800 }}>
+                      {Math.round(((prefs.uiScale ?? 1.0) as number) * 100)}%
+                    </span>
+                  </div>
+                  <input
+                    type="range" min="0.5" max="1.5" step="0.05"
+                    value={(prefs.uiScale ?? 1.0) as number}
+                    onChange={(e) => handleUpdateUiPref('uiScale', parseFloat(e.target.value))}
+                    style={{ width: '100%', accentColor: 'var(--heros-brand)', cursor: 'pointer' }}
+                  />
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
+                    {[
+                      { label: 'Compact', value: 0.85 },
+                      { label: 'Default', value: 1.0 },
+                      { label: 'Large', value: 1.15 },
+                    ].map((p) => {
+                      const active = Math.abs(((prefs.uiScale ?? 1.0) as number) - p.value) < 0.001
+                      return (
+                        <button
+                          key={p.label}
+                          type="button"
+                          onClick={() => handleUpdateUiPref('uiScale', p.value)}
+                          style={{
+                            padding: '6px 12px',
+                            fontSize: '12px',
+                            fontWeight: 600,
+                            letterSpacing: '0.04em',
+                            borderRadius: '8px',
+                            border: '1px solid rgba(255,255,255,0.1)',
+                            background: active ? 'color-mix(in srgb, var(--heros-brand) 20%, transparent)' : 'rgba(255,255,255,0.04)',
+                            color: active ? '#fff' : 'rgba(255,255,255,0.6)',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                          }}
+                        >
+                          {p.label} · {Math.round(p.value * 100)}%
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginTop: '12px', marginBottom: 0 }}>
+                    Adjusts every pixel including ported components. Cmd/Ctrl + = / - / 0 to nudge or reset.
+                  </p>
+                </div>
+
+                <div style={{ height: '1px', background: 'rgba(255,255,255,0.05)' }} />
+
                 {/* Glass & Grain Subsection */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '32px' }}>
                   <div>

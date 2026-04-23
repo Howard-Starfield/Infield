@@ -71,7 +71,29 @@ const VaultContext = createContext<VaultContextType | undefined>(undefined)
 const DEFAULT_UI_PREFERENCES: UiPreferences = {
   themeColor: '#cc4c2b',
   enabledViews: ['inbox', 'dashboard', 'notes', 'audio', 'databases', 'search', 'settings'],
+  uiScale: 1.0,
 } as unknown as UiPreferences
+
+/** Clamp uiScale to a sane range so users can't accidentally render
+ *  an unusable UI. */
+function clampScale(n: unknown): number {
+  const v = typeof n === 'number' && Number.isFinite(n) ? n : 1.0
+  return Math.max(0.5, Math.min(1.5, v))
+}
+
+/** Apply scale to both CSS custom properties (--app-zoom +
+ *  --ui-scale) and persist to localStorage. Single source of write. */
+function applyUiScale(scale: number) {
+  const clamped = clampScale(scale)
+  const root = document.documentElement
+  root.style.setProperty('--app-zoom', String(clamped))
+  root.style.setProperty('--ui-scale', String(clamped))
+  try {
+    localStorage.setItem('ui-scale', String(clamped))
+  } catch {
+    /* private browsing / quota — silent */
+  }
+}
 
 /** Empty Handy-friendly VaultData. eBay arrays empty so dormant views
  *  fall through to EmptyState. */
@@ -85,8 +107,27 @@ const EMPTY_VAULT_DATA: VaultData = {
 export function VaultProvider({ children }: { children: ReactNode }) {
   const [isBooting, setIsBooting] = useState(true)
   const [isLocked, setIsLocked] = useState(false) // D-H1: no boot password gate
-  const [vaultData, setVaultData] = useState<VaultData | null>(EMPTY_VAULT_DATA)
+  // Initial scale read from localStorage so vaultData reflects what
+  // main.tsx already painted (avoids slider snap-back on first render).
+  const initialScale = (() => {
+    try {
+      return clampScale(parseFloat(localStorage.getItem('ui-scale') ?? '1'))
+    } catch {
+      return 1.0
+    }
+  })()
+  const [vaultData, setVaultData] = useState<VaultData | null>({
+    ...EMPTY_VAULT_DATA,
+    uiPreferences: { ...DEFAULT_UI_PREFERENCES, uiScale: initialScale } as UiPreferences,
+  })
   const [error, setError] = useState<string | null>(null)
+
+  // Whenever uiScale changes (slider, keybinding, programmatic), apply
+  // to CSS vars + persist. Source of truth = vaultData.uiPreferences.uiScale.
+  useEffect(() => {
+    const scale = vaultData?.uiPreferences?.uiScale
+    if (typeof scale === 'number') applyUiScale(scale)
+  }, [vaultData?.uiPreferences?.uiScale])
 
   // Match copy/'s 2.5s LoadingScreen duration so the cinematic arc plays
   // through. H6 may swap this for real hydration signals.
