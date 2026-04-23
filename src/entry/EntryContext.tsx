@@ -1,27 +1,29 @@
 /**
  * Entry-experience context — owns the launch-stage state machine.
  *
- * Inspired by the VaultContext pattern from a companion project: the
- * LoadingScreen and LoginPage are pure presentation; the timer, progress
- * ramp, and stage transitions all live here so they can be tested and
- * reasoned about without pulling in React surface components.
+ * Stage machine (post H2.5):
+ *   "loading"     → hydration in flight; LoadingScreen rendered
+ *   "onboarding"  → first-run guided setup; OnboardingShell rendered
+ *   "app"         → main shell mounted
+ *   "locked"      → Cmd/Ctrl+L triggered; LoginPage overlay rendered
+ *                   (per D-H1 — no boot password gate, lock only)
  *
- * Stage machine:
- *   "loading"  → hydration in flight; LoadingScreen rendered
- *   "login"    → onboarding resolved; LoginPage rendered (presentation-only)
- *   "app"      → user entered; main shell mounted
+ * The "login" stage from earlier IRS-era plans is removed: per D-H1
+ * the app does NOT gate boot behind a password (no encrypted vault),
+ * so the lock surface only ever appears via the user-initiated Cmd+L
+ * shortcut from inside the app.
  *
- * Progress ramp asymptotes toward milestone targets derived from observable
- * hydration signals (settingsLoading, onboardingStep). Reducing the bar's
- * coupling to wall-clock time keeps it honest on slow backends while
- * preventing it from ever looking stuck.
+ * Progress ramp asymptotes toward milestone targets derived from
+ * observable hydration signals (settingsLoading, onboardingStep) so
+ * the bar stays honest on slow backends.
  *
  * Usage:
  *   <EntryProvider settingsLoading={…} onboardingStep={…}>
  *     {stage === "loading" ? <LoadingScreen … /> : …}
  *   </EntryProvider>
  *
- * Or via hook: `const { stage, progress, enterApp } = useEntry();`
+ * Or via hook:
+ *   const { stage, progress, enterApp, lock, unlock } = useEntry();
  */
 import {
   createContext,
@@ -43,20 +45,36 @@ import {
  */
 const DEFAULT_MIN_LOADING_MS = 3000
 
-export type EntryStage = 'loading' | 'onboarding' | 'login' | 'app'
+export type EntryStage = 'loading' | 'onboarding' | 'app' | 'locked'
 
 export interface EntryState {
   stage: EntryStage
   /** 0..100. Drives LoadingScreen progress bar + orb collapse phase. */
   progress: number
-  /** Called from LoginPage when user activates the primary button. */
+  /**
+   * Transition into `'app'`. Called from LoginPage's unlock handler
+   * (when stage is `'locked'`) and from `finishOnboarding` (legacy
+   * compat — the onboarding completion path now goes directly to
+   * `'app'` so this is rarely a separate call).
+   *
+   * Accepts an optional passphrase string for forward-compat with
+   * encrypted-vault wiring; ignored today since Handy doesn't gate
+   * boot/unlock on a real password.
+   */
   enterApp: (passphrase?: string) => void
   /**
    * Called by `OnboardingShell` when the user finishes the final step.
-   * Transitions `onboarding → login`; `LoginPage` then decides whether
-   * to self-skip based on passphrase presence.
+   * Transitions `onboarding → app` directly per D-H1 (no login gate).
    */
   finishOnboarding: () => void
+  /** Trigger the Cmd/Ctrl+L lock surface. Transitions `app → locked`. */
+  lock: () => void
+  /**
+   * Dismiss the lock surface. Alias of `enterApp` exposed under the
+   * name LoginPage's `onUnlock` prop expects. Accepts optional
+   * passphrase for forward-compat.
+   */
+  unlock: (passphrase?: string) => void
   /**
    * Optional manual override — consumers can push stage transitions
    * directly. Primarily for tests + future auto-lock wiring.
@@ -138,8 +156,8 @@ export function EntryProvider({
 
   // ─── Stage handoff ────────────────────────────────────────────────
   // Once onboarding state resolves, finish the bar visually and hand off.
-  // Route:
-  //   - `"done"` → `login` (skip onboarding stage entirely)
+  // Route (per D-H1 — no login gate at boot):
+  //   - `"done"` → `app` directly
   //   - any other step → `onboarding` (OnboardingShell picks up there)
   // The handoff waits until the `minLoadingMs` floor has elapsed so the
   // ribbon always completes its full rotation + collapse-phase arc, even
@@ -149,7 +167,7 @@ export function EntryProvider({
     if (stage !== 'loading') return
     if (onboardingStep === null) return
     const nextStage: EntryStage =
-      onboardingStep === 'done' ? 'login' : 'onboarding'
+      onboardingStep === 'done' ? 'app' : 'onboarding'
     const elapsed = Date.now() - mountedAtRef.current
     const remaining = Math.max(0, minLoadingMs - elapsed)
     const fillDelay = Math.max(0, remaining - 650)
@@ -183,11 +201,32 @@ export function EntryProvider({
     [onEnter],
   )
 
-  const finishOnboarding = useCallback(() => setStage('login'), [])
+  // Onboarding completion goes straight to `'app'` per D-H1 (no login
+  // gate). Kept as a separate function for backward compatibility with
+  // callers that distinguish onboarding-finish from generic enterApp.
+  const finishOnboarding = useCallback(() => setStage('app'), [])
+
+  const lock = useCallback(() => setStage('locked'), [])
+
+  // unlock() is just enterApp under the name LoginPage's onUnlock prop
+  // expects. Same passphrase handling — discarded today, forward-compat
+  // for encrypted-vault wiring.
+  const unlock = useCallback(
+    (passphrase: string = '') => enterApp(passphrase),
+    [enterApp],
+  )
 
   const value = useMemo<EntryState>(
-    () => ({ stage, progress, enterApp, finishOnboarding, setStage }),
-    [stage, progress, enterApp, finishOnboarding],
+    () => ({
+      stage,
+      progress,
+      enterApp,
+      finishOnboarding,
+      lock,
+      unlock,
+      setStage,
+    }),
+    [stage, progress, enterApp, finishOnboarding, lock, unlock],
   )
 
   return <EntryCtx.Provider value={value}>{children}</EntryCtx.Provider>

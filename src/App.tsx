@@ -123,7 +123,7 @@ function App() {
 
 function AppBody() {
   const { t, i18n } = useTranslation();
-  const { stage, progress, enterApp, finishOnboarding } = useEntry();
+  const { stage, progress, finishOnboarding, lock, unlock } = useEntry();
   const [appView, setAppView] = useState<AppView>({ tab: "home" });
   const [settingsSection, setSettingsSection] =
     useState<SettingsSectionId>(DEFAULT_SETTINGS_SECTION);
@@ -155,6 +155,23 @@ function AppBody() {
       console.warn("Failed to initialize workspace appearance:", error);
     });
   }, [initializeWorkspaceAppearance]);
+
+  // Cmd/Ctrl+L → app lock (H2.5). Per CLAUDE.md Keyboard Contracts.
+  // Only fires when stage === 'app' so we don't trip during boot/
+  // onboarding. preventDefault() blocks the browser address-bar focus
+  // shortcut on the same chord.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const meta = e.metaKey || e.ctrlKey;
+      if (!meta) return;
+      if (e.key.toLowerCase() !== "l") return;
+      if (stage !== "app") return;
+      e.preventDefault();
+      lock();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [stage, lock]);
 
   useEffect(() => {
     const onOpen = (e: Event) => {
@@ -419,10 +436,11 @@ function AppBody() {
     return () => { unlisten.then((fn) => fn()); };
   }, []);
 
-  // Entry surfaces — routed via `stage` from EntryContext. The
-  // Phase B 6-step onboarding flow lives in `OnboardingShell`, which
-  // owns its state machine and calls `finishOnboarding()` only after a
-  // successful Rust write to `onboarding_state.current_step = "done"`.
+  // Entry surfaces — routed via `stage` from EntryContext.
+  //   "loading"     → LoadingScreen
+  //   "onboarding"  → OnboardingShell (4-step Mic/A11y/Models/Vault)
+  //   "locked"      → LoginPage as Cmd+L overlay (D-H1)
+  //   "app"         → no overlay; render the main shell below
   const entryStageKey: EntryStage | null =
     stage === "app" ? null : stage;
 
@@ -431,8 +449,8 @@ function AppBody() {
       <LoadingScreen progress={progress} />
     ) : entryStageKey === "onboarding" ? (
       <OnboardingShell onComplete={finishOnboarding} />
-    ) : entryStageKey === "login" ? (
-      <LoginPage onEnter={() => enterApp()} />
+    ) : entryStageKey === "locked" ? (
+      <LoginPage onUnlock={() => unlock()} />
     ) : null;
 
   if (entryElement) {
