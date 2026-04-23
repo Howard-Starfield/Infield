@@ -55,3 +55,17 @@ export { VirtualList } from './VirtualList'
 export type { VirtualListProps } from './VirtualList'
 
 export { AppCrashBoundary } from './AppCrashBoundary'
+
+// HerOS primitives (verbatim ports from copy/src/components/HerOS.tsx).
+// See CLAUDE.md → HerOS Design System for usage contract.
+export { HerOSPanel } from './HerOSPanel'
+export type { HerOSPanelProps } from './HerOSPanel'
+
+export { HerOSInput } from './HerOSInput'
+export type { HerOSInputProps } from './HerOSInput'
+
+export { HerOSButton } from './HerOSButton'
+export type { HerOSButtonProps } from './HerOSButton'
+
+export { HerOSViewport } from './HerOSViewport'
+export type { HerOSViewportProps } from './HerOSViewport'
