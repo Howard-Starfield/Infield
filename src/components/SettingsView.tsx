@@ -501,8 +501,9 @@ export function SettingsView() {
                     })}
                   </div>
                   <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginTop: '12px', marginBottom: 0 }}>
-                    Adjusts every pixel including ported components AND the window itself,
-                    so content density stays constant. Cmd/Ctrl + = / - / 0 to nudge or reset.
+                    Below 100%: text shrinks, window stays — more content fits. Above 100%:
+                    text grows, window grows proportionally to prevent clipping.
+                    Cmd/Ctrl + = / - / 0 to nudge or reset.
                   </p>
                 </div>
 

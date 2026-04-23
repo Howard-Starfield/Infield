@@ -106,21 +106,32 @@ function applyUiScale(scale: number) {
   void resizeWindowToScale(clamped)
 }
 
-/** Resize the Tauri window so its dimensions match BASE_WINDOW × scale,
- *  clamped against the user's actual monitor (95% of monitor logical
- *  size as a max so the window never overflows the screen). Called from
- *  applyUiScale on every scale change.
+/** Resize the Tauri window ASYMMETRICALLY with UI scale per user
+ *  browser-zoom semantic:
  *
- *  NOTE: this clobbers any manual window resize the user did. If that
- *  becomes annoying we can add a "lock window to scale" preference. */
+ *    scale < 1.0 → window does NOT shrink. User gets smaller text +
+ *                   more content visible (standard Ctrl/Cmd + "-").
+ *    scale = 1.0 → window returns to BASE_WINDOW.
+ *    scale > 1.0 → window grows proportionally to prevent content
+ *                   clipping at larger text sizes. Capped at 95% of
+ *                   the user's monitor so chrome never overflows.
+ *
+ *  The goal: scale-down = "more view", scale-up = "same view, bigger
+ *  text." Net effect is true browser zoom behavior plus an auto-grow
+ *  for the zoom-in side so users don't have to manually resize. */
 async function resizeWindowToScale(scale: number) {
   try {
     const { getCurrentWindow, LogicalSize, currentMonitor } =
       await import('@tauri-apps/api/window')
+
+    // Only resize when scale >= 1.0 (or equals 1.0 to reset).
+    // For scale < 1.0 we leave the window alone so the zoom-out
+    // actually buys visible content density.
+    if (scale < 1.0) return
+
     let width = BASE_WINDOW.width * scale
     let height = BASE_WINDOW.height * scale
 
-    // Cap at 95% of the user's monitor so the chrome never overflows.
     const monitor = await currentMonitor()
     if (monitor) {
       const sf = monitor.scaleFactor || 1
