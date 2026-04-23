@@ -1884,8 +1884,7 @@ button.workspace-menu-item:focus-visible {
   animation-delay: 0ms;
 }
 
-/* Legacy infield-blob-cl-{1,2,3} keyframes removed in H1 Task 4.
- * Replaced by copy/'s blob-cl-{1,2,3} keyframes in src/styles/blobs.css.
- * AtmosphericBackground.tsx still references infield-blob-cl-* names —
- * that animation will be silently dropped (no-op) until H2 retires the
- * primitive in favor of HerOSBackground using .blob-cluster-* classes. */
+/* Legacy infield-blob-cl-{1,2,3} keyframes removed in H1 Task 4;
+ * replaced by copy/'s blob-cl-{1,2,3} in src/styles/blobs.css.
+ * AtmosphericBackground.tsx now uses .blob-container + .blob-cluster-*
+ * classes verbatim from copy/ (H2.2). */
