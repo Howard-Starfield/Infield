@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, Info, Star, Search, Download, Mic, FileText, Database, Lock, Settings, Inbox } from 'lucide-react';
+import { LayoutDashboard, Info, Star, Search, Download, Mic, Headphones, FileText, Database, Lock, Settings, Inbox } from 'lucide-react';
 import { useVault } from '../contexts/VaultContext';
 
 interface IconRailProps {
@@ -14,6 +14,7 @@ export function IconRail({ currentPage, onNavigate }: IconRailProps) {
     { id: 'search', icon: Search, title: 'Neural Search' },
     { id: 'import', icon: Download, title: 'Import' },
     { id: 'audio', icon: Mic, title: 'Audio Intelligence' },
+    { id: 'system-audio', icon: Headphones, title: 'System Audio Capture' },
     { id: 'notes', icon: FileText, title: 'Persistent Notes' },
     { id: 'databases', icon: Database, title: 'Databases' },
     { id: 'inbox', icon: Inbox, title: 'Inbox' },
