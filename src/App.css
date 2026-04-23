@@ -346,9 +346,125 @@ html[data-theme-mode="light"] {
     transparent
   );
 
-  /* Apply colors */
-  color: var(--color-text);
-  background-color: var(--color-background);
+  /* ============================================================
+     HerOS OS1 tokens (ported verbatim from copy/src/app.css :root)
+     These declarations run AFTER Handy's legacy --workspace-*
+     tokens above; conflicting names (--primary, --on-surface,
+     --surface-*, --space-*, --text-*, --shadow-*) take the HerOS
+     dark-glass values per CSS later-declaration-wins.
+     ============================================================ */
+
+  /* Surface hierarchy (HerOS Glass Integration) */
+  --surface-dim:               rgba(0, 0, 0, 0.2);
+  --surface:                   transparent;
+  --surface-container-lowest:  rgba(255, 255, 255, 0.02);
+  --surface-container-low:     rgba(255, 255, 255, 0.04);
+  --surface-container:         rgba(255, 255, 255, 0.06);
+  --surface-container-high:    rgba(255, 255, 255, 0.08);
+  --surface-container-highest: rgba(255, 255, 255, 0.12);
+  --surface-bright:            rgba(255, 255, 255, 0.16);
+
+  /* Primary — HerOS Terracotta accent */
+  --primary:               #cc4c2b;
+  --primary-container:     rgba(204, 76, 43, 0.15);
+  --on-primary:            #ffffff;
+  --on-primary-container:  #ffffff;
+
+  /* Text */
+  --on-surface:            #e3e1e9;
+  --on-surface-variant:    #c7c4d7;
+
+  /* Utility */
+  --outline-variant:       #464554;
+  --tertiary:              #ffb783;
+  --tertiary-container:    #d97721;
+  --error:                 #ffb4ab;
+  --error-container:       #93000a;
+  --success:               #10b981;
+  --warning:               #f59e0b;
+
+  /* Elevation tokens */
+  --ghost-border:          1px solid rgba(255, 255, 255, 0.15);
+  --radius-container:      14px;
+  --radius-lg:             24px;
+  --blur-glass:            blur(24px);
+
+  /* HerOS Liquid Glass */
+  --heros-brand:           #cc4c2b;
+  --heros-bg-foundation:   #0a0b0f;
+  --heros-glass-fill:      rgba(255, 255, 255, 0.12);
+  --heros-glass-blur:      32px;
+  --heros-glass-saturate:  220%;
+  --heros-grain-opacity:   1;
+  --heros-selection:       rgba(204, 76, 43, 0.6);
+  --heros-panel-shadow:    0 16px 48px 0 rgba(0, 0, 0, 0.35);
+  --heros-rim-light:       inset 0 1px 0 rgba(255, 255, 255, 0.22);
+
+  /* Standardized hover surfaces */
+  --heros-glass-black:      rgba(10, 11, 15, 0.82);
+  --heros-glass-black-deep: rgba(5, 5, 8, 0.95);
+
+  /* Layout */
+  --space-grid:               5px;
+  --title-bar-height:         48px;
+  --icon-rail-width:          56px;
+  --account-sidebar-width:    240px;
+  --conversation-list-width:  320px;
+  --inspector-panel-width:    260px;
+
+  /* UI scaling — already declared above as @property; reaffirm value */
+  --ui-scale: 1.0;
+
+  /* Typography scale (dynamic) */
+  --text-xs:   calc(11px * var(--ui-scale));
+  --text-sm:   calc(12px * var(--ui-scale));
+  --text-base: calc(14px * var(--ui-scale));
+  --text-lg:   calc(16px * var(--ui-scale));
+  --text-xl:   calc(20px * var(--ui-scale));
+  --text-2xl:  calc(24px * var(--ui-scale));
+
+  /* Spacing scale (dynamic) */
+  --space-1:  calc(4px  * var(--ui-scale));
+  --space-2:  calc(8px  * var(--ui-scale));
+  --space-3:  calc(12px * var(--ui-scale));
+  --space-4:  calc(16px * var(--ui-scale));
+  --space-5:  calc(20px * var(--ui-scale));
+  --space-6:  calc(24px * var(--ui-scale));
+  --space-8:  calc(32px * var(--ui-scale));
+  --space-10: calc(40px * var(--ui-scale));
+  --space-12: calc(48px * var(--ui-scale));
+
+  /* Animation tokens */
+  --duration-fast:    100ms;
+  --duration-normal:  150ms;
+  --duration-slow:    250ms;
+  --duration-slower:  350ms;
+  --ease-default: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-in:      cubic-bezier(0.4, 0, 1, 1);
+  --ease-out:     cubic-bezier(0, 0, 0.2, 1);
+  --ease-spring:  cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* Shadow scale */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
+  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.5);
+
+  /* HerOS Cloud Pearl typography */
+  --heros-text-premium:  #FFFFFF;
+  --heros-text-muted:    rgba(255, 255, 255, 0.88);
+  --heros-text-dim:      rgba(255, 255, 255, 0.55);
+  --heros-text-brand:    #FFD2C7;
+  --heros-text-shadow:   0 2px 10px rgba(0, 0, 0, 0.3);
+
+  /* Base typography (HerOS) — overrides Handy's earlier light-theme settings */
+  font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  font-size: var(--text-base);
+  font-weight: 500;
+  line-height: 1.6;
+  letter-spacing: -0.011em;
+  color: var(--heros-text-premium);
+  color-scheme: dark;
 }
 
 /* Editor surface — always light (paper look regardless of OS theme) */
