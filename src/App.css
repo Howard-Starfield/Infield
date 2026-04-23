@@ -77,8 +77,16 @@ html, body {
   --conversation-list-width: 320px;
   --inspector-panel-width: 260px;
 
-  /* ── UI Scaling (Edge case: 4K/UltraWide support) ── */
-  --ui-scale: 1.0;
+  /* ── UI Scaling (Edge case: 4K/UltraWide support) ──
+   * 0.85 reduces typography + spacing scales by 15% vs copy/'s
+   * default 1.0 (per user request after wholesale-swap text felt
+   * oversized). Affects every token that uses
+   * `calc(N * var(--ui-scale))`: --text-{xs..2xl}, --space-{1..12}.
+   * Inline px in ported components (LoadingScreen wordmark 112px,
+   * etc.) are NOT scaled — they're verbatim from copy/. Adjust
+   * further by editing this value; main.tsx still honors
+   * localStorage 'ui-scale' if user overrides per-session. */
+  --ui-scale: 0.85;
 
   /* ── Typography Scale (Dynamic) ── */
   --text-xs:   calc(11px * var(--ui-scale));

@@ -1000,7 +1000,10 @@ pub fn run(cli_args: CliArgs) {
             let mut win_builder =
                 tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::App("/".into()))
                     .title("Infield")
-                    .inner_size(1680.0, 1000.0)
+                    // 20% larger than the previous 1680x1000 default per
+                    // user request after wholesale-swap. Min stays at
+                    // 1200x720 so users with small monitors aren't locked out.
+                    .inner_size(2016.0, 1200.0)
                     .min_inner_size(1200.0, 720.0)
                     .resizable(true)
                     .maximizable(true)
