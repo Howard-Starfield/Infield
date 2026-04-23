@@ -81,8 +81,18 @@ function clampScale(n: unknown): number {
   return Math.max(0.5, Math.min(1.5, v))
 }
 
+/** Base window dimensions at scale 1.0 — must match the
+ *  inner_size in src-tauri/src/lib.rs WebviewWindowBuilder. Window
+ *  scales proportionally with UI scale so content density stays
+ *  constant (just bigger/smaller of everything). */
+const BASE_WINDOW = { width: 2016, height: 1200 }
+/** Floor — never shrink below something usable even if user picks
+ *  a tiny scale on a small base. */
+const MIN_WINDOW = { width: 900, height: 540 }
+
 /** Apply scale to both CSS custom properties (--app-zoom +
- *  --ui-scale) and persist to localStorage. Single source of write. */
+ *  --ui-scale) AND resize the OS window proportionally. Single
+ *  source of write for everything scale-related. */
 function applyUiScale(scale: number) {
   const clamped = clampScale(scale)
   const root = document.documentElement
@@ -92,6 +102,42 @@ function applyUiScale(scale: number) {
     localStorage.setItem('ui-scale', String(clamped))
   } catch {
     /* private browsing / quota — silent */
+  }
+  void resizeWindowToScale(clamped)
+}
+
+/** Resize the Tauri window so its dimensions match BASE_WINDOW × scale,
+ *  clamped against the user's actual monitor (95% of monitor logical
+ *  size as a max so the window never overflows the screen). Called from
+ *  applyUiScale on every scale change.
+ *
+ *  NOTE: this clobbers any manual window resize the user did. If that
+ *  becomes annoying we can add a "lock window to scale" preference. */
+async function resizeWindowToScale(scale: number) {
+  try {
+    const { getCurrentWindow, LogicalSize, currentMonitor } =
+      await import('@tauri-apps/api/window')
+    let width = BASE_WINDOW.width * scale
+    let height = BASE_WINDOW.height * scale
+
+    // Cap at 95% of the user's monitor so the chrome never overflows.
+    const monitor = await currentMonitor()
+    if (monitor) {
+      const sf = monitor.scaleFactor || 1
+      const monitorLogicalW = monitor.size.width / sf
+      const monitorLogicalH = monitor.size.height / sf
+      width = Math.min(width, monitorLogicalW * 0.95)
+      height = Math.min(height, monitorLogicalH * 0.95)
+    }
+
+    width = Math.max(width, MIN_WINDOW.width)
+    height = Math.max(height, MIN_WINDOW.height)
+
+    await getCurrentWindow().setSize(new LogicalSize(width, height))
+  } catch (e) {
+    // Tauri API unavailable (e.g., vite preview) — silent fail; CSS
+    // zoom still works.
+    console.warn('[VaultContext] window resize for UI scale failed:', e)
   }
 }
 
