@@ -310,6 +310,37 @@ once W2 is verified in production use and any pitfalls surface.
 - [ ] **Split-pane resize** in NotesView (left/editor/right column
   widths) — W2 ships static widths; add `react-resizable-panels`
   (already a dep) if manual resize becomes a friction point.
+- [ ] **Rule 12 token discipline sweep** across the new W2 surfaces
+  (`src/styles/notes.css` + `src/editor/herosTheme.ts`). Final code
+  review flagged ~20 raw literals (`rgba(255,255,255,N)`, `#fff`,
+  `6px`, `999px`, `260px`, `300px`, `120ms`, `500`, two inline Inter
+  font stacks) that should map to tokens like `--text-surface-faint`
+  / `--text-surface-subtle` / `--radius-sm` / `--transition-fast` /
+  `--font-body`. Either add those tokens to `src/App.css :root` +
+  migrate, OR widen Rule 12's verbatim-port carve-out in CLAUDE.md.
+  Pick a direction before W3 introduces another concern file that
+  cribs the drift.
+- [ ] **Delete / implement `.tree-row__rename` CSS** in
+  `src/styles/notes.css`. W2 ships the class but the Tree component
+  doesn't yet wire an inline-rename input. Either land the rename
+  flow (`F2` / Enter-while-selected) or strip the dead CSS.
+- [ ] **`BacklinksPane` should refresh after autosave** (not only
+  on `activeNodeId` change) so a newly-inserted wikilink shows up
+  in the pane without a navigation round-trip.
+- [ ] **`refreshToken` in Tree** currently reloads roots only — make
+  it accept an optional `parentId` so `handleCreateChild` surfaces
+  the new child without requiring a collapse+expand of the parent.
+- [ ] **Rule 13a cloud-sync `+3s` mtime buffer** — Rust currently uses
+  `+1s` unconditionally at `workspace_manager.rs:1665`. Not a W2
+  regression, but W2 is the phase that makes the conflict banner
+  user-visible, so iCloud / OneDrive users will see more false
+  positives than necessary. Add the `+3s` widen when the vault root
+  matches a cloud-sync path (or a `user_preferences.vault.mtime_grace_ms`
+  override).
+- [ ] **Cmd+N scoping** decision: either make Cmd+N create-and-navigate
+  from any page (consistent with Cmd+Shift+J), or document in CLAUDE.md
+  Keyboard Contracts that Cmd+N is notes-only. Today it's silently
+  a no-op on other pages.
 
 ### W3 — Hybrid search
 
