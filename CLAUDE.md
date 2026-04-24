@@ -515,7 +515,10 @@ Do not regress without explicit sign-off.
 | `Cmd/Ctrl+K` | Quick open / spotlight |
 | `Cmd+Shift+J` | Open today's daily note |
 | `Cmd+N` | New root-level document |
-| `Cmd/Ctrl+[` | Go back (active page history) — `Cmd+W` is macOS window-close, do not rebind |
+| `Cmd/Ctrl+T` | New tab with a fresh document (Notes only) |
+| `Cmd/Ctrl+W` | Close active tab (Notes only) — on last tab, shows empty state; does NOT close the window. macOS native menu may still intercept first to close window; W2.5 accepts this collision |
+| `Cmd/Ctrl+1..9` | Switch to tab at that 1-based index (Notes only; clamps to last tab) |
+| `Cmd/Ctrl+[` | Go back (active page history) |
 | `Cmd/Ctrl+S` | Immediate save |
 | `Cmd/Ctrl+L` | Lock app (HerOS lock overlay) |
 | `Cmd/Ctrl+=` / `-` / `0` | UI scale up / down / reset |
