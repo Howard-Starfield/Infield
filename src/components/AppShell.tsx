@@ -1,4 +1,6 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { toast } from 'sonner';
+import { commands } from '../bindings';
 import { TitleBar } from './TitleBar';
 import { IconRail } from './IconRail';
 import { InboxView } from './InboxView';
@@ -29,6 +31,49 @@ interface AppShellProps {
 export default function AppShell({ currentPage, onNavigate }: AppShellProps) {
   const { vaultData } = useVault();
   const { isLayoutMode } = useLayout();
+
+  useEffect(() => {
+    const onKey = async (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey)) return
+      // Cmd+N → new root doc (only on notes page)
+      if (e.key.toLowerCase() === 'n' && !e.shiftKey && currentPage === 'notes') {
+        e.preventDefault()
+        try {
+          const res = await commands.createNode(null, 'document', 'Untitled')
+          if (res.status === 'ok') {
+            window.dispatchEvent(new CustomEvent('notes:open', { detail: res.data.id }))
+          } else {
+            toast.error('Could not create document', { description: res.error })
+          }
+        } catch (err) {
+          toast.error('Could not create document', {
+            description: err instanceof Error ? err.message : String(err),
+          })
+        }
+      }
+      // Cmd+Shift+J → today's daily note
+      if (e.key.toLowerCase() === 'j' && e.shiftKey) {
+        e.preventDefault()
+        const iso = new Date().toISOString().slice(0, 10)
+        try {
+          const res = await commands.getOrCreateDailyNote(iso)
+          if (res.status === 'ok') {
+            onNavigate('notes')
+            window.dispatchEvent(new CustomEvent('notes:open', { detail: res.data.id }))
+          } else {
+            toast.error("Couldn't open today's daily note", { description: res.error })
+          }
+        } catch (err) {
+          toast.error("Couldn't open today's daily note", {
+            description: err instanceof Error ? err.message : String(err),
+          })
+        }
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [currentPage, onNavigate])
+
   const workspaceLabel = vaultData?.workspaceLabel || 'Workspace';
   const displayPath = `${workspaceLabel} / ${currentPage === 'dashboard' ? 'Home' : currentPage.charAt(0).toUpperCase() + currentPage.slice(1)}`;
 
