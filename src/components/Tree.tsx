@@ -1,8 +1,23 @@
-import { useCallback, useEffect, useMemo, useReducer } from 'react'
+import { useCallback, useEffect, useMemo, useReducer, useState } from 'react'
 import { HerOSInput } from './HerOS'
 import { FileText, FolderPlus, Plus, Search, ChevronRight } from 'lucide-react'
 import { commands, type WorkspaceNode } from '../bindings'
 import { toast } from 'sonner'
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 
 interface TreeProps {
   activeNodeId: string | null
@@ -149,6 +164,58 @@ export function flattenVisible(state: TreeState): FlatRow[] {
   return rows
 }
 
+function SortableRow(props: {
+  row: FlatRow
+  node: WorkspaceNode
+  isActive: boolean
+  isExpanded: boolean
+  onToggle: (id: string) => void
+  onSelect: (id: string) => void
+  onCreateChild: (id: string) => void
+}) {
+  const { row, node, isActive, isExpanded, onToggle, onSelect, onCreateChild } = props
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: row.id })
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    paddingLeft: `calc(var(--space-2) + ${row.depth} * var(--space-4))`,
+    opacity: isDragging ? 0.4 : 1,
+  }
+  return (
+    <div
+      ref={setNodeRef}
+      className={`tree-row ${isActive ? 'tree-row--active' : ''}`}
+      style={style}
+      {...attributes}
+      {...listeners}
+      onClick={() => onSelect(row.id)}
+      onContextMenu={(e) => {
+        e.preventDefault()
+        if (window.confirm(`Create new child document under "${node.name}"?`)) {
+          onCreateChild(row.id)
+        }
+      }}
+    >
+      {row.hasChildren ? (
+        <span
+          className={`tree-row__caret ${isExpanded ? 'tree-row__caret--open' : ''}`}
+          onClick={(e) => {
+            e.stopPropagation()
+            onToggle(row.id)
+          }}
+        >
+          <ChevronRight size={12} />
+        </span>
+      ) : (
+        <span className="tree-row__caret" />
+      )}
+      <span className="tree-row__icon">{node.icon || <FileText size={12} />}</span>
+      <span className="tree-row__label">{node.name}</span>
+    </div>
+  )
+}
+
 export function Tree({
   activeNodeId,
   onSelect,
@@ -218,6 +285,74 @@ export function Tree({
     },
     [],
   )
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+  )
+  const [dragId, setDragId] = useState<string | null>(null)
+
+  const handleDragStart = (e: DragStartEvent) => {
+    setDragId(String(e.active.id))
+  }
+
+  const handleDragEnd = async (e: DragEndEvent) => {
+    setDragId(null)
+    if (!e.over || e.active.id === e.over.id) return
+    const activeId = String(e.active.id)
+    const overId = String(e.over.id)
+    const visibleRows = flattenVisible(state)
+    const activeIdx = visibleRows.findIndex((r) => r.id === activeId)
+    const overIdx = visibleRows.findIndex((r) => r.id === overId)
+    if (activeIdx === -1 || overIdx === -1) return
+
+    // Target parent: same parent as the over-row (sibling reorder only
+    // in W2 — re-parenting via drag deferred to W2.5).
+    const overNode = state.nodes.get(overId)
+    if (!overNode) return
+    const targetParent = overNode.parent_id
+
+    // Compute new position as midpoint of over-row and its neighbour
+    // on the appropriate side of the drop.
+    const siblings = (state.childrenByParent.get(targetParent ?? ROOT_KEY) ?? [])
+      .map((id) => state.nodes.get(id))
+      .filter((x): x is WorkspaceNode => !!x)
+    const overSibIdx = siblings.findIndex((s) => s.id === overId)
+    const droppingBefore = activeIdx > overIdx
+    let newPos: number
+    if (droppingBefore) {
+      const prev = siblings[overSibIdx - 1]
+      newPos = prev ? (prev.position + overNode.position) / 2 : overNode.position - 1
+    } else {
+      const next = siblings[overSibIdx + 1]
+      newPos = next ? (overNode.position + next.position) / 2 : overNode.position + 1
+    }
+
+    try {
+      const res = await commands.moveNode(activeId, targetParent, newPos)
+      if (res.status !== 'ok') {
+        toast.error('Move failed', { description: res.error })
+        return
+      }
+      dispatch({ type: 'UPSERT_NODE', node: res.data })
+      // Refresh parent's children list so order persists.
+      if (targetParent) {
+        const refreshRes = await commands.getNodeChildren(targetParent)
+        if (refreshRes.status === 'ok') {
+          dispatch({
+            type: 'LOAD_CHILDREN',
+            parentId: targetParent,
+            nodes: refreshRes.data,
+          })
+        }
+      } else {
+        void loadRoots()
+      }
+    } catch (err) {
+      toast.error('Move failed', {
+        description: err instanceof Error ? err.message : String(err),
+      })
+    }
+  }
 
   const rows = useMemo(() => flattenVisible(state), [state])
 
@@ -299,45 +434,47 @@ export function Tree({
             No notes yet. Click &quot;Doc&quot; to create one.
           </div>
         )}
-        {rows.map((row) => {
-          const n = state.nodes.get(row.id)
-          if (!n) return null
-          const isActive = row.id === activeNodeId
-          const isExpanded = state.expanded.has(row.id)
-          return (
-            <div
-              key={row.id}
-              className={`tree-row ${isActive ? 'tree-row--active' : ''}`}
-              style={{
-                paddingLeft: `calc(var(--space-2) + ${row.depth} * var(--space-4))`,
-              }}
-              onClick={() => onSelect(row.id)}
-              onContextMenu={(e) => {
-                e.preventDefault()
-                // Minimal W2 context menu: "New child document"
-                if (window.confirm(`Create new child document under "${n.name}"?`)) {
-                  void onCreateChild(row.id)
-                }
-              }}
-            >
-              {row.hasChildren ? (
-                <span
-                  className={`tree-row__caret ${isExpanded ? 'tree-row__caret--open' : ''}`}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    void handleToggle(row.id)
-                  }}
-                >
-                  <ChevronRight size={12} />
-                </span>
-              ) : (
-                <span className="tree-row__caret" />
-              )}
-              <span className="tree-row__icon">{n.icon || <FileText size={12} />}</span>
-              <span className="tree-row__label">{n.name}</span>
-            </div>
-          )
-        })}
+        <DndContext
+          sensors={sensors}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={rows.map((r) => r.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            {rows.map((row) => {
+              const node = state.nodes.get(row.id)
+              if (!node) return null
+              return (
+                <SortableRow
+                  key={row.id}
+                  row={row}
+                  node={node}
+                  isActive={row.id === activeNodeId}
+                  isExpanded={state.expanded.has(row.id)}
+                  onToggle={(id) => void handleToggle(id)}
+                  onSelect={onSelect}
+                  onCreateChild={(id) => void onCreateChild(id)}
+                />
+              )
+            })}
+          </SortableContext>
+          <DragOverlay>
+            {dragId &&
+              (() => {
+                const n = state.nodes.get(dragId)
+                return n ? (
+                  <div className="tree-row tree-row--active">
+                    <span className="tree-row__icon">
+                      {n.icon || <FileText size={12} />}
+                    </span>
+                    <span className="tree-row__label">{n.name}</span>
+                  </div>
+                ) : null
+              })()}
+          </DragOverlay>
+        </DndContext>
       </div>
     </section>
   )
