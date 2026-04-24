@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useReducer, useState } from 'react'
 import { HerOSInput } from './HerOS'
+import { HerOSMenu } from './HerOSMenu'
 import { FileText, FolderPlus, Plus, Search, ChevronRight } from 'lucide-react'
 import { commands, type WorkspaceNode } from '../bindings'
 import { toast } from 'sonner'
@@ -25,6 +26,7 @@ interface TreeProps {
   onCreateRoot: () => Promise<void>
   onCreateFolder: () => Promise<void>
   onCreateChild: (parentId: string) => Promise<void>
+  onOpenInNewTab?: (nodeId: string) => void
   refreshToken?: number   // bump to force a re-fetch
 }
 
@@ -171,9 +173,9 @@ function SortableRow(props: {
   isExpanded: boolean
   onToggle: (id: string) => void
   onSelect: (id: string) => void
-  onCreateChild: (id: string) => void
+  onOpenContextMenu: (anchor: { x: number; y: number }, targetId: string) => void
 }) {
-  const { row, node, isActive, isExpanded, onToggle, onSelect, onCreateChild } = props
+  const { row, node, isActive, isExpanded, onToggle, onSelect, onOpenContextMenu } = props
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: row.id })
   const style: React.CSSProperties = {
@@ -192,9 +194,7 @@ function SortableRow(props: {
       onClick={() => onSelect(row.id)}
       onContextMenu={(e) => {
         e.preventDefault()
-        if (window.confirm(`Create new child document under "${node.name}"?`)) {
-          onCreateChild(row.id)
-        }
+        onOpenContextMenu({ x: e.clientX, y: e.clientY }, row.id)
       }}
     >
       {row.hasChildren ? (
@@ -222,9 +222,16 @@ export function Tree({
   onCreateRoot,
   onCreateFolder,
   onCreateChild,
+  onOpenInNewTab,
   refreshToken,
 }: TreeProps) {
   const [state, dispatch] = useReducer(reducer, initialState)
+  const [menu, setMenu] = useState<{ anchor: { x: number; y: number }; targetId: string } | null>(null)
+
+  const openContextMenu = useCallback(
+    (anchor: { x: number; y: number }, targetId: string) => setMenu({ anchor, targetId }),
+    [],
+  )
 
   const loadRoots = useCallback(async () => {
     try {
@@ -455,7 +462,7 @@ export function Tree({
                   isExpanded={state.expanded.has(row.id)}
                   onToggle={(id) => void handleToggle(id)}
                   onSelect={onSelect}
-                  onCreateChild={(id) => void onCreateChild(id)}
+                  onOpenContextMenu={openContextMenu}
                 />
               )
             })}
@@ -476,6 +483,41 @@ export function Tree({
           </DragOverlay>
         </DndContext>
       </div>
+
+      {menu && (() => {
+        const target = state.nodes.get(menu.targetId)
+        if (!target) return null
+        return (
+          <HerOSMenu
+            anchor={menu.anchor}
+            onDismiss={() => setMenu(null)}
+            items={[
+              {
+                id: 'open',
+                label: 'Open',
+                onSelect: () => onSelect(menu.targetId),
+              },
+              {
+                id: 'open-new-tab',
+                label: 'Open in new tab',
+                disabled: !onOpenInNewTab,
+                onSelect: () => onOpenInNewTab?.(menu.targetId),
+              },
+              {
+                id: 'new-child',
+                label: 'New child document',
+                onSelect: () => void onCreateChild(menu.targetId),
+              },
+              {
+                id: 'delete',
+                label: 'Delete',
+                danger: true,
+                onSelect: () => void handleDelete(menu.targetId),
+              },
+            ]}
+          />
+        )
+      })()}
     </section>
   )
 }
