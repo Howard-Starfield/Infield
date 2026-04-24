@@ -13,15 +13,16 @@ interface Line {
   text: string
 }
 
-interface BodyUpdatedPayload {
-  node_id: string
-  body: string
-  updated_at: number
+interface SystemAudioParagraph {
+  timestamp_secs: number
+  text: string
 }
 
-interface TranscriptionSyncedPayload {
-  node_id: string
-  source: string
+interface SystemAudioChunkPayload {
+  paragraphs: SystemAudioParagraph[]
+  rendered_text: string
+  accumulated_text: string
+  note_id: string
 }
 
 const formatTime = (s: number) => {
@@ -30,26 +31,22 @@ const formatTime = (s: number) => {
   return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
 }
 
-/**
- * Mirror of AudioView's transcript extractor — system_audio uses the same
- * `::voice_memo_recording{...}` directive when appending to a workspace doc
- * (per the existing transcription_workspace pipeline; the directive name is
- * shared because the storage shape is identical, only the source tag differs).
- */
-function extractLatestTranscript(body: string): string {
-  const marker = '::voice_memo_recording'
-  const idx = body.lastIndexOf(marker)
-  if (idx === -1) return ''
-  const closeIdx = body.indexOf('}', idx)
-  if (closeIdx === -1) return ''
-  return body.slice(closeIdx + 1).trimStart()
+function paragraphsToLines(
+  note_id: string,
+  paragraphs: SystemAudioParagraph[],
+): Line[] {
+  return paragraphs.map((p, idx) => ({
+    id: `${note_id}-${idx}`,
+    ts: formatTime(p.timestamp_secs),
+    speaker: 'System Audio',
+    text: p.text,
+  }))
 }
 
 export function SystemAudioView() {
   const [isCapturing, setIsCapturing] = useState(false)
   const [timer, setTimer] = useState(0)
   const [transcript, setTranscript] = useState<Line[]>([])
-  const [activeNodeId, setActiveNodeId] = useState<string | null>(null)
   const [renderDevice, setRenderDevice] = useState<string>('—')
   const scrollRef = useRef<HTMLDivElement>(null)
   const startRef = useRef<number | null>(null)
@@ -102,59 +99,34 @@ export function SystemAudioView() {
   }, [])
 
   useEffect(() => {
-    const unlisteners: UnlistenFn[] = []
+    let unlisten: UnlistenFn | undefined
+    let cancelled = false
 
     const setup = async () => {
-      unlisteners.push(
-        await listen<BodyUpdatedPayload>('workspace-node-body-updated', (event) => {
-          const { node_id, body } = event.payload
-          // Only render when we know this node is our system-audio session.
-          if (!activeNodeId || node_id !== activeNodeId) return
-          const text = extractLatestTranscript(body)
-          if (!text) return
-          setTranscript((prev) => {
-            const next = prev.filter((l) => l.id !== `live-${node_id}`)
-            next.push({
-              id: `live-${node_id}`,
-              ts: startRef.current
-                ? formatTime(Math.floor((Date.now() - startRef.current) / 1000))
-                : '00:00',
-              speaker: 'System Audio',
-              text,
-            })
-            return next
-          })
-        }),
-      )
-
-      unlisteners.push(
-        await listen<TranscriptionSyncedPayload>('workspace-transcription-synced', (event) => {
-          // This view only cares about the system_audio source.
-          if (event.payload.source !== 'system_audio') return
-          setActiveNodeId(event.payload.node_id)
-          setTranscript((prev) =>
-            prev.map((l) =>
-              l.id === `live-${event.payload.node_id}`
-                ? { ...l, id: `final-${Date.now()}` }
-                : l,
-            ),
-          )
-        }),
-      )
+      const u = await listen<SystemAudioChunkPayload>('system-audio-chunk', (event) => {
+        const { paragraphs, note_id } = event.payload
+        setTranscript(paragraphsToLines(note_id, paragraphs))
+      })
+      if (cancelled) {
+        u()
+        return
+      }
+      unlisten = u
     }
 
     void setup()
     return () => {
-      for (const u of unlisteners) u()
+      cancelled = true
+      unlisten?.()
     }
-  }, [activeNodeId])
+  }, [])
 
   const startCapture = async () => {
-    // Clear previous session's transcript so each new capture starts fresh.
-    // Stop deliberately leaves the transcript on screen for review (per UX
-    // ask): clearing happens here, on Start, only.
+    // Wipe the on-screen transcript before awaiting the backend so the prior
+    // session's text doesn't block the view while capture is initialising.
+    // Stop deliberately leaves the transcript visible for review — clearing
+    // happens here (Start) and on Trash only.
     setTranscript([])
-    setActiveNodeId(null)
 
     const result = await commands.startSystemAudioCapture()
     if (result.status !== 'ok') {
@@ -177,7 +149,6 @@ export function SystemAudioView() {
 
   const clearTranscript = () => {
     setTranscript([])
-    setActiveNodeId(null)
   }
 
   return (
