@@ -157,6 +157,7 @@ html, body {
   --heros-text-premium: #FFFFFF;
   --heros-text-muted:    rgba(255, 255, 255, 0.88); /* Slightly brighter */
   --heros-text-dim:      rgba(255, 255, 255, 0.55); /* Increased contrast */
+  --heros-text-faint:    rgba(255, 255, 255, 0.35); /* Ambient — carets, eyebrows, empty-states */
   --heros-text-brand:    #FFD2C7;
   --heros-text-shadow:   0 2px 10px rgba(0, 0, 0, 0.3);
 
