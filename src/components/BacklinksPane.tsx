@@ -61,13 +61,14 @@ export function BacklinksPane({ activeNodeId, onSelect }: BacklinksPaneProps) {
         </div>
       )}
       {links.map((l) => (
-        <div
+        <button
           key={l.id}
+          type="button"
           className="notes-backlinks__item"
           onClick={() => onSelect(l.id)}
         >
           {l.icon} {l.name}
-        </div>
+        </button>
       ))}
     </section>
   )
