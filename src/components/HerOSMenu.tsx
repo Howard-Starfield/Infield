@@ -32,28 +32,38 @@ export function HerOSMenu({ anchor, items, onDismiss }: HerOSMenuProps) {
     setPos({ left: Math.max(8, left), top: Math.max(8, top) })
   }, [anchor.x, anchor.y, items.length])
 
-  // Outside-click + Escape dismiss.
+  // Stash latest props in refs so the listener effect can bind once on mount
+  // without rebinding on every parent render (new `items` array identity would
+  // otherwise tear down + re-add document listeners on each render).
+  const itemsRef = useRef(items)
+  const activeIdxRef = useRef(activeIdx)
+  const onDismissRef = useRef(onDismiss)
+  itemsRef.current = items
+  activeIdxRef.current = activeIdx
+  onDismissRef.current = onDismiss
+
+  // Outside-click + Escape dismiss. Bind once; read latest props from refs.
   useEffect(() => {
     const onPointer = (e: PointerEvent) => {
       if (!ref.current) return
-      if (!ref.current.contains(e.target as Node)) onDismiss()
+      if (!ref.current.contains(e.target as Node)) onDismissRef.current()
     }
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault()
-        onDismiss()
+        onDismissRef.current()
       } else if (e.key === 'ArrowDown') {
         e.preventDefault()
-        setActiveIdx(i => Math.min(i + 1, items.length - 1))
+        setActiveIdx(i => Math.min(i + 1, itemsRef.current.length - 1))
       } else if (e.key === 'ArrowUp') {
         e.preventDefault()
         setActiveIdx(i => Math.max(i - 1, 0))
       } else if (e.key === 'Enter') {
         e.preventDefault()
-        const item = items[activeIdx]
+        const item = itemsRef.current[activeIdxRef.current]
         if (item && !item.disabled) {
           item.onSelect()
-          onDismiss()
+          onDismissRef.current()
         }
       }
     }
@@ -63,7 +73,7 @@ export function HerOSMenu({ anchor, items, onDismiss }: HerOSMenuProps) {
       document.removeEventListener('pointerdown', onPointer)
       document.removeEventListener('keydown', onKey)
     }
-  }, [items, activeIdx, onDismiss])
+  }, [])
 
   return createPortal(
     <div
