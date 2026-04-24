@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { toast } from 'sonner'
 import { commands, type WorkspaceNode } from '../bindings'
 
 interface BacklinksPaneProps {
@@ -17,12 +18,26 @@ export function BacklinksPane({ activeNodeId, onSelect }: BacklinksPaneProps) {
     }
     let cancelled = false
     setLoading(true)
-    void commands.getBacklinks(activeNodeId).then((res) => {
-      if (cancelled) return
-      if (res.status === 'ok') setLinks(res.data)
-      else setLinks([])
-      setLoading(false)
-    })
+    commands
+      .getBacklinks(activeNodeId)
+      .then((res) => {
+        if (cancelled) return
+        if (res.status === 'ok') {
+          setLinks(res.data)
+        } else {
+          setLinks([])
+          toast.error("Couldn't load backlinks", { description: res.error })
+        }
+        setLoading(false)
+      })
+      .catch((e) => {
+        if (cancelled) return
+        setLinks([])
+        setLoading(false)
+        toast.error("Couldn't load backlinks", {
+          description: e instanceof Error ? e.message : String(e),
+        })
+      })
     return () => {
       cancelled = true
     }
