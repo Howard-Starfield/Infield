@@ -6,7 +6,7 @@
 > blueprint, and open decisions.
 >
 > **Last updated:** 2026-04-23 (W0 + W1 + Audio polish landed)
-> **Current phase:** Backend Wiring Phase (W) — W0/W1 ✅, **W2 next**
+> **Current phase:** Backend Wiring Phase (W) — W0/W1/W2 ✅, **W3 next**
 > **Rust backend (Phase A):** ✅ complete 2026-04-22
 > **Frontend port (H1-H6):** ✅ superseded by wholesale swap on
 >   2026-04-23 (commit `49f0386`). Frontend is now 100% verbatim
@@ -90,7 +90,106 @@ any command. Wire:
 - System audio capture → wire into the same pipeline behind a
   toggle (backend already supports via `system_audio::*`)
 
-### W2 — Workspace tree + CodeMirror 6 editor 🔜 NEXT
+### W2 — Workspace tree + CodeMirror 6 editor ✅ SHIPPED 2026-04-24
+
+Commits (18): `1460194` (CM6 deps), `276d672` (pathsExist util),
+`60fa8d1` (HerOS theme), `cc7e7c8` (slash split), `bb43964` (wikilink
+source), `aa2bb6e` (voice-memo pill), `aee64c8` (node:// mark),
+`3cdee8a` (autosave), `35ae127` (conflict state machine), `6bb4043`
+(MarkdownEditor integration), `e924917` (notes.css), `3a924d5` (Tree),
+`5c96a63` (Tree tests), `073a644` (Tree drag-drop), `97438e2`
+(BacklinksPane), `fc901ac` (NotesView rewrite), `a0b0699`
+(AppShell Cmd+N / Cmd+Shift+J), `a0e97a3` (Tier 2 slash commands).
+
+**What landed:**
+- **Tree** (`src/components/Tree.tsx`): flat-map state reducer,
+  case-insensitive substring filter, drag-drop reorder via
+  `@dnd-kit/sortable` with midpoint position math, keyboard nav
+  (↑↓←→ Enter Delete), lazy children load on caret expand, cycle
+  guards in `flattenVisible`, `try/catch` on every `commands.*` call.
+- **MarkdownEditor** (`src/components/MarkdownEditor.tsx`): CM6
+  uncontrolled editor wrapping `@codemirror/lang-markdown` + GFM +
+  slash-completion + wikilink-completion + voice-memo Lezer widget +
+  `node://` mark decoration + 300ms debounced autosave. Inline
+  conflict banner (Reload / Keep mine / Open diff disabled) driven
+  by pure `conflictReducer` consuming `VAULT_CONFLICT:{json}` error
+  prefix already emitted by Rust. Save-footer states idle / saving /
+  saved h:MM / error-click-to-retry.
+- **BacklinksPane** (`src/components/BacklinksPane.tsx`): renders
+  `get_backlinks(activeNodeId)` with empty / loading / empty-results
+  states.
+- **NotesView** rewritten as three-column `.notes-split` layout; old
+  eBay side-notes surface retired.
+- **AppShell** shortcuts: Cmd+N (create new doc on notes page),
+  Cmd+Shift+J (today's daily note from anywhere → navigates + opens).
+- **Tier 2 slash commands** shipped: `/link` (triggers `[[`
+  autocomplete), `/today` (inserts optimistic placeholder, swaps in
+  real wikilink to today's daily note). `/voice`, `/database`,
+  `/embed` deferred to W2.5 per PLAN.md.
+
+**Spec:** [docs/superpowers/specs/2026-04-23-w2-notes-wiring-design.md](docs/superpowers/specs/2026-04-23-w2-notes-wiring-design.md).
+**Plan:** [docs/superpowers/plans/2026-04-23-w2-notes-wiring.md](docs/superpowers/plans/2026-04-23-w2-notes-wiring.md).
+
+**Test / build green on SHIPPED:**
+- `bun run build` — passes, 2548 modules, ~7s.
+- `bunx vitest run` — 50/50 across 9 files (up from 29 baseline;
+  W2 added 21 new tests covering slash / wikilink / voice-memo /
+  node-link / autosave / conflict-reducer / tree-flatten).
+- `cargo test --lib` — 140 passed / 2 failed in
+  `portable::tests::test_magic_string_with_whitespace_enables_portable`
+  and `portable::tests::test_valid_magic_string_enables_portable`.
+  These failures PREDATE W2 (`portable.rs` hasn't changed since the
+  initial commit — `git log -1 src-tauri/src/portable.rs` confirms).
+  Not in W2 scope. Worth a separate fix-up task.
+
+**Manual E2E scenarios (ran OFFLINE — browser automation tools were
+unavailable in the shipping session; walk through these via
+`bun run tauri dev` before user testing):**
+
+1. Navigate to Notes tab — Tree renders (empty state or existing
+   nodes); empty right pane shows "Select a note or create one
+   with ⌘N".
+2. Press `Cmd+N` — a new "Untitled" doc appears in the tree, opens
+   in the editor. Type a word.
+3. Wait ~400ms — footer shows "Saving…" then "Saved h:MM".
+4. Switch to a different tree row, then back — typed word persists
+   from SQLite + vault .md.
+5. Type `/table` on an empty line → completion menu opens → select
+   "Table" → 2×2 markdown table inserts with caret in first cell.
+6. Type `[[` on a new line → wikilink menu shows matching docs →
+   select one → `[Name](node://<uuid>)` inserts → click the
+   rendered link → tree active node switches to target doc.
+7. Press `Cmd+Shift+J` — today's daily note opens (creates if
+   missing) and Notes tab becomes active.
+8. Select a tree row, press Delete → "Moved to trash" toast;
+   row disappears.
+9. Drag a tree row into a different sibling position → order
+   updates; reload app to verify `move_node` persisted.
+10. External-edit conflict: with app open, edit the underlying
+    `.md` file in a plain-text editor and save. Return to Handy,
+    click the doc in the tree (triggers `get_node` mtime sync),
+    then type → inline conflict banner appears. "Reload" loads
+    disk contents; "Keep mine" overwrites.
+11. Voice-memo pill: create (via AudioView) or find a doc with a
+    `::voice_memo_recording{path="…"}` directive; open it in
+    Notes. Pill renders inline; clicking plays the audio. Delete
+    the audio file externally, re-open → pill shows unavailable
+    state immediately (pre-seeded via `pathsExist`).
+
+**W2.5 follow-ups flagged during review (track in the W2.5 block):**
+- Placeholder race guard in `/today` (decoration anchor rather
+  than `doc.indexOf(placeholder)`).
+- Local-date helper shared between `Cmd+Shift+J` and `/today` to
+  avoid UTC-vs-local off-by-one day at timezone boundaries.
+- Replace `window.confirm` tree context menu with a real
+  `<HerOSMenu>` popover.
+- Open-diff view in conflict banner.
+- `.cm-activeLine` + focus-visible rings for accessibility.
+- `@tanstack/react-virtual` on tree once 10k-node perf matters.
+
+---
+
+### W2 — original brief (kept for context)
 
 The ported `NotesView` is an eBay note-list shell. Handy needs a
 **tree + editor split pane** inside `NotesView`'s glass frame.
@@ -999,10 +1098,10 @@ preserved from current pipeline).
 
 | Field | Value |
 |---|---|
-| Current phase | W2 — Workspace tree + CodeMirror 6 editor (kickoff next) |
-| In flight | W0 + W1 + Audio polish all merged to local main on 2026-04-23. Howard's two runtime smokes from Phase A still open — non-blocking. |
+| Current phase | W3 — Hybrid search (kickoff next) |
+| In flight | W2 Notes wiring shipped 2026-04-24 (18 commits, 21 new Vitest tests); manual E2E walk-through pending (browser automation unavailable in shipping session). Howard's two runtime smokes from Phase A still open — non-blocking. |
 | Blockers | None. Audio Intelligence + System Audio Capture pages are user-tested and shipping. |
-| Last phase completed | W1 — voice transcribe + per-memo playback + lazy vault reconciliation (2026-04-23). Plus W0 onboarding (2026-04-23) and bonus SystemAudioView page. |
+| Last phase completed | W2 — Notes wiring: tree + CM6 editor + backlinks (2026-04-24). |
 | Reusable from pre-rebuild work | Sovereign Glass DNA port (complete), `AppShell` / `Titlebar` / `IconRail` / `AtmosphericStage` / `LoadingScreen` / `LemniscateOrb`, theme preset v2 schema migration |
 | Review gate passed | 2026-04-22 critical review addressed; see REBUILD_RATIONALE.md §16 |
 
