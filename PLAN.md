@@ -286,10 +286,81 @@ build` all green.
 
 **Spec:** [docs/superpowers/specs/2026-04-23-w2-notes-wiring-design.md](docs/superpowers/specs/2026-04-23-w2-notes-wiring-design.md).
 
-### W2.5 — Editor follow-ups (deferred from W2)
+### W2.5 — Notes polish + tab system ✅ SHIPPED (2026-04-24)
 
-Carved out of W2 to keep the first editor release shippable. Pick up
-once W2 is verified in production use and any pitfalls surface.
+**Spec:** [docs/superpowers/specs/2026-04-24-w2.5-notes-polish-tabs-design.md](docs/superpowers/specs/2026-04-24-w2.5-notes-polish-tabs-design.md).
+**Plan:** [docs/superpowers/plans/2026-04-24-w2.5-notes-polish-tabs.md](docs/superpowers/plans/2026-04-24-w2.5-notes-polish-tabs.md).
+
+**Shipped (20 tasks, commits `f035c2f..d0e2773`):**
+- Token foundation: `--text-3xl`, `--radius-sm`, `--radius-pill`, `--transition-fast`,
+  `--surface-1/2/hover/active`, `--border-subtle`, `--heros-text-faint`.
+- Rule 12 backlog item I1 CLOSED: `notes.css` + `herosTheme.ts` swept; zero raw literals.
+- Typography bump (tree 12→14, tree buttons 11→12, backlinks 13→14).
+- Drag-offset fix on `SortableRow` (transform/transition suppressed while `isDragging`).
+- Tab system: `tabsReducer` (9 actions, 17 tests), `<NotesTabs>` strip, preview/permanent
+  semantics, compound-key remount, per-tab scroll restoration (in-memory only).
+- `nodeLinkClick` carries `{ meta: boolean }` so Cmd-click in editor → new permanent tab.
+- Editor chrome: `<EditorTitleBar>` (emoji picker + editable title, portalled picker with
+  outside-click/Escape dismiss), `<Breadcrumb>` (ancestor walker + middle-collapse,
+  4 tests), `<PropertiesPanel>` (collapsible; icon + tags editable; metadata read-only;
+  portalled picker).
+- CM6 placeholder `'Type / for commands · [[ for links'` via `@codemirror/view`.
+- `<HerOSMenu>` context-menu primitive (replaces `window.confirm` in Tree; portal +
+  keyboard nav + once-bind listeners via refs).
+- Tree right-click → 4-item HerOSMenu (Open / Open in new tab / New child document /
+  Delete) with drag-state guard.
+- Keyboard: Cmd+T (new tab), Cmd+W (close tab, notes-only), Cmd+1..9 (switch tab,
+  notes-only) — see CLAUDE.md Keyboard Contracts.
+
+**Done criteria met:**
+- `bun run build`: green, zero new errors.
+- `bunx vitest run`: **81 tests / 12 files** (50 W2 baseline + 17 tabsReducer + 7
+  ancestors + 4 Breadcrumb + 3 nodeLinkClick).
+- `cargo test --lib`: **140 passed / 2 pre-existing failures** in `portable::tests`
+  (unchanged from W2 baseline; not in W2.5 scope).
+
+**E2E manual walk-through (spec §11.3) — deferred to user:**
+
+The shipping session does not have browser automation tooling for `bun run tauri dev`.
+Users should walk through these 10 scenarios after pulling:
+
+1. **Preview-replace**: create docs A, B, C. Tree-click A → preview tab (italic).
+   Click B → same tab id, label swaps to B (still italic). Type → label loses italic,
+   gains leading dot in brand color. Click C → NEW preview tab (previous now permanent).
+2. **Right-click → Open in new tab**: tree right-click → HerOSMenu opens; "Open in
+   new tab" → permanent tab appended + activated.
+3. **Cmd-click wikilink**: in a doc with `[Target](node://<id>)`, Cmd-click (Ctrl on
+   Windows) → opens target in new permanent tab.
+4. **Plain click wikilink**: same doc, plain-click → replaces current preview (or
+   opens new preview if current is permanent/dirty).
+5. **Cmd+T / Cmd+W / Cmd+1..9**: Cmd+T creates a fresh doc + tab. Cmd+1/3/9 switch
+   to tab N (clamps to last). Cmd+W closes active; on last tab shows empty state
+   (does NOT close window).
+6. **Long titles**: 80-char title shows ellipsis when unfocused; horizontal scroll
+   when focused. Tab label truncates at 180px with native tooltip on hover.
+7. **Breadcrumb middle-collapse**: 8-deep nested chain renders `A › … › G › H`
+   when total > 60 chars. Click `…` expands all.
+8. **Properties panel persistence**: open doc, expand Properties, change icon, add
+   tags ("research", "w2.5"), collapse, close app, reopen. Icon + tags persist.
+   Vault `.md` frontmatter has `tags: [research, w2.5]`.
+9. **Rule 20 typography sanity**: scale 1.0 = Obsidian-sized; 1.5 (`Cmd+=` ×2)
+   scales everything proportionally; 0.75 the opposite.
+10. **Drag offset**: drag a tree row onto another's slot. Source-row ghost stays
+    under cursor (no 4-row offset); DragOverlay follows cursor exactly.
+
+If any scenario fails, see plan §3.19 step 3 for typical regression sites.
+
+**NOT in this pass (remains deferred):**
+- Tab persistence across app restart (in-memory only).
+- Drag-to-reorder tabs.
+- Tab context menu (Close others / Pin / Move to new window).
+- Pinned tabs; split-pane; rich emoji picker beyond 20-emoji curated palette.
+- Breadcrumb sibling dropdown.
+- Wikilink preview tooltip.
+- `notes.css` concern-file split (currently 684 lines, above the 500-line soft
+  ceiling per Rule 18). Split into per-component concern files in a polish phase.
+
+### W2.5 — Remaining open items (post-ship)
 
 - [ ] **`/voice` slash command** (`src/editor/commands/voice.ts`) —
   inserts a `::voice_memo_recording` directive placeholder and starts
@@ -310,16 +381,6 @@ once W2 is verified in production use and any pitfalls surface.
 - [ ] **Split-pane resize** in NotesView (left/editor/right column
   widths) — W2 ships static widths; add `react-resizable-panels`
   (already a dep) if manual resize becomes a friction point.
-- [ ] **Rule 12 token discipline sweep** across the new W2 surfaces
-  (`src/styles/notes.css` + `src/editor/herosTheme.ts`). Final code
-  review flagged ~20 raw literals (`rgba(255,255,255,N)`, `#fff`,
-  `6px`, `999px`, `260px`, `300px`, `120ms`, `500`, two inline Inter
-  font stacks) that should map to tokens like `--text-surface-faint`
-  / `--text-surface-subtle` / `--radius-sm` / `--transition-fast` /
-  `--font-body`. Either add those tokens to `src/App.css :root` +
-  migrate, OR widen Rule 12's verbatim-port carve-out in CLAUDE.md.
-  Pick a direction before W3 introduces another concern file that
-  cribs the drift.
 - [ ] **Delete / implement `.tree-row__rename` CSS** in
   `src/styles/notes.css`. W2 ships the class but the Tree component
   doesn't yet wire an inline-rename input. Either land the rename
@@ -338,9 +399,14 @@ once W2 is verified in production use and any pitfalls surface.
   matches a cloud-sync path (or a `user_preferences.vault.mtime_grace_ms`
   override).
 - [ ] **Cmd+N scoping** decision: either make Cmd+N create-and-navigate
-  from any page (consistent with Cmd+Shift+J), or document in CLAUDE.md
-  Keyboard Contracts that Cmd+N is notes-only. Today it's silently
-  a no-op on other pages.
+  from any page (consistent with Cmd+Shift+J + Cmd+T), or document in
+  CLAUDE.md Keyboard Contracts that Cmd+N is notes-only. Today it's
+  silently a no-op on other pages. Cmd+T partially addresses the
+  "create and navigate" gap but Cmd+N remains unchanged.
+- [ ] **Placeholder race guard in `/today`** (decoration anchor rather
+  than `doc.indexOf(placeholder)`).
+- [ ] **Local-date helper** shared between `Cmd+Shift+J` and `/today`
+  to avoid UTC-vs-local off-by-one day at timezone boundaries.
 
 ### W3 — Hybrid search
 
@@ -1130,9 +1196,9 @@ preserved from current pipeline).
 | Field | Value |
 |---|---|
 | Current phase | W3 — Hybrid search (kickoff next) |
-| In flight | W2 Notes wiring shipped 2026-04-24 (18 commits, 21 new Vitest tests); manual E2E walk-through pending (browser automation unavailable in shipping session). Howard's two runtime smokes from Phase A still open — non-blocking. |
+| In flight | W2.5 Notes polish + tab system shipped 2026-04-24 (23 commits across 20 tasks; 31 new Vitest tests; 81 total). Manual E2E walk-through (10 §11.3 scenarios) pending — browser automation unavailable in shipping session. Howard's two runtime smokes from Phase A still open — non-blocking. |
 | Blockers | None. Audio Intelligence + System Audio Capture pages are user-tested and shipping. |
-| Last phase completed | W2 — Notes wiring: tree + CM6 editor + backlinks (2026-04-24). |
+| Last phase completed | W2.5 — Notes polish + tab system: tabsReducer, editor chrome (titlebar/breadcrumb/properties), CM6 placeholder, HerOSMenu primitive, Cmd+T/W/1..9 shortcuts (2026-04-24). |
 | Reusable from pre-rebuild work | Sovereign Glass DNA port (complete), `AppShell` / `Titlebar` / `IconRail` / `AtmosphericStage` / `LoadingScreen` / `LemniscateOrb`, theme preset v2 schema migration |
 | Review gate passed | 2026-04-22 critical review addressed; see REBUILD_RATIONALE.md §16 |
 
