@@ -392,3 +392,52 @@
 .editor-title-bar__title::placeholder {
   color: var(--heros-text-dim);
 }
+
+/* ── Breadcrumb (W2.5) ──────────────────────────────────────────── */
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-8);
+  font-size: var(--text-xs);
+  color: var(--heros-text-dim);
+  min-height: 18px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.breadcrumb__segment-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.breadcrumb__segment {
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+  font-size: inherit;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.breadcrumb__segment:hover:not(:disabled) {
+  color: var(--heros-text-premium);
+  text-decoration: underline;
+}
+.breadcrumb__segment--leaf {
+  color: var(--heros-text-muted);
+  cursor: default;
+}
+.breadcrumb__segment--ellipsis {
+  opacity: 0.7;
+  padding: 0 var(--space-1);
+}
+.breadcrumb__sep {
+  opacity: 0.5;
+}
+.breadcrumb--loading .breadcrumb__skeleton {
+  opacity: 0.4;
+}
