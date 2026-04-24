@@ -177,8 +177,8 @@ function SortableRow(props: {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: row.id })
   const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
+    transform: isDragging ? undefined : CSS.Transform.toString(transform),
+    transition: isDragging ? undefined : transition,
     paddingLeft: `calc(var(--space-2) + ${row.depth} * var(--space-4))`,
     opacity: isDragging ? 0.4 : 1,
   }
