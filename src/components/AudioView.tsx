@@ -1,17 +1,19 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'motion/react'
-import { Mic, Square, Sparkles, Trash2, Download, Shield } from 'lucide-react'
+import {
+  Mic,
+  Square,
+  Sparkles,
+  Trash2,
+  Download,
+  Shield,
+  Calendar,
+  ChevronDown,
+} from 'lucide-react'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { toast } from 'sonner'
 import { commands } from '../bindings'
 import { ScrollShadow } from './ScrollShadow'
-
-interface Line {
-  id: string
-  ts: string
-  speaker: 'You' | 'System'
-  text: string
-}
 
 interface BodyUpdatedPayload {
   node_id: string
@@ -29,35 +31,155 @@ interface RecordingErrorPayload {
   detail: string | null
 }
 
+interface VoiceMemoBlock {
+  recordedAtMs: number | null
+  text: string
+  /** Position in the doc — stable across re-parses, used for React keys. */
+  index: number
+}
+
 const formatTime = (s: number) => {
   const mins = Math.floor(s / 60)
   const secs = s % 60
   return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
 }
 
+/** Format a unix-ms timestamp to a short local time-of-day. */
+function formatTimeOfDay(ms: number | null): string {
+  if (!ms) return '—'
+  const d = new Date(ms)
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+
+/** Local-date ISO string (YYYY-MM-DD) — matches the Rust voice-memo title format. */
+function todayIsoLocal(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
+    d.getDate(),
+  ).padStart(2, '0')}`
+}
+
+function isoToLabel(iso: string): string {
+  const today = todayIsoLocal()
+  if (iso === today) return `Today · ${iso}`
+  // Yesterday detection — local-date subtraction.
+  const t = new Date()
+  t.setDate(t.getDate() - 1)
+  const y = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(
+    t.getDate(),
+  ).padStart(2, '0')}`
+  if (iso === y) return `Yesterday · ${iso}`
+  return iso
+}
+
 /**
- * Pull the latest voice-memo block from a workspace doc body. The Rust side
- * appends `::voice_memo_recording{...}\n<transcript>` per Rule 9; we surface
- * just the transcript text after the most recent directive line.
+ * Parse every `::voice_memo_recording{...}` block from a workspace doc body.
+ *
+ * Rust appends each recording as:
+ *   ::voice_memo_recording{"recorded_at_ms": 1714039200000, ...}
+ *   <transcript text…>
+ *
+ * Returns blocks in document order so the on-screen list matches the file.
  */
-function extractLatestTranscript(body: string): string {
+function parseAllVoiceMemoBlocks(body: string): VoiceMemoBlock[] {
   const marker = '::voice_memo_recording'
-  const idx = body.lastIndexOf(marker)
-  if (idx === -1) return ''
-  // Skip past the directive line ({...} closing brace + newline).
-  const closeIdx = body.indexOf('}', idx)
-  if (closeIdx === -1) return ''
-  return body.slice(closeIdx + 1).trimStart()
+  const blocks: VoiceMemoBlock[] = []
+  let searchFrom = 0
+  let blockIndex = 0
+  while (true) {
+    const idx = body.indexOf(marker, searchFrom)
+    if (idx === -1) break
+    const closeIdx = body.indexOf('}', idx)
+    if (closeIdx === -1) break
+    let recordedAtMs: number | null = null
+    try {
+      const meta = JSON.parse(body.slice(idx + marker.length, closeIdx + 1))
+      recordedAtMs = meta?.recorded_at_ms ?? null
+    } catch {
+      /* malformed metadata — skip parse, still capture text */
+    }
+    const nextIdx = body.indexOf(marker, closeIdx + 1)
+    const text = (nextIdx === -1
+      ? body.slice(closeIdx + 1)
+      : body.slice(closeIdx + 1, nextIdx)
+    ).trim()
+    if (text) {
+      blocks.push({ recordedAtMs, text, index: blockIndex++ })
+    }
+    searchFrom = closeIdx + 1
+  }
+  return blocks
+}
+
+/** Find the workspace node id for "Voice Memos — <iso>" (exact-title match). */
+async function findVoiceMemosDocId(dateIso: string): Promise<string | null> {
+  const title = `Voice Memos — ${dateIso}`
+  const result = await commands.searchWorkspaceTitle(title, 5)
+  if (result.status !== 'ok') return null
+  const exact = result.data.find((r) => r.name === title)
+  return exact?.id ?? null
+}
+
+/** Find every "Voice Memos — YYYY-MM-DD" doc and return distinct dates, newest first. */
+async function listAvailableVoiceMemoDates(): Promise<string[]> {
+  const result = await commands.searchWorkspaceTitle('Voice Memos', 365)
+  if (result.status !== 'ok') return []
+  const dates = new Set<string>()
+  for (const r of result.data) {
+    const m = r.name.match(/^Voice Memos\s*[—-]\s*(\d{4}-\d{2}-\d{2})/)
+    if (m) dates.add(m[1])
+  }
+  return Array.from(dates).sort().reverse()
 }
 
 export function AudioView() {
   const [isRecording, setIsRecording] = useState(false)
   const [timer, setTimer] = useState(0)
-  const [transcript, setTranscript] = useState<Line[]>([])
-  const [activeNodeId, setActiveNodeId] = useState<string | null>(null)
   const [selectedMic, setSelectedMic] = useState<string>('—')
   const scrollRef = useRef<HTMLDivElement>(null)
   const startRef = useRef<number | null>(null)
+
+  // History view state.
+  const today = useMemo(() => todayIsoLocal(), [])
+  const [selectedDate, setSelectedDate] = useState<string>(today)
+  const [availableDates, setAvailableDates] = useState<string[]>([today])
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
+  const [blocks, setBlocks] = useState<VoiceMemoBlock[]>([])
+  const [showDatePicker, setShowDatePicker] = useState(false)
+  const [loading, setLoading] = useState(false)
+
+  const isViewingToday = selectedDate === today
+
+  // ── Data loaders ─────────────────────────────────────────────────────────
+
+  const refreshAvailableDates = useCallback(async () => {
+    const dates = await listAvailableVoiceMemoDates()
+    // Always include today even if no doc yet — keeps "Today" selectable.
+    if (!dates.includes(today)) dates.unshift(today)
+    setAvailableDates(dates)
+  }, [today])
+
+  const loadDateBlocks = useCallback(async (dateIso: string) => {
+    setLoading(true)
+    try {
+      const id = await findVoiceMemosDocId(dateIso)
+      setSelectedNodeId(id)
+      if (!id) {
+        setBlocks([])
+        return
+      }
+      const node = await commands.getNode(id)
+      if (node.status === 'ok' && node.data) {
+        setBlocks(parseAllVoiceMemoBlocks(node.data.body))
+      } else {
+        setBlocks([])
+      }
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  // ── Lifecycle ────────────────────────────────────────────────────────────
 
   // Timer.
   useEffect(() => {
@@ -72,14 +194,14 @@ export function AudioView() {
     }
   }, [isRecording])
 
-  // Auto-scroll to bottom on new lines.
+  // Auto-scroll to bottom when blocks grow (live append + history load).
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
-  }, [transcript])
+  }, [blocks.length])
 
-  // Load selected mic name once.
+  // Selected mic name.
   useEffect(() => {
     const load = async () => {
       const result = await commands.getSelectedMicrophone()
@@ -88,46 +210,50 @@ export function AudioView() {
     void load()
   }, [])
 
-  // Subscribe to Tauri events for the lifetime of the component.
+  // Initial load: dates + today's blocks.
+  useEffect(() => {
+    void (async () => {
+      await refreshAvailableDates()
+      await loadDateBlocks(today)
+    })()
+  }, [refreshAvailableDates, loadDateBlocks, today])
+
+  // Reload blocks when the user picks a different date.
+  useEffect(() => {
+    void loadDateBlocks(selectedDate)
+  }, [selectedDate, loadDateBlocks])
+
+  // ── Event subscriptions ──────────────────────────────────────────────────
+
   useEffect(() => {
     const unlisteners: UnlistenFn[] = []
 
     const setup = async () => {
+      // Live partial — re-parse the current doc body whenever Rust pushes
+      // an update for the doc we're viewing. The throttling (~1s) is server
+      // side, so this is cheap enough to do on every event.
       unlisteners.push(
         await listen<BodyUpdatedPayload>('workspace-node-body-updated', (event) => {
-          const { node_id, body } = event.payload
-          if (activeNodeId && node_id !== activeNodeId) return
-          if (!activeNodeId) setActiveNodeId(node_id)
-          const text = extractLatestTranscript(body)
-          if (!text) return
-          setTranscript((prev) => {
-            // Replace the live partial line if last is partial-from-this-node, else append.
-            const next = prev.filter((l) => l.id !== `live-${node_id}`)
-            next.push({
-              id: `live-${node_id}`,
-              ts: startRef.current
-                ? formatTime(Math.floor((Date.now() - startRef.current) / 1000))
-                : '00:00',
-              speaker: 'You',
-              text,
-            })
-            return next
-          })
+          if (!selectedNodeId || event.payload.node_id !== selectedNodeId) return
+          setBlocks(parseAllVoiceMemoBlocks(event.payload.body))
         }),
       )
 
+      // Final transcription synced — if today's doc just got a new memo and
+      // we're viewing today, the body-updated event already refreshed the
+      // blocks. We use this event mainly to pick up a *new* doc id (first
+      // memo of the day creates today's doc) and to refresh the date list.
       unlisteners.push(
-        await listen<TranscriptionSyncedPayload>('workspace-transcription-synced', (event) => {
+        await listen<TranscriptionSyncedPayload>('workspace-transcription-synced', async (event) => {
           if (event.payload.source !== 'voice_memo') return
-          setActiveNodeId(event.payload.node_id)
-          // Lock in the live partial as a final entry by stripping the live- prefix.
-          setTranscript((prev) =>
-            prev.map((l) =>
-              l.id === `live-${event.payload.node_id}`
-                ? { ...l, id: `final-${Date.now()}` }
-                : l,
-            ),
-          )
+          if (isViewingToday) {
+            // Adopt the doc id if we didn't have one (first memo of the day).
+            if (!selectedNodeId) setSelectedNodeId(event.payload.node_id)
+            // Refresh blocks from the newly persisted state.
+            await loadDateBlocks(today)
+          }
+          // Refresh date list — today may have just been created.
+          await refreshAvailableDates()
         }),
       )
 
@@ -155,9 +281,14 @@ export function AudioView() {
     return () => {
       for (const u of unlisteners) u()
     }
-  }, [activeNodeId])
+  }, [selectedNodeId, isViewingToday, today, loadDateBlocks, refreshAvailableDates])
+
+  // ── Recording controls ───────────────────────────────────────────────────
 
   const startRecording = async () => {
+    // Snap the view to today before recording so the new memo lands in the
+    // user's current view rather than the historical date they were browsing.
+    if (!isViewingToday) setSelectedDate(today)
     const result = await commands.startUiRecording()
     if (result.status !== 'ok') {
       toast.error('Could not start recording', { description: result.error })
@@ -175,12 +306,21 @@ export function AudioView() {
     }
     setIsRecording(false)
     startRef.current = null
+    // After stop, refresh from disk so the final block (post-process etc.)
+    // is reflected; transcription-synced will also fire and do this, but
+    // belt-and-suspenders is cheap.
+    if (isViewingToday) {
+      await loadDateBlocks(today)
+    }
   }
 
-  const clearTranscript = () => {
-    setTranscript([])
-    setActiveNodeId(null)
+  const clearScreen = () => {
+    // On-screen reset only — vault doc untouched. Useful if the user wants
+    // to focus on what's incoming next.
+    setBlocks([])
   }
+
+  // ── Render ───────────────────────────────────────────────────────────────
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', height: '100%', gap: 5 }}>
@@ -189,6 +329,7 @@ export function AudioView() {
         className="heros-glass-card"
         style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
       >
+        {/* Header */}
         <div
           style={{
             padding: '24px 32px',
@@ -196,9 +337,10 @@ export function AudioView() {
             justifyContent: 'space-between',
             alignItems: 'center',
             borderBottom: '1px solid rgba(255,255,255,0.05)',
+            gap: 16,
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <div
               style={{
                 width: 12,
@@ -219,7 +361,86 @@ export function AudioView() {
             >
               {isRecording ? 'Recording' : 'Idle'}
             </span>
+
+            {/* Date selector */}
+            <div style={{ position: 'relative' }}>
+              <button
+                onClick={() => setShowDatePicker((v) => !v)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '6px 10px',
+                  borderRadius: 8,
+                  background: 'rgba(255,255,255,0.04)',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  color: 'rgba(255,255,255,0.85)',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+                title="Choose another day's voice memos"
+              >
+                <Calendar size={12} />
+                {isoToLabel(selectedDate)}
+                <ChevronDown size={12} />
+              </button>
+
+              {showDatePicker && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 6px)',
+                    left: 0,
+                    minWidth: 200,
+                    maxHeight: 280,
+                    overflowY: 'auto',
+                    padding: 6,
+                    borderRadius: 10,
+                    background: 'rgba(20,21,26,0.95)',
+                    border: '1px solid rgba(255,255,255,0.08)',
+                    boxShadow: '0 12px 32px rgba(0,0,0,0.4)',
+                    zIndex: 100,
+                  }}
+                  onMouseLeave={() => setShowDatePicker(false)}
+                >
+                  {availableDates.length === 0 && (
+                    <div style={{ padding: 10, fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>
+                      No voice memos yet.
+                    </div>
+                  )}
+                  {availableDates.map((d) => {
+                    const active = d === selectedDate
+                    return (
+                      <button
+                        key={d}
+                        onClick={() => {
+                          setSelectedDate(d)
+                          setShowDatePicker(false)
+                        }}
+                        style={{
+                          display: 'block',
+                          width: '100%',
+                          textAlign: 'left',
+                          padding: '8px 10px',
+                          borderRadius: 6,
+                          background: active ? 'rgba(204,76,43,0.15)' : 'transparent',
+                          border: 'none',
+                          color: active ? '#fff' : 'rgba(255,255,255,0.75)',
+                          fontSize: 12,
+                          fontWeight: active ? 600 : 500,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {isoToLabel(d)}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
           </div>
+
           <div
             style={{
               fontFamily: 'monospace',
@@ -233,6 +454,7 @@ export function AudioView() {
           </div>
         </div>
 
+        {/* Body */}
         <div
           style={{
             flex: 1,
@@ -252,15 +474,23 @@ export function AudioView() {
                 margin: '0 auto',
               }}
             >
-              {transcript.length === 0 && !isRecording && (
+              {loading && (
                 <p style={{ color: 'rgba(255,255,255,0.3)', textAlign: 'center', marginTop: 64 }}>
-                  Press the mic button to start recording. Transcripts append to today's
-                  Voice Memos doc.
+                  Loading {isoToLabel(selectedDate)}…
                 </p>
               )}
-              {transcript.map((line) => (
+
+              {!loading && blocks.length === 0 && !isRecording && (
+                <p style={{ color: 'rgba(255,255,255,0.3)', textAlign: 'center', marginTop: 64 }}>
+                  {isViewingToday
+                    ? "No voice memos yet today. Press the mic button to start."
+                    : `No voice memos for ${selectedDate}.`}
+                </p>
+              )}
+
+              {blocks.map((block) => (
                 <motion.div
-                  key={line.id}
+                  key={`${selectedDate}-${block.index}`}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   style={{ display: 'grid', gridTemplateColumns: '60px 1fr', gap: 20 }}
@@ -273,7 +503,7 @@ export function AudioView() {
                       paddingTop: 4,
                     }}
                   >
-                    {line.ts}
+                    {formatTimeOfDay(block.recordedAtMs)}
                   </div>
                   <div>
                     <div
@@ -286,7 +516,7 @@ export function AudioView() {
                         marginBottom: 6,
                       }}
                     >
-                      {line.speaker}
+                      You
                     </div>
                     <div
                       style={{
@@ -294,15 +524,16 @@ export function AudioView() {
                         lineHeight: 1.6,
                         fontWeight: 300,
                         color: 'rgba(255,255,255,0.85)',
+                        whiteSpace: 'pre-wrap',
                       }}
                     >
-                      {line.text}
+                      {block.text}
                     </div>
                   </div>
                 </motion.div>
               ))}
 
-              {isRecording && transcript.length === 0 && (
+              {isRecording && (
                 <motion.div
                   animate={{ opacity: [0.3, 0.7, 0.3] }}
                   transition={{ duration: 1.5, repeat: Infinity }}
@@ -386,7 +617,7 @@ export function AudioView() {
 
             <button
               className="icon-btn"
-              onClick={clearTranscript}
+              onClick={clearScreen}
               style={{ padding: 12, background: 'rgba(255,255,255,0.03)' }}
               title="Clear visible transcript (does not delete the saved doc)"
             >
@@ -449,7 +680,7 @@ export function AudioView() {
               marginBottom: 16,
             }}
           >
-            Device
+            Session
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div
@@ -462,6 +693,17 @@ export function AudioView() {
             >
               <span>Microphone</span>
               <span style={{ color: '#fff' }}>{selectedMic}</span>
+            </div>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                fontSize: '12px',
+                color: 'rgba(255,255,255,0.5)',
+              }}
+            >
+              <span>Memos visible</span>
+              <span style={{ color: '#fff' }}>{blocks.length}</span>
             </div>
             <div
               style={{

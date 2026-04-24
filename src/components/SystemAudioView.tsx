@@ -150,6 +150,12 @@ export function SystemAudioView() {
   }, [activeNodeId])
 
   const startCapture = async () => {
+    // Clear previous session's transcript so each new capture starts fresh.
+    // Stop deliberately leaves the transcript on screen for review (per UX
+    // ask): clearing happens here, on Start, only.
+    setTranscript([])
+    setActiveNodeId(null)
+
     const result = await commands.startSystemAudioCapture()
     if (result.status !== 'ok') {
       toast.error('Could not start system audio capture', { description: result.error })
