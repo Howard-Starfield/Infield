@@ -513,9 +513,8 @@
   background: var(--surface-hover);
 }
 .properties-panel__picker {
-  position: absolute;
-  margin-top: var(--space-1);
-  z-index: 10;
+  position: fixed;
+  z-index: 1000;
   display: grid;
   grid-template-columns: repeat(10, auto);
   gap: var(--space-1);

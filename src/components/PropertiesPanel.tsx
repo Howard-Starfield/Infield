@@ -1,4 +1,5 @@
-import { useMemo, useState, useRef } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useState, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { ChevronRight, X } from 'lucide-react'
 import type { WorkspaceNode } from '../bindings'
 
@@ -35,10 +36,46 @@ function formatDate(ms: number): string {
 export function PropertiesPanel({ node, onIconChange, onTagsChange }: PropertiesPanelProps) {
   const [collapsed, setCollapsed] = useState(true)
   const [picker, setPicker] = useState(false)
+  const [pickerAnchor, setPickerAnchor] = useState<{ left: number; top: number } | null>(null)
   const [tagDraft, setTagDraft] = useState('')
   const tagInputRef = useRef<HTMLInputElement>(null)
+  const iconBtnRef = useRef<HTMLButtonElement>(null)
+  const pickerRef = useRef<HTMLDivElement>(null)
 
   const tags = useMemo(() => parseTags(node.properties), [node.properties])
+
+  // Anchor the portalled picker to the icon button when it opens.
+  useLayoutEffect(() => {
+    if (!picker) {
+      setPickerAnchor(null)
+      return
+    }
+    const btn = iconBtnRef.current
+    if (!btn) return
+    const rect = btn.getBoundingClientRect()
+    setPickerAnchor({ left: rect.left, top: rect.bottom })
+  }, [picker])
+
+  // Outside-click + Escape dismissal while the picker is open.
+  useEffect(() => {
+    if (!picker) return
+    const onPointerDown = (e: PointerEvent) => {
+      const target = e.target as Node | null
+      if (!target) return
+      if (pickerRef.current?.contains(target)) return
+      if (iconBtnRef.current?.contains(target)) return
+      setPicker(false)
+    }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setPicker(false)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [picker])
 
   const commitTag = async () => {
     const next = tagDraft.trim()
@@ -75,6 +112,7 @@ export function PropertiesPanel({ node, onIconChange, onTagsChange }: Properties
             <dt>Icon</dt>
             <dd>
               <button
+                ref={iconBtnRef}
                 type="button"
                 className="properties-panel__icon-btn"
                 onClick={() => setPicker((p) => !p)}
@@ -82,8 +120,13 @@ export function PropertiesPanel({ node, onIconChange, onTagsChange }: Properties
               >
                 {node.icon || '📄'}
               </button>
-              {picker && (
-                <div className="properties-panel__picker" role="listbox">
+              {picker && pickerAnchor && createPortal(
+                <div
+                  ref={pickerRef}
+                  className="properties-panel__picker"
+                  role="listbox"
+                  style={{ left: pickerAnchor.left, top: pickerAnchor.top }}
+                >
                   {EMOJI_PALETTE.map((e) => (
                     <button
                       key={e}
@@ -92,7 +135,8 @@ export function PropertiesPanel({ node, onIconChange, onTagsChange }: Properties
                       onClick={() => { void onIconChange(e); setPicker(false) }}
                     >{e}</button>
                   ))}
-                </div>
+                </div>,
+                document.body
               )}
             </dd>
 
