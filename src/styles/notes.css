@@ -159,7 +159,7 @@
   background: var(--surface-1);
   border: 1px solid var(--border-subtle);
   color: var(--heros-text-muted);
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -185,7 +185,7 @@
   cursor: pointer;
   user-select: none;
   color: var(--heros-text-muted);
-  font-size: var(--text-sm);
+  font-size: var(--text-base);
 }
 
 .tree-row:hover {
@@ -256,7 +256,7 @@
   border: 1px solid var(--border-subtle);
   cursor: pointer;
   color: var(--heros-text-muted);
-  font-size: var(--text-sm);
+  font-size: var(--text-base);
 }
 
 .notes-backlinks__item:hover {
