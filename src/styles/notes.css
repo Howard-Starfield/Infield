@@ -587,3 +587,97 @@
 .properties-panel__tag-input::placeholder {
   color: var(--heros-text-dim);
 }
+
+/* ── NotesTabs (W2.5) ───────────────────────────────────────────── */
+.notes-tabs {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-1);
+  padding: 0 var(--space-2);
+  background: var(--surface-1);
+  border-bottom: 1px solid var(--border-subtle);
+  overflow-x: auto;
+  scrollbar-width: thin;
+  min-height: 36px;
+  flex-shrink: 0;
+}
+.notes-tabs__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 180px;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--heros-text-dim);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  min-height: 28px;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+.notes-tabs__tab:hover {
+  color: var(--heros-text-premium);
+  background: var(--surface-hover);
+}
+.notes-tabs__tab__icon {
+  font-size: var(--text-sm);
+  line-height: 1;
+  flex-shrink: 0;
+}
+.notes-tabs__tab__label {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.notes-tabs__tab--active {
+  color: var(--heros-text-premium);
+  background: var(--surface-active);
+}
+.notes-tabs__tab--preview .notes-tabs__tab__label {
+  font-style: italic;
+}
+.notes-tabs__tab--dirty .notes-tabs__tab__label::before {
+  content: '· ';
+  color: var(--heros-brand);
+  font-weight: 700;
+}
+.notes-tabs__tab__close {
+  display: inline-flex;
+  align-items: center;
+  color: var(--heros-text-dim);
+  visibility: hidden;
+  padding: var(--space-1);
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast);
+  flex-shrink: 0;
+}
+.notes-tabs__tab__close:hover {
+  background: var(--surface-hover);
+  color: var(--heros-text-premium);
+}
+.notes-tabs__tab:hover .notes-tabs__tab__close,
+.notes-tabs__tab--active .notes-tabs__tab__close {
+  visibility: visible;
+}
+.notes-tabs__new {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--heros-text-dim);
+  cursor: pointer;
+  padding: var(--space-1) var(--space-2);
+  margin-left: var(--space-1);
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast);
+}
+.notes-tabs__new:hover {
+  background: var(--surface-hover);
+  color: var(--heros-text-premium);
+}
