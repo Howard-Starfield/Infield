@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 export interface EditorTitleBarProps {
   nodeId: string
@@ -20,7 +21,10 @@ export function EditorTitleBar({
 }: EditorTitleBarProps) {
   const [draft, setDraft] = useState(name)
   const [picker, setPicker] = useState(false)
+  const [pickerAnchor, setPickerAnchor] = useState<{ left: number; top: number } | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const iconBtnRef = useRef<HTMLButtonElement>(null)
+  const pickerRef = useRef<HTMLDivElement>(null)
 
   // Reset draft when the node swaps.
   useEffect(() => { setDraft(name) }, [nodeId, name])
@@ -31,6 +35,39 @@ export function EditorTitleBar({
       inputRef.current.select()
     }
   }, [autoFocusTitle, nodeId])
+
+  // Anchor the portalled picker to the icon button when it opens.
+  useLayoutEffect(() => {
+    if (!picker) {
+      setPickerAnchor(null)
+      return
+    }
+    const btn = iconBtnRef.current
+    if (!btn) return
+    const rect = btn.getBoundingClientRect()
+    setPickerAnchor({ left: rect.left, top: rect.bottom })
+  }, [picker])
+
+  // Outside-click + Escape dismissal while the picker is open.
+  useEffect(() => {
+    if (!picker) return
+    const onPointerDown = (e: PointerEvent) => {
+      const target = e.target as Node | null
+      if (!target) return
+      if (pickerRef.current?.contains(target)) return
+      if (iconBtnRef.current?.contains(target)) return
+      setPicker(false)
+    }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setPicker(false)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [picker])
 
   const commit = async () => {
     const next = draft.trim()
@@ -44,6 +81,7 @@ export function EditorTitleBar({
   return (
     <div className="editor-title-bar">
       <button
+        ref={iconBtnRef}
         type="button"
         className="editor-title-bar__icon-btn"
         aria-label="Change icon"
@@ -51,8 +89,13 @@ export function EditorTitleBar({
       >
         {icon || '📄'}
       </button>
-      {picker && (
-        <div className="editor-title-bar__picker" role="listbox">
+      {picker && pickerAnchor && createPortal(
+        <div
+          ref={pickerRef}
+          className="editor-title-bar__picker"
+          role="listbox"
+          style={{ left: pickerAnchor.left, top: pickerAnchor.top }}
+        >
           {EMOJI_PALETTE.map(e => (
             <button
               key={e}
@@ -61,7 +104,8 @@ export function EditorTitleBar({
               onClick={() => { void onIconChange(e); setPicker(false) }}
             >{e}</button>
           ))}
-        </div>
+        </div>,
+        document.body
       )}
       <input
         ref={inputRef}

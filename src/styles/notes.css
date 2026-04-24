@@ -351,10 +351,8 @@
   background: var(--surface-hover);
 }
 .editor-title-bar__picker {
-  position: absolute;
-  top: 100%;
-  left: var(--space-8);
-  z-index: 10;
+  position: fixed;
+  z-index: 1000;
   display: grid;
   grid-template-columns: repeat(10, auto);
   gap: var(--space-1);
