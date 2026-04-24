@@ -1,5 +1,8 @@
 import type { EditorView } from '@codemirror/view'
 
+import { todayCommand } from './commands/today'
+import { linkCommand } from './commands/link'
+
 export type SlashCategory = 'block' | 'handy' | 'code'
 
 export interface SlashCommand {
@@ -116,4 +119,13 @@ export const tier1SlashCommands: SlashCommand[] = [
       replaceAndMoveCaret(view, from, to, insert, 2)
     },
   },
+]
+
+/** Commands shipping in W2 — Tier 1 (block primitives) plus the two
+ *  Handy-native commands that are trivially cheap. /voice, /database,
+ *  /embed stay deferred to W2.5 per PLAN.md. */
+export const allSlashCommands: SlashCommand[] = [
+  ...tier1SlashCommands,
+  linkCommand,
+  todayCommand,
 ]

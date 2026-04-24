@@ -10,7 +10,7 @@ import { commands } from '../bindings'
 import { toast } from 'sonner'
 import { herosEditorTheme } from '../editor/herosTheme'
 import { slashCompletionSource } from '../editor/slashCompletion'
-import { tier1SlashCommands } from '../editor/slashCommands'
+import { allSlashCommands } from '../editor/slashCommands'
 import {
   wikilinkCompletionSource,
   type WikilinkSearchFn,
@@ -151,7 +151,7 @@ export function MarkdownEditor({ nodeId, onNodeLinkClick }: MarkdownEditorProps)
         markdown({ base: markdownLanguage, extensions: [GFM] }),
         autocompletion({
           override: [
-            slashCompletionSource(tier1SlashCommands),
+            slashCompletionSource(allSlashCommands),
             wikilinkCompletionSource(tauriWikilinkSearch),
           ],
           activateOnTyping: true,
