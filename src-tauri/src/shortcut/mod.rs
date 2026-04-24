@@ -702,7 +702,7 @@ pub fn change_paste_delay_ms_setting(app: AppHandle, ms: u64) -> Result<(), Stri
 #[specta::specta]
 pub fn change_system_audio_max_chunk_secs_setting(app: AppHandle, secs: f32) -> Result<(), String> {
     let mut settings = settings::get_settings(&app);
-    settings.system_audio_max_chunk_secs = secs.clamp(0.5, 4.0);
+    settings.system_audio_max_chunk_secs = secs.clamp(0.5, 10.0);
     settings::write_settings(&app, settings);
     Ok(())
 }
@@ -714,7 +714,7 @@ pub fn change_system_audio_paragraph_silence_secs_setting(
     secs: f32,
 ) -> Result<(), String> {
     let mut settings = settings::get_settings(&app);
-    settings.system_audio_paragraph_silence_secs = secs.clamp(0.5, 4.0);
+    settings.system_audio_paragraph_silence_secs = secs.clamp(0.5, 10.0);
     settings::write_settings(&app, settings);
     Ok(())
 }
@@ -726,7 +726,7 @@ pub fn change_system_audio_vad_hangover_secs_setting(
     secs: f32,
 ) -> Result<(), String> {
     let mut settings = settings::get_settings(&app);
-    settings.system_audio_vad_hangover_secs = secs.clamp(0.3, 1.5);
+    settings.system_audio_vad_hangover_secs = secs.clamp(0.3, 10.0);
     settings::write_settings(&app, settings);
     Ok(())
 }

@@ -821,6 +821,12 @@ async getClamshellMicrophone() : Promise<Result<string, string>> {
 async isRecording() : Promise<boolean> {
     return await TAURI_INVOKE("is_recording");
 },
+/**
+ * W1 — UI-initiated mic recording start.
+ * 
+ * Drives the same `TranscribeAction` pipeline used by the keybinding
+ * path, including voice-memo doc append per CLAUDE.md Rule 9.
+ */
 async startUiRecording() : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("start_ui_recording") };
@@ -829,6 +835,10 @@ async startUiRecording() : Promise<Result<null, string>> {
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * W1 — UI-initiated mic recording stop. Pairs with
+ * [`start_ui_recording`].
+ */
 async stopUiRecording() : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("stop_ui_recording") };
@@ -2184,11 +2194,12 @@ models_downloaded: string[]; vault_root: string | null; started_at: number; comp
  */
 export type OnboardingStatePatch = { current_step: OnboardingStep | null; mic_permission: PermissionState | null; accessibility_permission: PermissionState | null; models_downloaded: string[] | null; vault_root: string | null; completed_at: number | null }
 /**
- * Phases of the 6-step onboarding flow, plus `Done` terminal state.
+ * Phases of the 4-step Spotlight onboarding flow, plus `Done` terminal state.
  * 
- * String values match the DB CHECK constraint and the frontend's
- * discriminated union. Keep this list, the CHECK in the migration, and the
- * `EntryStage` mapping in `EntryContext.tsx` in lockstep.
+ * String values match the DB CHECK constraint (a permissive superset that
+ * also accepts legacy 'welcome'/'theme' values from pre-W0 dev runs — see
+ * `get()` for the on-read self-heal). Keep this list and the
+ * frontend's discriminated union in lockstep.
  */
 export type OnboardingStep = "mic" | "accessibility" | "models" | "vault" | "done"
 export type OrtAcceleratorSetting = "auto" | "cpu" | "cuda" | "directml" | "rocm"
