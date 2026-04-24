@@ -256,6 +256,59 @@ async function findVoiceMemosDocId(dateIso: string): Promise<string | null> {
   return exact?.id ?? null
 }
 
+/**
+ * Batch existence check for absolute file paths.
+ *
+ * Returns the subset of input paths that actually exist on disk. Runs
+ * existence checks in parallel via Promise.all — `exists()` is a single
+ * `stat` syscall, microseconds per file, so even 100+ paths complete in a
+ * few ms. Falls back to "assume all OK" on plugin failure so a missing
+ * permission can't break the page.
+ *
+ * Per CLAUDE.md Rule 14 (no fs watcher / no aggressive startup scan), this
+ * runs only on user-triggered loads (mount, date switch, post-stop refresh)
+ * — never on a timer or boot.
+ */
+async function pathsExist(paths: string[]): Promise<Set<string>> {
+  if (paths.length === 0) return new Set()
+  try {
+    const { exists } = await import('@tauri-apps/plugin-fs')
+    const results = await Promise.all(
+      paths.map(async (p) => ({ p, ok: await exists(p).catch(() => false) })),
+    )
+    return new Set(results.filter((r) => r.ok).map((r) => r.p))
+  } catch {
+    // Plugin unavailable — best to assume the files exist; the per-block
+    // click-to-play path will still surface real failures via onerror.
+    return new Set(paths)
+  }
+}
+
+/**
+ * Resolve a vault-relative path (as stored in `WorkspaceNode.vault_rel_path`)
+ * to its absolute on-disk path. Caches the app-data dir lookup so subsequent
+ * calls in the same session avoid the Tauri round-trip.
+ */
+let cachedAppDataDir: string | null = null
+async function resolveVaultAbsolutePath(vaultRelPath: string): Promise<string | null> {
+  try {
+    if (!cachedAppDataDir) {
+      const result = await commands.getAppDirPath()
+      if (result.status !== 'ok') return null
+      cachedAppDataDir = result.data
+    }
+    // Vault root convention per CLAUDE.md: <app_data>/handy-vault/
+    // The relative path uses forward slashes from Rust; normalise the
+    // join with whatever the platform separator is by passing the raw
+    // string — Tauri's fs plugin accepts both `/` and `\` on Windows.
+    const sep = cachedAppDataDir.includes('\\') ? '\\' : '/'
+    const root = cachedAppDataDir.endsWith(sep) ? cachedAppDataDir : cachedAppDataDir + sep
+    return `${root}handy-vault${sep}${vaultRelPath.replace(/^[/\\]+/, '')}`
+  } catch {
+    return null
+  }
+}
+
 /** Find every "Voice Memos — YYYY-MM-DD" doc and return distinct dates, newest first. */
 async function listAvailableVoiceMemoDates(): Promise<string[]> {
   const result = await commands.searchWorkspaceTitle('Voice Memos', 365)
@@ -283,6 +336,7 @@ export function AudioView() {
   const [blocks, setBlocks] = useState<VoiceMemoBlock[]>([])
   const [showDatePicker, setShowDatePicker] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [vaultDocMissing, setVaultDocMissing] = useState(false)
 
   // Playback state — single audio element shared across all blocks; only one
   // memo plays at a time. `playingPath` doubles as the per-row identity
@@ -312,6 +366,7 @@ export function AudioView() {
 
   const loadDateBlocks = useCallback(async (dateIso: string) => {
     setLoading(true)
+    setVaultDocMissing(false)
     try {
       const id = await findVoiceMemosDocId(dateIso)
       setSelectedNodeId(id)
@@ -320,10 +375,43 @@ export function AudioView() {
         return
       }
       const node = await commands.getNode(id)
-      if (node.status === 'ok' && node.data) {
-        setBlocks(parseAllVoiceMemoBlocks(node.data.body))
-      } else {
+      if (node.status !== 'ok' || !node.data) {
         setBlocks([])
+        return
+      }
+
+      const parsed = parseAllVoiceMemoBlocks(node.data.body)
+      setBlocks(parsed)
+
+      // Reconciliation pass — runs ONLY on the just-loaded date's blocks.
+      // Bounded cost: O(N) where N = blocks for one day (typically <50).
+      // Per CLAUDE.md Rule 14, no startup scan — this is the lazy
+      // detection point.
+      const audioPaths = parsed
+        .map((b) => b.audioPath)
+        .filter((p): p is string => !!p)
+      const vaultPath = node.data.vault_rel_path
+        ? await resolveVaultAbsolutePath(node.data.vault_rel_path)
+        : null
+      const allChecks: string[] = [...audioPaths]
+      if (vaultPath) allChecks.push(vaultPath)
+
+      if (allChecks.length > 0) {
+        const found = await pathsExist(allChecks)
+        // Audio files: mark missing ones as unavailable so the UI shows
+        // the AlertTriangle state proactively (before the user clicks).
+        setUnavailablePaths((prev) => {
+          const next = new Set(prev)
+          for (const p of audioPaths) {
+            if (!found.has(p)) next.add(p)
+          }
+          return next
+        })
+        // Vault doc: if the .md file is gone but DB still has the row,
+        // surface it. The transcript shown is the cached body.
+        if (vaultPath && !found.has(vaultPath)) {
+          setVaultDocMissing(true)
+        }
       }
     } finally {
       setLoading(false)
@@ -512,6 +600,15 @@ export function AudioView() {
       const onLoaded = () => {
         setLoadingPath((cur) => (cur === path ? null : cur))
         setPlayingPath(path)
+        // Successful load — clear any stale "unavailable" mark so the
+        // button stops showing AlertTriangle. Covers the retry-after-
+        // user-restored-file case.
+        setUnavailablePaths((prev) => {
+          if (!prev.has(path)) return prev
+          const next = new Set(prev)
+          next.delete(path)
+          return next
+        })
         void a.play().catch((err) => {
           console.error('[AudioView] play() rejected:', err)
           handleAudioError(path, 'Playback was blocked by the browser.')
@@ -744,6 +841,30 @@ export function AudioView() {
                 margin: '0 auto',
               }}
             >
+              {vaultDocMissing && (
+                <div
+                  style={{
+                    padding: '10px 14px',
+                    borderRadius: 10,
+                    background: 'rgba(204,76,43,0.10)',
+                    border: '1px solid rgba(204,76,43,0.25)',
+                    color: 'rgba(255,210,200,0.9)',
+                    fontSize: 12,
+                    lineHeight: 1.5,
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 10,
+                  }}
+                >
+                  <AlertTriangle size={14} style={{ marginTop: 2, flexShrink: 0 }} />
+                  <span>
+                    The vault file for {isoToLabel(selectedDate)} was deleted from disk. The
+                    transcript shown below is the last cached copy from the database.
+                    Recording a new memo today will recreate the file.
+                  </span>
+                </div>
+              )}
+
               {loading && (
                 <p style={{ color: 'rgba(255,255,255,0.3)', textAlign: 'center', marginTop: 64 }}>
                   Loading {isoToLabel(selectedDate)}…
