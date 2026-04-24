@@ -1,740 +1,975 @@
-import React, { useState, useEffect } from 'react';
-import { HerOSInput } from './HerOS';
-import { useStorageConfig } from '../hooks/useStorageConfig';
-import { FolderOpen, Monitor, Volume2, Bell, Sparkles, Sliders, Zap, PartyPopper, MessageSquare, Globe, Shield, RefreshCw, Key, Brain, Cpu, Database, Command, Settings, Palette, Info, Layout } from 'lucide-react';
-import { soundService } from '../services/SoundService';
-import { useVault } from '../contexts/VaultContext';
-import { UiPreferences } from '../types';
-import { EbayConnectModal } from './EbayConnectModal';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  Bell,
+  Command,
+  Cpu,
+  Database,
+  Download,
+  Gauge,
+  Headphones,
+  History,
+  Info,
+  Keyboard,
+  Mic,
+  Monitor,
+  Palette,
+  RefreshCw,
+  Settings,
+  Shield,
+  Sparkles,
+  Trash2,
+  Volume2,
+  Zap,
+} from 'lucide-react';
 import { toast } from 'sonner';
-import { saveEbayOAuthAppSettingsNative, syncAllEbayDataNative, getLlmConfigNative, saveLlmConfigNative, LlmConfig } from '../tauri-bridge';
-import { THEME_PRESETS, getThemeById } from '../services/ThemeService';
+import { ask } from '@tauri-apps/plugin-dialog';
+import { useSettings } from '../hooks/useSettings';
+import { useModelStore } from '../stores/modelStore';
+import type {
+  AppSettings,
+  AudioDevice,
+  ClipboardHandling,
+  ModelInfo,
+  ModelUnloadTimeout,
+  OverlayPosition,
+  PasteMethod,
+  RecordingRetentionPeriod,
+  ShortcutBinding,
+  WhisperAcceleratorSetting,
+  OrtAcceleratorSetting,
+} from '../bindings';
 
-export function SettingsView() {
-  const { storagePath, isLoading, selectDirectory } = useStorageConfig();
-  const { vaultData, updateUiPreferences } = useVault();
-  const [isConnectModalOpen, setIsConnectModalOpen] = useState(false);
-  
-  // AI Config State
-  const [llmConfig, setLlmConfig] = useState<LlmConfig | null>(null);
-  const [isSavingLlm, setIsSavingLlm] = useState(false);
+type SettingKey = keyof AppSettings;
 
-  // UI Scaling state
-  const [uiScale, setUiScale] = useState(() => {
-    const saved = localStorage.getItem('ui-scale');
-    return saved ? parseFloat(saved) : 1.0;
-  });
+interface SettingsViewProps {
+  onNavigate?: (page: string) => void;
+}
 
-  // Sound settings
-  const [volume, setVolume] = useState(() => {
-    const saved = localStorage.getItem('vault-volume');
-    return saved ? parseFloat(saved) : 0.5;
-  });
-  const [soundEnabled, setSoundEnabled] = useState(() => {
-    const saved = localStorage.getItem('vault-sound-enabled');
-    return saved === null ? true : saved === 'true';
-  });
+type SelectOption<T extends string> = {
+  label: string;
+  value: T;
+  description?: string;
+};
 
-  // Load LLM Config on mount
+const pasteMethodOptions: SelectOption<PasteMethod>[] = [
+  { label: 'Ctrl/Cmd + V', value: 'ctrl_v' },
+  { label: 'Direct typing', value: 'direct' },
+  { label: 'Do nothing', value: 'none' },
+  { label: 'Shift + Insert', value: 'shift_insert' },
+  { label: 'Ctrl/Cmd + Shift + V', value: 'ctrl_shift_v' },
+  { label: 'External script', value: 'external_script' },
+];
+
+const clipboardOptions: SelectOption<ClipboardHandling>[] = [
+  { label: "Don't modify clipboard", value: 'dont_modify' },
+  { label: 'Copy transcript to clipboard', value: 'copy_to_clipboard' },
+];
+
+const overlayOptions: SelectOption<OverlayPosition>[] = [
+  { label: 'Bottom', value: 'bottom' },
+  { label: 'Top', value: 'top' },
+  { label: 'Hidden', value: 'none' },
+];
+
+const unloadOptions: SelectOption<ModelUnloadTimeout>[] = [
+  { label: 'Never unload', value: 'never' },
+  { label: 'Immediately', value: 'immediately' },
+  { label: '15 seconds', value: 'sec_15' },
+  { label: '2 minutes', value: 'min_2' },
+  { label: '5 minutes', value: 'min_5' },
+  { label: '10 minutes', value: 'min_10' },
+  { label: '15 minutes', value: 'min_15' },
+  { label: '1 hour', value: 'hour_1' },
+];
+
+const retentionOptions: SelectOption<RecordingRetentionPeriod>[] = [
+  { label: 'Never delete', value: 'never' },
+  { label: 'Preserve limit', value: 'preserve_limit' },
+  { label: '3 days', value: 'days_3' },
+  { label: '2 weeks', value: 'weeks_2' },
+  { label: '3 months', value: 'months_3' },
+];
+
+const whisperAccelerationOptions: SelectOption<WhisperAcceleratorSetting>[] = [
+  { label: 'Auto', value: 'auto' },
+  { label: 'CPU', value: 'cpu' },
+  { label: 'GPU', value: 'gpu' },
+];
+
+const ortAccelerationOptions: SelectOption<OrtAcceleratorSetting>[] = [
+  { label: 'Auto', value: 'auto' },
+  { label: 'CPU', value: 'cpu' },
+  { label: 'CUDA', value: 'cuda' },
+  { label: 'DirectML', value: 'directml' },
+  { label: 'ROCm', value: 'rocm' },
+];
+
+const formatModelSize = (sizeMb: number) => {
+  if (sizeMb >= 1024) return `${(sizeMb / 1024).toFixed(1)} GB`;
+  return `${Math.round(sizeMb)} MB`;
+};
+
+const modelStatusLabel = (
+  model: ModelInfo,
+  currentModel: string,
+  downloading: boolean,
+  verifying: boolean,
+  extracting: boolean,
+) => {
+  if (extracting) return 'Extracting';
+  if (verifying) return 'Verifying';
+  if (downloading || model.is_downloading) return 'Downloading';
+  if (model.id === currentModel) return 'Active';
+  if (model.is_downloaded || model.is_custom) return 'Ready';
+  return 'Available';
+};
+
+const selectDeviceValue = (device?: string | null) => {
+  if (!device || device === 'Default') return 'default';
+  return device;
+};
+
+const deviceOptions = (devices: AudioDevice[]) => [
+  { index: 'default', name: 'Default', is_default: true },
+  ...devices.filter((device) => device.index !== 'default' && device.name.toLowerCase() !== 'default'),
+];
+
+function SectionHeader({
+  icon,
+  title,
+  description,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description?: string;
+}) {
+  return (
+    <div style={{ marginBottom: '28px' }}>
+      <h3
+        style={{
+          fontSize: '11px',
+          fontWeight: 800,
+          color: 'var(--heros-brand)',
+          textTransform: 'uppercase',
+          letterSpacing: '0.2em',
+          margin: 0,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+        }}
+      >
+        {icon} {title}
+      </h3>
+      {description && (
+        <p style={{ margin: '10px 0 0 30px', color: 'rgba(255,255,255,0.45)', fontSize: 13, lineHeight: 1.6 }}>
+          {description}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function ToggleRow({
+  title,
+  description,
+  checked,
+  onChange,
+  disabled = false,
+}: {
+  title: string;
+  description: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 24 }}>
+      <div>
+        <div style={{ fontSize: '16px', fontWeight: 600, color: '#fff' }}>{title}</div>
+        <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)', marginTop: 4, lineHeight: 1.5 }}>
+          {description}
+        </div>
+      </div>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => onChange(!checked)}
+        aria-pressed={checked}
+        style={{
+          width: 46,
+          height: 24,
+          background: checked ? 'var(--heros-brand)' : 'rgba(255,255,255,0.1)',
+          borderRadius: 12,
+          border: '1px solid rgba(255,255,255,0.08)',
+          position: 'relative',
+          cursor: disabled ? 'not-allowed' : 'pointer',
+          opacity: disabled ? 0.5 : 1,
+          transition: 'all 0.25s ease',
+          flexShrink: 0,
+        }}
+      >
+        <span
+          style={{
+            width: 18,
+            height: 18,
+            background: '#fff',
+            borderRadius: '50%',
+            position: 'absolute',
+            left: checked ? 24 : 3,
+            top: 2,
+            transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+          }}
+        />
+      </button>
+    </div>
+  );
+}
+
+function SelectRow<T extends string>({
+  title,
+  description,
+  value,
+  options,
+  onChange,
+}: {
+  title: string;
+  description: string;
+  value: T;
+  options: SelectOption<T>[];
+  onChange: (value: T) => void;
+}) {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr minmax(220px, 280px)', gap: 24, alignItems: 'center' }}>
+      <div>
+        <div style={{ fontSize: '16px', fontWeight: 600, color: '#fff' }}>{title}</div>
+        <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)', marginTop: 4, lineHeight: 1.5 }}>
+          {description}
+        </div>
+      </div>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value as T)}
+        style={{
+          width: '100%',
+          background: 'rgba(0,0,0,0.24)',
+          border: '1px solid rgba(255,255,255,0.1)',
+          color: '#fff',
+          borderRadius: 12,
+          padding: '10px 12px',
+          outline: 'none',
+        }}
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function RangeRow({
+  title,
+  description,
+  value,
+  min,
+  max,
+  step,
+  suffix,
+  onChange,
+}: {
+  title: string;
+  description: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  suffix: string;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, marginBottom: 12 }}>
+        <div>
+          <div style={{ fontSize: '16px', fontWeight: 600, color: '#fff' }}>{title}</div>
+          <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)', marginTop: 4 }}>{description}</div>
+        </div>
+        <span style={{ fontSize: 14, color: 'var(--heros-brand)', fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>
+          {value}
+          {suffix}
+        </span>
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(event) => onChange(Number(event.target.value))}
+        style={{ width: '100%', accentColor: 'var(--heros-brand)', cursor: 'pointer' }}
+      />
+    </div>
+  );
+}
+
+function ShortcutRow({
+  binding,
+  onUpdate,
+  onReset,
+}: {
+  binding: ShortcutBinding;
+  onUpdate: (value: string) => Promise<void>;
+  onReset: () => Promise<void>;
+}) {
+  const [value, setValue] = useState(binding.current_binding);
+
   useEffect(() => {
-    getLlmConfigNative().then(config => {
-      if (config) setLlmConfig(config);
-    });
-  }, []);
+    setValue(binding.current_binding);
+  }, [binding.current_binding]);
 
-  const handleSaveLlm = async (updates: Partial<LlmConfig>) => {
-    if (!llmConfig) return;
-    const newConfig = { ...llmConfig, ...updates };
-    setLlmConfig(newConfig);
-    setIsSavingLlm(true);
-    try {
-      await saveLlmConfigNative(newConfig);
-      toast.success('AI configuration updated');
-    } catch (e: any) {
-      toast.error(`Failed to save AI config: ${e.toString()}`);
-    } finally {
-      setIsSavingLlm(false);
+  const save = async () => {
+    if (value.trim() === binding.current_binding) return;
+    await onUpdate(value.trim());
+  };
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr minmax(220px, 300px)', gap: 24, alignItems: 'center' }}>
+      <div>
+        <div style={{ fontSize: '16px', fontWeight: 600, color: '#fff' }}>{binding.name}</div>
+        <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)', marginTop: 4 }}>{binding.description}</div>
+      </div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <input
+          value={value}
+          onChange={(event) => setValue(event.target.value)}
+          onBlur={() => void save()}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') void save();
+          }}
+          style={{
+            flex: 1,
+            minWidth: 0,
+            background: 'rgba(0,0,0,0.24)',
+            border: '1px solid rgba(255,255,255,0.1)',
+            color: '#fff',
+            borderRadius: 12,
+            padding: '10px 12px',
+            outline: 'none',
+          }}
+        />
+        <button className="heros-btn" type="button" onClick={() => void onReset()} style={{ padding: '10px 12px', borderRadius: 12 }}>
+          Reset
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function Divider() {
+  return <div style={{ height: 1, background: 'rgba(255,255,255,0.06)' }} />;
+}
+
+export function SettingsView({ onNavigate: _onNavigate }: SettingsViewProps) {
+  const {
+    settings,
+    isLoading,
+    audioDevices,
+    outputDevices,
+    updateSetting,
+    refreshAudioDevices,
+    refreshOutputDevices,
+    updateBinding,
+    resetBinding,
+  } = useSettings();
+
+  const {
+    models,
+    currentModel,
+    downloadingModels,
+    verifyingModels,
+    extractingModels,
+    downloadProgress,
+    loading: modelsLoading,
+    error: modelError,
+    initialized: modelsInitialized,
+    initialize: initializeModels,
+    selectModel,
+    downloadModel,
+    cancelDownload,
+    deleteModel,
+  } = useModelStore();
+
+  useEffect(() => {
+    if (!modelsInitialized) void initializeModels();
+  }, [initializeModels, modelsInitialized]);
+
+  useEffect(() => {
+    void refreshAudioDevices();
+    void refreshOutputDevices();
+  }, [refreshAudioDevices, refreshOutputDevices]);
+
+  const update = async <K extends SettingKey>(key: K, value: AppSettings[K]) => {
+    await updateSetting(key, value);
+  };
+
+  const activeModel = useMemo(
+    () => models.find((model) => model.id === currentModel),
+    [currentModel, models],
+  );
+
+  const transcriptionModels = models.filter((model) => model.category === 'Transcription');
+  const embeddingModels = models.filter((model) => model.category === 'Embedding');
+  const llmModels = models.filter((model) => model.category === 'Llm');
+
+  const shortcutBindings = Object.values(settings?.bindings ?? {}).filter(Boolean) as ShortcutBinding[];
+  const primaryShortcuts = shortcutBindings.filter((binding) =>
+    ['transcribe', 'transcribe_with_post_process', 'cancel', 'system_audio'].includes(binding.id),
+  );
+
+  const sections = [
+    { id: 'general', label: 'General', icon: <Settings size={16} /> },
+    { id: 'models', label: 'Models', icon: <Cpu size={16} /> },
+    { id: 'audio', label: 'Audio', icon: <Mic size={16} /> },
+    { id: 'shortcuts', label: 'Shortcuts', icon: <Keyboard size={16} /> },
+    { id: 'output', label: 'Output', icon: <Command size={16} /> },
+    { id: 'ai', label: 'AI', icon: <Sparkles size={16} /> },
+    { id: 'advanced', label: 'Advanced', icon: <Shield size={16} /> },
+    { id: 'history', label: 'History', icon: <History size={16} /> },
+    { id: 'appearance', label: 'Appearance', icon: <Palette size={16} /> },
+    { id: 'about', label: 'About', icon: <Info size={16} /> },
+  ];
+
+  const scrollToSection = (id: string) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const runModelAction = async (label: string, action: () => Promise<boolean>) => {
+    const ok = await action();
+    if (!ok) toast.error(`${label} failed`);
+  };
+
+  const handleDeleteModel = async (model: ModelInfo) => {
+    const confirmed = await ask(`Delete ${model.name}?`, {
+      title: 'Delete model',
+      kind: 'warning',
+    });
+    if (confirmed) {
+      await runModelAction('Delete model', () => deleteModel(model.id));
     }
   };
 
-  useEffect(() => {
-    document.documentElement.style.setProperty('--ui-scale', uiScale.toString());
-    localStorage.setItem('ui-scale', uiScale.toString());
-    window.dispatchEvent(new Event('storage'));
-  }, [uiScale]);
-
-  const applyThemePreset = async (presetId: string) => {
-    const preset = getThemeById(presetId);
-    await updateUiPreferences({
-      ...prefs,
-      themeColor: preset.brand,
-      bgColorA: preset.bgA,
-      bgColorB: preset.bgB,
-      bgColorC: preset.bgC,
-    });
-    toast.success(`Applied ${preset.name} theme`);
-  };
-
-  useEffect(() => {
-    localStorage.setItem('vault-volume', volume.toString());
-  }, [volume]);
-
-  useEffect(() => {
-    localStorage.setItem('vault-sound-enabled', soundEnabled.toString());
-  }, [soundEnabled]);
-  
-  if (!vaultData) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--on-surface-variant)' }}>
-        <div style={{ textAlign: 'center' }}>
-          <RefreshCw className="spin" size={32} style={{ marginBottom: 16, opacity: 0.5 }} />
-          <p style={{ fontSize: 'var(--text-sm)', fontWeight: 500 }}>Accessing Secure Volume...</p>
+  const renderModelList = (title: string, modelList: ModelInfo[]) => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ fontSize: 12, fontWeight: 800, color: 'rgba(255,255,255,0.38)', textTransform: 'uppercase', letterSpacing: '0.12em' }}>
+        {title}
+      </div>
+      {modelList.length === 0 ? (
+        <div style={{ padding: 18, borderRadius: 14, background: 'rgba(255,255,255,0.03)', color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>
+          No models in this category.
         </div>
+      ) : (
+        modelList.map((model) => {
+          const downloading = model.id in downloadingModels;
+          const verifying = model.id in verifyingModels;
+          const extracting = model.id in extractingModels;
+          const progress = downloadProgress[model.id]?.percentage ?? 0;
+          const status = modelStatusLabel(model, currentModel, downloading, verifying, extracting);
+          const isBusy = downloading || verifying || extracting || model.is_downloading;
+          const isReady = model.is_downloaded || model.is_custom;
+          const isActive = model.id === currentModel;
+
+          return (
+            <div
+              key={model.id}
+              style={{
+                padding: 18,
+                borderRadius: 18,
+                background: isActive ? 'rgba(204,76,43,0.14)' : 'rgba(255,255,255,0.035)',
+                border: isActive ? '1px solid rgba(204,76,43,0.34)' : '1px solid rgba(255,255,255,0.07)',
+                display: 'grid',
+                gridTemplateColumns: '1fr auto',
+                gap: 18,
+              }}
+            >
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: '#fff' }}>{model.name}</div>
+                  <span
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 800,
+                      letterSpacing: '0.1em',
+                      textTransform: 'uppercase',
+                      color: isActive ? 'var(--heros-brand)' : 'rgba(255,255,255,0.48)',
+                    }}
+                  >
+                    {status}
+                  </span>
+                </div>
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', lineHeight: 1.55 }}>
+                  {model.description}
+                </div>
+                <div style={{ display: 'flex', gap: 12, marginTop: 12, flexWrap: 'wrap', color: 'rgba(255,255,255,0.36)', fontSize: 11 }}>
+                  <span>{formatModelSize(model.size_mb)}</span>
+                  {model.engine_type && <span>{model.engine_type}</span>}
+                  {model.supports_translation && <span>Translation</span>}
+                  {model.supports_language_selection && <span>{model.supported_languages.length} languages</span>}
+                  {model.is_recommended && <span style={{ color: 'var(--heros-brand)' }}>Recommended</span>}
+                </div>
+                {isBusy && (
+                  <div style={{ marginTop: 12, height: 6, borderRadius: 999, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+                    <div
+                      style={{
+                        width: `${Math.max(4, progress)}%`,
+                        height: '100%',
+                        borderRadius: 999,
+                        background: 'linear-gradient(90deg, var(--heros-brand), #ff8566)',
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {isBusy ? (
+                  <button className="heros-btn" type="button" onClick={() => void runModelAction('Cancel download', () => cancelDownload(model.id))}>
+                    Cancel
+                  </button>
+                ) : isReady ? (
+                  <>
+                    <button
+                      className="heros-btn"
+                      type="button"
+                      disabled={isActive}
+                      onClick={() => void runModelAction('Select model', () => selectModel(model.id))}
+                      style={{ opacity: isActive ? 0.55 : 1 }}
+                    >
+                      {isActive ? 'Active' : 'Use'}
+                    </button>
+                    {!model.is_custom && (
+                      <button className="heros-btn" type="button" onClick={() => void handleDeleteModel(model)} style={{ color: '#ff9b9b' }}>
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  <button className="heros-btn" type="button" onClick={() => void runModelAction('Download model', () => downloadModel(model.id))}>
+                    <Download size={14} /> Download
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })
+      )}
+    </div>
+  );
+
+  if (isLoading || !settings) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'rgba(255,255,255,0.5)' }}>
+        <RefreshCw className="spin" size={32} style={{ marginBottom: 16, opacity: 0.5 }} />
       </div>
     );
   }
 
-  const prefs = vaultData.uiPreferences || {
-    themeColor: '#cc4c2b',
-    glassIntensity: 60,
-    grainIntensity: 50,
-    autoSyncEnabled: true,
-    syncInterval: 15,
-    animationIntensity: 'high',
-    bgSpeed: 50,
-    bgColorA: '#2a145c',
-    bgColorB: '#b5369c',
-    bgColorC: '#1a8bb5',
-    spotlightTrigger: 'KeyF',
-    uiScale: 1.0
-  };
-
-  const handleUpdateUiPref = (key: keyof UiPreferences, value: any) => {
-    const newPrefs = { ...prefs, [key]: value };
-    updateUiPreferences(newPrefs);
-  };
-
-  const sections = [
-    { id: 'general', label: 'General', icon: <Settings size={16} /> },
-    { id: 'appearance', label: 'Appearance', icon: <Palette size={16} /> },
-    { id: 'marketplace', label: 'Connectivity', icon: <Globe size={16} /> },
-    { id: 'storage', label: 'Storage', icon: <Database size={16} /> },
-    { id: 'controls', label: 'Precision', icon: <Command size={16} /> },
-    { id: 'theme', label: 'Atmosphere', icon: <Sparkles size={16} /> },
-    { id: 'model', label: 'Neural Model', icon: <Cpu size={16} /> },
-    { id: 'prompts', label: 'AI Prompts', icon: <MessageSquare size={16} /> },
-    { id: 'advance', label: 'Advanced', icon: <Shield size={16} /> },
-    { id: 'about', label: 'About Vault', icon: <Info size={16} /> },
-  ];
-
-  const scrollToSection = (id: string) => {
-    const element = document.getElementById(id);
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  };
+  const microphoneChoices = deviceOptions(audioDevices).map((device) => ({
+    label: device.name,
+    value: device.index,
+  }));
+  const outputChoices = deviceOptions(outputDevices).map((device) => ({
+    label: device.name,
+    value: device.index,
+  }));
 
   return (
-    <div className="heros-page-container" style={{ position: 'relative', zIndex: 5, height: '100%', display: 'flex', flexDirection: 'column', maxWidth: '1200px', margin: '0 auto', padding: '40px' }}>
-      <header style={{ marginBottom: '48px', textAlign: 'center', flexShrink: 0 }}>
-        <div style={{ 
-          width: 64, height: 64, borderRadius: 20, 
-          background: 'linear-gradient(135deg, var(--heros-brand) 0%, #ff8566 100%)',
-          margin: '0 auto 24px auto', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: '0 12px 32px rgba(204, 76, 43, 0.2)'
-        }}>
-          <Sliders size={32} color="#fff" />
+    <div
+      className="heros-page-container"
+      style={{
+        position: 'relative',
+        zIndex: 5,
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        maxWidth: '1280px',
+        margin: '0 auto',
+        padding: '40px',
+      }}
+    >
+      <header style={{ marginBottom: '44px', textAlign: 'center', flexShrink: 0 }}>
+        <div
+          style={{
+            width: 64,
+            height: 64,
+            borderRadius: 20,
+            background: 'linear-gradient(135deg, var(--heros-brand) 0%, #ff8566 100%)',
+            margin: '0 auto 24px auto',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 12px 32px rgba(204, 76, 43, 0.2)',
+          }}
+        >
+          <Settings size={32} color="#fff" />
         </div>
-        <h1 style={{ fontSize: '32px', fontWeight: 800, color: '#fff', marginBottom: '8px' }}>System Preferences</h1>
-        <p style={{ color: 'rgba(255, 255, 255, 0.4)', fontSize: '16px' }}>Configure your Sovereign Vault experience and neural intelligence.</p>
+        <h1 style={{ fontSize: 32, fontWeight: 800, color: '#fff', marginBottom: 8 }}>Handy Settings</h1>
+        <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 16 }}>
+          Real transcription, model, audio, and runtime preferences wired into the HerOS shell.
+        </p>
       </header>
 
-      <div style={{ 
-        display: 'grid', 
-        gridTemplateColumns: '200px 1fr 200px', 
-        gap: '64px', 
-        flex: 1, 
-        overflow: 'hidden',
-        width: '100%'
-      }}>
-        {/* Sticky Sidebar Navigation */}
-        <aside style={{ width: '200px', position: 'sticky', top: 0, height: 'fit-content' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            {sections.map(section => (
+      <div style={{ display: 'grid', gridTemplateColumns: '200px 1fr 200px', gap: 56, flex: 1, overflow: 'hidden', width: '100%' }}>
+        <aside style={{ width: 200, position: 'sticky', top: 0, height: 'fit-content' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {sections.map((section) => (
               <button
                 key={section.id}
                 onClick={() => scrollToSection(section.id)}
                 className="heros-btn"
-                style={{ 
-                  justifyContent: 'flex-start', 
-                  width: '100%', 
+                type="button"
+                style={{
+                  justifyContent: 'flex-start',
+                  width: '100%',
                   padding: '10px 14px',
                   background: 'rgba(255,255,255,0.02)',
                   border: '1px solid rgba(255,255,255,0.05)',
-                  fontSize: '12px',
+                  fontSize: 12,
                   fontWeight: 600,
-                  borderRadius: '12px'
+                  borderRadius: 12,
                 }}
               >
-                <span style={{ color: 'var(--heros-brand)', opacity: 0.8, display: 'flex' }}>{section.icon}</span>
-                <span style={{ marginLeft: '10px' }}>{section.label}</span>
+                <span style={{ color: 'var(--heros-brand)', opacity: 0.85, display: 'flex' }}>{section.icon}</span>
+                <span style={{ marginLeft: 10 }}>{section.label}</span>
               </button>
             ))}
           </div>
         </aside>
 
-        {/* Scrollable Content Area */}
-        <main className="custom-scrollbar" style={{ overflowY: 'auto', height: '100%', paddingRight: '20px' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '32px', width: '100%', maxWidth: '800px', margin: '0 auto', paddingBottom: '120px' }}>
-            
-            {/* General System */}
-            <section id="general" className="heros-glass-card" style={{ padding: '32px' }}>
-              <h3 style={{ fontSize: '11px', fontWeight: 800, color: 'var(--heros-brand)', textTransform: 'uppercase', letterSpacing: '0.2em', marginBottom: '32px', display: 'flex', alignItems: 'center', gap: 12 }}>
-                <Settings size={18} /> General System
-              </h3>
-              
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <div style={{ fontSize: '16px', fontWeight: 600, color: '#fff' }}>Launch on Startup</div>
-                    <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)', marginTop: 4 }}>Automatically open Sovereign Vault when logging in.</div>
-                  </div>
-                  <div style={{ width: 44, height: 22, background: 'rgba(255,255,255,0.1)', borderRadius: 11, position: 'relative', cursor: 'pointer' }}>
-                    <div style={{ width: 18, height: 18, background: 'var(--heros-brand)', borderRadius: '50%', position: 'absolute', right: 2, top: 2 }} />
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <div style={{ fontSize: '16px', fontWeight: 600, color: '#fff' }}>System Sounds</div>
-                    <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)', marginTop: 4 }}>Enable auditory feedback for notifications and actions.</div>
-                  </div>
-                  <div 
-                    onClick={() => setSoundEnabled(!soundEnabled)}
-                    style={{ width: 44, height: 22, background: soundEnabled ? 'var(--heros-brand)' : 'rgba(255,255,255,0.1)', borderRadius: 11, position: 'relative', cursor: 'pointer', transition: 'all 0.3s ease' }}
-                  >
-                    <div style={{ width: 18, height: 18, background: '#fff', borderRadius: '50%', position: 'absolute', left: soundEnabled ? 24 : 2, top: 2, transition: 'all 0.3s ease' }} />
-                  </div>
-                </div>
-
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
-                    <span style={{ fontSize: '14px', fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>Master Volume</span>
-                    <span style={{ fontSize: '14px', color: 'var(--heros-brand)', fontWeight: 800 }}>{Math.round(volume * 100)}%</span>
-                  </div>
-                  <input 
-                    type="range" min="0" max="1" step="0.01"
-                    value={volume} 
-                    onChange={(e) => setVolume(parseFloat(e.target.value))}
-                    style={{ width: '100%', accentColor: 'var(--heros-brand)', cursor: 'pointer' }}
-                  />
-                </div>
+        <main className="custom-scrollbar" style={{ overflowY: 'auto', height: '100%', paddingRight: 20 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 28, width: '100%', maxWidth: 840, margin: '0 auto', paddingBottom: 120 }}>
+            <section id="general" className="heros-glass-card" style={{ padding: 32 }}>
+              <SectionHeader icon={<Settings size={18} />} title="General" description="Startup, tray, and core capture behavior." />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                <ToggleRow
+                  title="Push to talk"
+                  description="Hold the transcription shortcut to record; release to stop."
+                  checked={Boolean(settings.push_to_talk)}
+                  onChange={(value) => void update('push_to_talk', value)}
+                />
+                <Divider />
+                <ToggleRow
+                  title="Start hidden"
+                  description="Launch Handy in the background instead of opening the main window."
+                  checked={Boolean(settings.start_hidden)}
+                  onChange={(value) => void update('start_hidden', value)}
+                />
+                <ToggleRow
+                  title="Autostart"
+                  description="Start Handy automatically when you sign in."
+                  checked={Boolean(settings.autostart_enabled)}
+                  onChange={(value) => void update('autostart_enabled', value)}
+                />
+                <ToggleRow
+                  title="Show tray icon"
+                  description="Keep Handy available from the system tray."
+                  checked={settings.show_tray_icon ?? true}
+                  onChange={(value) => void update('show_tray_icon', value)}
+                />
               </div>
             </section>
 
-            {/* Appearance Placeholder */}
-            <section id="appearance" className="heros-glass-card" style={{ padding: '32px' }}>
-              <h3 style={{ fontSize: '11px', fontWeight: 800, color: 'var(--heros-brand)', textTransform: 'uppercase', letterSpacing: '0.2em', marginBottom: '32px', display: 'flex', alignItems: 'center', gap: 12 }}>
-                <Palette size={18} /> Visual Interface
-              </h3>
-              
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
-                    <div style={{ fontSize: '16px', fontWeight: 600, color: '#fff' }}>Interface Scaling</div>
-                    <span style={{ fontSize: '14px', color: 'var(--heros-brand)', fontWeight: 800 }}>{uiScale.toFixed(2)}x</span>
-                  </div>
-                  <input 
-                    type="range" min="0.8" max="1.4" step="0.05"
-                    value={uiScale} 
-                    onChange={(e) => setUiScale(parseFloat(e.target.value))}
-                    style={{ width: '100%', accentColor: 'var(--heros-brand)', cursor: 'pointer' }}
-                  />
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12 }}>
-                    <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)' }}>COMPACT</span>
-                    <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)' }}>STANDARD</span>
-                    <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)' }}>COMFORTABLE</span>
-                  </div>
+            <section id="models" className="heros-glass-card" style={{ padding: 32 }}>
+              <SectionHeader
+                icon={<Cpu size={18} />}
+                title="Models"
+                description="Download, select, and remove local transcription and embedding models."
+              />
+              {modelsLoading ? (
+                <div style={{ color: 'rgba(255,255,255,0.45)', display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <RefreshCw className="spin" size={16} /> Loading models...
                 </div>
-
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 16, borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-                  <div>
-                    <div style={{ fontSize: '16px', fontWeight: 600, color: '#fff' }}>Hardware Acceleration</div>
-                    <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)', marginTop: 4 }}>Use GPU for smoother animations and waves.</div>
-                  </div>
-                  <div style={{ width: 44, height: 22, background: 'var(--heros-brand)', borderRadius: 11, position: 'relative', cursor: 'pointer' }}>
-                    <div style={{ width: 18, height: 18, background: '#fff', borderRadius: '50%', position: 'absolute', right: 2, top: 2 }} />
-                  </div>
-                </div>
-              </div>
-            </section>
-            
-            {/* eBay Accounts & Connectivity */}
-            <section id="marketplace" className="heros-glass-card" style={{ padding: '32px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
-                <h3 style={{ fontSize: '11px', fontWeight: 800, color: 'var(--heros-brand)', textTransform: 'uppercase', letterSpacing: '0.2em', margin: 0, display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <Globe size={18} /> Marketplace Connectivity
-                </h3>
-                <button 
-                  className="heros-btn"
-                  onClick={() => setIsConnectModalOpen(true)}
-                  style={{ padding: '10px 20px', fontSize: '13px', fontWeight: 600, borderRadius: '12px' }}
-                >
-                  Link eBay Account
-                </button>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {(!vaultData?.ebayAccounts || vaultData.ebayAccounts.length === 0) ? (
-                  <div style={{ 
-                    padding: '32px', textAlign: 'center', color: 'rgba(255,255,255,0.3)', 
-                    background: 'rgba(255,255,255,0.03)', borderRadius: '16px', border: '1px dashed rgba(255,255,255,0.1)' 
-                  }}>
-                    No marketplace accounts connected.
-                  </div>
-                ) : (
-                  vaultData.ebayAccounts.map(account => (
-                    <div key={account.accountId} style={{ 
-                      padding: '20px', borderRadius: '16px', background: 'rgba(255,255,255,0.03)', 
-                      border: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center'
-                    }}>
-                      <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-                        <div style={{ 
-                          width: 48, height: 48, borderRadius: '14px', background: 'var(--heros-brand)', 
-                          display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: '18px' 
-                        }}>
-                          {(account.accountLabel || account.accountId).charAt(0)}
-                        </div>
-                        <div>
-                          <div style={{ fontSize: '16px', fontWeight: 600, color: '#fff' }}>{account.accountLabel || account.accountId}</div>
-                          <div style={{ fontSize: '12px', color: account.authStatus === 'connected' ? '#4ade80' : '#f87171', display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                            <div style={{ width: 8, height: 8, borderRadius: '50%', background: account.authStatus === 'connected' ? '#4ade80' : '#f87171', boxShadow: `0 0 10px ${account.authStatus === 'connected' ? '#4ade8044' : '#f8717144'}` }} />
-                            <span style={{ letterSpacing: '0.08em' }}>{account.authStatus === 'connected' ? 'SECURELY CONNECTED' : 'RE-AUTHENTICATION REQUIRED'}</span>
-                          </div>
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', gap: 12 }}>
-                        <button 
-                          className="heros-btn"
-                          onClick={async () => {
-                            try {
-                              toast.info(`Synchronizing ${account.accountLabel || account.accountId}...`);
-                              await syncAllEbayDataNative(vaultData!, account.accountId);
-                              toast.success(`Sync complete for ${account.accountLabel || account.accountId}`);
-                            } catch (e: any) {
-                              toast.error(`Sync failed: ${e.toString()}`);
-                            }
-                          }}
-                          style={{ padding: '10px 20px', fontSize: '13px', fontWeight: 600, borderRadius: '12px' }}
-                        >
-                          <RefreshCw size={14} /> Sync
-                        </button>
-                      </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
+                  {modelError && (
+                    <div style={{ color: '#ff9b9b', background: 'rgba(255,0,0,0.08)', border: '1px solid rgba(255,0,0,0.14)', borderRadius: 14, padding: 14 }}>
+                      {modelError}
                     </div>
+                  )}
+                  {activeModel && (
+                    <div style={{ padding: 18, borderRadius: 18, background: 'rgba(204,76,43,0.12)', border: '1px solid rgba(204,76,43,0.26)' }}>
+                      <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.48)', textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 800 }}>
+                        Active transcription model
+                      </div>
+                      <div style={{ marginTop: 8, color: '#fff', fontSize: 20, fontWeight: 800 }}>{activeModel.name}</div>
+                      <div style={{ marginTop: 6, color: 'rgba(255,255,255,0.48)', fontSize: 13 }}>{activeModel.description}</div>
+                    </div>
+                  )}
+                  {renderModelList('Transcription', transcriptionModels)}
+                  {renderModelList('Embedding', embeddingModels)}
+                  {llmModels.length > 0 && renderModelList('Local LLM', llmModels)}
+                </div>
+              )}
+            </section>
+
+            <section id="audio" className="heros-glass-card" style={{ padding: 32 }}>
+              <SectionHeader icon={<Mic size={18} />} title="Audio" description="Input, output, feedback, and recording behavior." />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                <SelectRow
+                  title="Microphone"
+                  description="Device used for microphone transcription."
+                  value={selectDeviceValue(settings.selected_microphone)}
+                  options={microphoneChoices}
+                  onChange={(value) => void update('selected_microphone', value)}
+                />
+                <SelectRow
+                  title="Audio feedback output"
+                  description="Device used for start/stop feedback sounds."
+                  value={selectDeviceValue(settings.selected_output_device)}
+                  options={outputChoices}
+                  onChange={(value) => void update('selected_output_device', value)}
+                />
+                <Divider />
+                <ToggleRow
+                  title="Mute while recording"
+                  description="Mute system output while Handy records microphone audio."
+                  checked={Boolean(settings.mute_while_recording)}
+                  onChange={(value) => void update('mute_while_recording', value)}
+                />
+                <ToggleRow
+                  title="Audio feedback"
+                  description="Play a sound when recording starts and stops."
+                  checked={Boolean(settings.audio_feedback)}
+                  onChange={(value) => void update('audio_feedback', value)}
+                />
+                <RangeRow
+                  title="Feedback volume"
+                  description="Volume for recording feedback sounds."
+                  value={Math.round((settings.audio_feedback_volume ?? 1) * 100)}
+                  min={0}
+                  max={100}
+                  step={1}
+                  suffix="%"
+                  onChange={(value) => void update('audio_feedback_volume', value / 100)}
+                />
+              </div>
+            </section>
+
+            <section id="shortcuts" className="heros-glass-card" style={{ padding: 32 }}>
+              <SectionHeader icon={<Keyboard size={18} />} title="Shortcuts" description="Edit global shortcut strings and reset defaults." />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                {primaryShortcuts.length === 0 ? (
+                  <div style={{ color: 'rgba(255,255,255,0.42)' }}>No shortcut bindings loaded.</div>
+                ) : (
+                  primaryShortcuts.map((binding) => (
+                    <ShortcutRow
+                      key={binding.id}
+                      binding={binding}
+                      onUpdate={async (value) => {
+                        await updateBinding(binding.id, value);
+                      }}
+                      onReset={async () => {
+                        await resetBinding(binding.id);
+                      }}
+                    />
                   ))
                 )}
               </div>
             </section>
 
-            {/* Storage Configuration */}
-            <section id="storage" className="heros-glass-card" style={{ padding: '32px' }}>
-              <h3 style={{ fontSize: '11px', fontWeight: 800, color: 'var(--heros-brand)', textTransform: 'uppercase', letterSpacing: '0.2em', marginBottom: '32px', display: 'flex', alignItems: 'center', gap: 12 }}>
-                <Database size={18} /> Vault Storage
-              </h3>
-              
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <div style={{ fontSize: '16px', fontWeight: 600, color: '#fff' }}>Storage Path</div>
-                  <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', marginTop: 4 }}>{storagePath || 'No directory selected'}</div>
-                </div>
-                <button 
-                  className="heros-btn" 
-                  onClick={selectDirectory}
-                  style={{ padding: '10px 20px', fontSize: '13px', fontWeight: 600, borderRadius: '12px' }}
-                >
-                  <FolderOpen size={16} /> Change Directory
-                </button>
+            <section id="output" className="heros-glass-card" style={{ padding: 32 }}>
+              <SectionHeader icon={<Command size={18} />} title="Output" description="How transcripts are pasted, copied, and submitted." />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                <SelectRow
+                  title="Paste method"
+                  description="How Handy inserts text into the active app."
+                  value={(settings.paste_method ?? 'ctrl_v') as PasteMethod}
+                  options={pasteMethodOptions}
+                  onChange={(value) => void update('paste_method', value)}
+                />
+                <SelectRow
+                  title="Clipboard handling"
+                  description="Whether the transcript should be copied to clipboard."
+                  value={(settings.clipboard_handling ?? 'dont_modify') as ClipboardHandling}
+                  options={clipboardOptions}
+                  onChange={(value) => void update('clipboard_handling', value)}
+                />
+                <ToggleRow
+                  title="Auto submit"
+                  description="Press Enter after pasting into chat-style apps."
+                  checked={Boolean(settings.auto_submit)}
+                  onChange={(value) => void update('auto_submit', value)}
+                />
+                <ToggleRow
+                  title="Append trailing space"
+                  description="Add a space after pasted transcript text."
+                  checked={Boolean(settings.append_trailing_space)}
+                  onChange={(value) => void update('append_trailing_space', value)}
+                />
+                <RangeRow
+                  title="Paste delay"
+                  description="Delay before text insertion after clipboard setup."
+                  value={settings.paste_delay_ms ?? 60}
+                  min={0}
+                  max={1000}
+                  step={10}
+                  suffix="ms"
+                  onChange={(value) => void update('paste_delay_ms', value)}
+                />
               </div>
             </section>
 
-            {/* Precision Controls & Shortcuts */}
-            <section id="controls" className="heros-glass-card" style={{ padding: '32px' }}>
-              <h3 style={{ fontSize: '11px', fontWeight: 800, color: 'var(--heros-brand)', textTransform: 'uppercase', letterSpacing: '0.2em', marginBottom: '32px', display: 'flex', alignItems: 'center', gap: 12 }}>
-                <Command size={18} /> Precision Controls
-              </h3>
-
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '32px' }}>
-                <div>
-                  <div style={{ marginBottom: '12px' }}>
-                    <div style={{ fontSize: '16px', fontWeight: 600, color: '#fff' }}>Spotlight Trigger</div>
-                    <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', marginTop: 4 }}>Primary shortcut for the command palette</div>
-                  </div>
-                  <div style={{ display: 'flex', gap: 12 }}>
-                    <button 
-                      onClick={() => handleUpdateUiPref('spotlightTrigger', 'KeyF')}
-                      style={{ 
-                        flex: 1, padding: '12px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.05)',
-                        background: prefs.spotlightTrigger === 'KeyF' ? 'rgba(204, 76, 43, 0.15)' : 'rgba(0,0,0,0.2)',
-                        color: prefs.spotlightTrigger === 'KeyF' ? 'var(--heros-brand)' : 'rgba(255,255,255,0.5)',
-                        fontSize: '13px', fontWeight: 700, cursor: 'pointer', transition: 'all 0.3s ease'
-                      }}
-                    >
-                      Ctrl + F
-                    </button>
-                    <button 
-                      onClick={() => handleUpdateUiPref('spotlightTrigger', 'Space')}
-                      style={{ 
-                        flex: 1, padding: '12px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.05)',
-                        background: prefs.spotlightTrigger === 'Space' ? 'rgba(204, 76, 43, 0.15)' : 'rgba(0,0,0,0.2)',
-                        color: prefs.spotlightTrigger === 'Space' ? 'var(--heros-brand)' : 'rgba(255,255,255,0.5)',
-                        fontSize: '13px', fontWeight: 700, cursor: 'pointer', transition: 'all 0.3s ease'
-                      }}
-                    >
-                      Ctrl + Space
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            {/* Unified Theme & Atmosphere */}
-            <section id="theme" className="heros-glass-card" style={{ padding: '32px' }}>
-              <h3 style={{ fontSize: '11px', fontWeight: 800, color: 'var(--heros-brand)', textTransform: 'uppercase', letterSpacing: '0.2em', marginBottom: '32px', display: 'flex', alignItems: 'center', gap: 12 }}>
-                <Sparkles size={18} /> Unified Theme & Atmosphere
-              </h3>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '40px' }}>
-                
-                {/* Atmosphere Presets Subsection */}
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '24px' }}>
-                    <Layout size={16} color="var(--heros-brand)" />
-                    <h4 style={{ fontSize: '15px', fontWeight: 600, margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Atmosphere Presets</h4>
-                  </div>
-                  
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
-                    {THEME_PRESETS.map(preset => {
-                      const isActive = prefs.themeColor === preset.brand;
-                      return (
-                        <button
-                          key={preset.id}
-                          onClick={() => applyThemePreset(preset.id)}
-                          className="heros-glass-card"
-                          style={{
-                            padding: '16px',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            gap: '12px',
-                            cursor: 'pointer',
-                            background: isActive ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.2)',
-                            borderColor: isActive ? preset.brand : 'rgba(255,255,255,0.05)',
-                            transition: 'all 0.3s ease',
-                            borderWidth: isActive ? '2px' : '1px',
-                          }}
-                        >
-                          <div style={{ 
-                            width: '100%', height: '60px', borderRadius: '8px',
-                            background: `linear-gradient(135deg, ${preset.bgA}, ${preset.bgB}, ${preset.bgC})`,
-                            boxShadow: isActive ? `0 0 20px ${preset.brand}44` : 'none'
-                          }} />
-                          <span style={{ 
-                            fontSize: '12px', fontWeight: 700, 
-                            color: isActive ? '#fff' : 'rgba(255,255,255,0.5)',
-                            textTransform: 'uppercase', letterSpacing: '0.05em'
-                          }}>
-                            {preset.name}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div style={{ height: '1px', background: 'rgba(255,255,255,0.05)' }} />
-
-                {/* UI Scale — coordinated app-wide pixel multiplier (zoom + token).
-                    Range 0.5–1.5; preset rail jumps to common sizes. Cmd/Ctrl + = / - / 0
-                    nudges by 5% / resets. Persists via localStorage on every change
-                    (VaultContext.applyUiScale). */}
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
-                    <span style={{ fontSize: '14px', fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>UI Scale</span>
-                    <span style={{ fontSize: '14px', color: 'var(--heros-brand)', fontWeight: 800 }}>
-                      {Math.round(((prefs.uiScale ?? 1.0) as number) * 100)}%
-                    </span>
-                  </div>
-                  <input
-                    type="range" min="0.5" max="1.5" step="0.05"
-                    value={(prefs.uiScale ?? 1.0) as number}
-                    onChange={(e) => handleUpdateUiPref('uiScale', parseFloat(e.target.value))}
-                    style={{ width: '100%', accentColor: 'var(--heros-brand)', cursor: 'pointer' }}
-                  />
-                  <div style={{ display: 'flex', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
-                    {[
-                      { label: 'Compact', value: 0.85 },
-                      { label: 'Default', value: 1.0 },
-                      { label: 'Large', value: 1.15 },
-                    ].map((p) => {
-                      const active = Math.abs(((prefs.uiScale ?? 1.0) as number) - p.value) < 0.001
-                      return (
-                        <button
-                          key={p.label}
-                          type="button"
-                          onClick={() => handleUpdateUiPref('uiScale', p.value)}
-                          style={{
-                            padding: '6px 12px',
-                            fontSize: '12px',
-                            fontWeight: 600,
-                            letterSpacing: '0.04em',
-                            borderRadius: '8px',
-                            border: '1px solid rgba(255,255,255,0.1)',
-                            background: active ? 'color-mix(in srgb, var(--heros-brand) 20%, transparent)' : 'rgba(255,255,255,0.04)',
-                            color: active ? '#fff' : 'rgba(255,255,255,0.6)',
-                            cursor: 'pointer',
-                            transition: 'all 0.2s',
-                          }}
-                        >
-                          {p.label} · {Math.round(p.value * 100)}%
-                        </button>
-                      )
-                    })}
-                  </div>
-                  <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginTop: '12px', marginBottom: 0 }}>
-                    Below 100%: text shrinks, window stays — more content fits. Above 100%:
-                    text grows, window grows proportionally to prevent clipping.
-                    Cmd/Ctrl + = / - / 0 to nudge or reset.
-                  </p>
-                </div>
-
-                <div style={{ height: '1px', background: 'rgba(255,255,255,0.05)' }} />
-
-                {/* Glass & Grain Subsection */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '32px' }}>
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
-                      <span style={{ fontSize: '14px', fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>Glass Intensity</span>
-                      <span style={{ fontSize: '14px', color: 'var(--heros-brand)', fontWeight: 800 }}>{prefs.glassIntensity}%</span>
-                    </div>
-                    <input 
-                      type="range" min="0" max="100" 
-                      value={prefs.glassIntensity} 
-                      onChange={(e) => handleUpdateUiPref('glassIntensity', parseInt(e.target.value))}
-                      style={{ width: '100%', accentColor: 'var(--heros-brand)', cursor: 'pointer' }}
-                    />
-                  </div>
-
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
-                      <span style={{ fontSize: '14px', fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>Film Grain Strength</span>
-                      <span style={{ fontSize: '14px', color: 'var(--heros-brand)', fontWeight: 800 }}>{prefs.grainIntensity}%</span>
-                    </div>
-                    <input 
-                      type="range" min="0" max="100" 
-                      value={prefs.grainIntensity} 
-                      onChange={(e) => handleUpdateUiPref('grainIntensity', parseInt(e.target.value))}
-                      style={{ width: '100%', accentColor: 'var(--heros-brand)', cursor: 'pointer' }}
-                    />
-                  </div>
-                </div>
-
-                {/* Background Subsection */}
-                <div style={{ paddingTop: '24px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '24px' }}>
-                    <Zap size={16} color="var(--heros-brand)" />
-                    <h4 style={{ fontSize: '15px', fontWeight: 600, margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Kinetic Background</h4>
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
-                    <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
-                        <span style={{ fontSize: '14px', fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>Wave Motion Speed</span>
-                        <span style={{ fontSize: '14px', color: 'var(--heros-brand)', fontWeight: 800 }}>{prefs.bgSpeed}%</span>
-                      </div>
-                      <input 
-                        type="range" min="0" max="200" 
-                        value={prefs.bgSpeed} 
-                        onChange={(e) => handleUpdateUiPref('bgSpeed', parseInt(e.target.value))}
-                        style={{ width: '100%', accentColor: 'var(--heros-brand)', cursor: 'pointer' }}
-                      />
-                    </div>
-
-                    <div>
-                      <span style={{ fontSize: '14px', fontWeight: 600, color: 'rgba(255,255,255,0.7)', display: 'block', marginBottom: '16px' }}>Neural Color Palette</span>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                          <span style={{ fontSize: '10px', fontWeight: 800, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase' }}>Color A</span>
-                          <input 
-                            type="color" 
-                            value={prefs.bgColorA || '#2a145c'} 
-                            onChange={(e) => handleUpdateUiPref('bgColorA', e.target.value)}
-                            style={{ width: '100%', height: '40px', border: 'none', borderRadius: '8px', background: 'transparent', cursor: 'pointer' }}
-                          />
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                          <span style={{ fontSize: '10px', fontWeight: 800, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase' }}>Color B</span>
-                          <input 
-                            type="color" 
-                            value={prefs.bgColorB || '#b5369c'} 
-                            onChange={(e) => handleUpdateUiPref('bgColorB', e.target.value)}
-                            style={{ width: '100%', height: '40px', border: 'none', borderRadius: '8px', background: 'transparent', cursor: 'pointer' }}
-                          />
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                          <span style={{ fontSize: '10px', fontWeight: 800, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase' }}>Color C</span>
-                          <input 
-                            type="color" 
-                            value={prefs.bgColorC || '#1a8bb5'} 
-                            onChange={(e) => handleUpdateUiPref('bgColorC', e.target.value)}
-                            style={{ width: '100%', height: '40px', border: 'none', borderRadius: '8px', background: 'transparent', cursor: 'pointer' }}
-                          />
-                        </div>
-                      </div>
-                    </div>
+            <section id="ai" className="heros-glass-card" style={{ padding: 32 }}>
+              <SectionHeader icon={<Sparkles size={18} />} title="AI & Language" description="Translation, post-processing, and model-specific language controls." />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                <ToggleRow
+                  title="Translate to English"
+                  description="Ask supported transcription models to translate speech into English."
+                  checked={Boolean(settings.translate_to_english)}
+                  disabled={!activeModel?.supports_translation}
+                  onChange={(value) => void update('translate_to_english', value)}
+                />
+                <ToggleRow
+                  title="Post-processing"
+                  description="Run transcript cleanup through the configured post-processing provider."
+                  checked={Boolean(settings.post_process_enabled)}
+                  onChange={(value) => void update('post_process_enabled', value)}
+                />
+                <ToggleRow
+                  title="Auto tagging"
+                  description="Let Handy generate tags for saved transcript notes."
+                  checked={Boolean(settings.auto_tag_enabled)}
+                  onChange={(value) => void update('auto_tag_enabled', value)}
+                />
+                <div style={{ padding: 18, borderRadius: 16, background: 'rgba(255,255,255,0.035)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                  <div style={{ fontSize: 14, color: '#fff', fontWeight: 800 }}>Post-processing provider</div>
+                  <div style={{ marginTop: 6, color: 'rgba(255,255,255,0.45)', fontSize: 13 }}>
+                    Active provider: {settings.post_process_provider_id ?? 'not selected'}.
+                    Detailed provider keys and prompt editing will be wired into this HerOS surface next.
                   </div>
                 </div>
               </div>
             </section>
 
-            {/* Neural AI Configuration */}
-            <section id="neural" className="heros-glass-card" style={{ padding: '32px' }}>
-              <h3 style={{ fontSize: '11px', fontWeight: 800, color: 'var(--heros-brand)', textTransform: 'uppercase', letterSpacing: '0.2em', marginBottom: '32px', display: 'flex', alignItems: 'center', gap: 12 }}>
-                <Brain size={18} /> Neural Configuration
-              </h3>
-
-              {llmConfig && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                  <div>
-                    <label style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.12em', display: 'block', marginBottom: '12px' }}>
-                      OpenAI API Endpoint
-                    </label>
-                    <HerOSInput 
-                      value={llmConfig.openai_api_url}
-                      onChange={(e) => setLlmConfig({...llmConfig, openai_api_url: e.target.value})}
-                      onBlur={() => handleSaveLlm({ openai_api_url: llmConfig.openai_api_url })}
-                      placeholder="https://api.openai.com/v1"
-                    />
-                  </div>
-
-                  <div>
-                    <label style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.12em', display: 'block', marginBottom: '12px' }}>
-                      Secret Intelligence Key
-                    </label>
-                    <HerOSInput 
-                      type="password"
-                      value={llmConfig.openai_api_key}
-                      onChange={(e) => setLlmConfig({...llmConfig, openai_api_key: e.target.value})}
-                      onBlur={() => handleSaveLlm({ openai_api_key: llmConfig.openai_api_key })}
-                      placeholder="sk-..."
-                      icon={<Key size={18} color="rgba(255,255,255,0.2)" />}
-                    />
-                  </div>
-                </div>
-              )}
+            <section id="advanced" className="heros-glass-card" style={{ padding: 32 }}>
+              <SectionHeader icon={<Shield size={18} />} title="Advanced" description="Runtime behavior, overlay, acceleration, and diagnostics." />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                <SelectRow
+                  title="Overlay position"
+                  description="Where the recording overlay appears."
+                  value={(settings.overlay_position ?? 'bottom') as OverlayPosition}
+                  options={overlayOptions}
+                  onChange={(value) => void update('overlay_position', value)}
+                />
+                <SelectRow
+                  title="Model unload"
+                  description="When the transcription model should unload from memory."
+                  value={(settings.model_unload_timeout ?? 'never') as ModelUnloadTimeout}
+                  options={unloadOptions}
+                  onChange={(value) => void update('model_unload_timeout', value)}
+                />
+                <SelectRow
+                  title="Whisper acceleration"
+                  description="Hardware backend used by Whisper where supported."
+                  value={(settings.whisper_accelerator ?? 'auto') as WhisperAcceleratorSetting}
+                  options={whisperAccelerationOptions}
+                  onChange={(value) => void update('whisper_accelerator', value)}
+                />
+                <SelectRow
+                  title="Embedding acceleration"
+                  description="Hardware backend for ONNX embedding models."
+                  value={(settings.ort_accelerator ?? 'auto') as OrtAcceleratorSetting}
+                  options={ortAccelerationOptions}
+                  onChange={(value) => void update('ort_accelerator', value)}
+                />
+                <ToggleRow
+                  title="Debug mode"
+                  description="Enable verbose logs and debug-only settings."
+                  checked={Boolean(settings.debug_mode)}
+                  onChange={(value) => void update('debug_mode', value)}
+                />
+                <ToggleRow
+                  title="Experimental features"
+                  description="Reveal unstable capabilities like alternate keyboard backends."
+                  checked={Boolean(settings.experimental_enabled)}
+                  onChange={(value) => void update('experimental_enabled', value)}
+                />
+              </div>
             </section>
 
-            {/* Model Placeholder */}
-            <section id="model" className="heros-glass-card" style={{ padding: '32px' }}>
-              <h3 style={{ fontSize: '11px', fontWeight: 800, color: 'var(--heros-brand)', textTransform: 'uppercase', letterSpacing: '0.2em', marginBottom: '32px', display: 'flex', alignItems: 'center', gap: 12 }}>
-                <Cpu size={18} /> Neural Model
-              </h3>
-              
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
-                      <span style={{ fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.6)' }}>Temperature</span>
-                      <span style={{ fontSize: '13px', color: 'var(--heros-brand)', fontWeight: 800 }}>0.7</span>
-                    </div>
-                    <input type="range" min="0" max="1" step="0.1" value="0.7" style={{ width: '100%', accentColor: 'var(--heros-brand)' }} readOnly />
-                  </div>
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
-                      <span style={{ fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.6)' }}>Context Limit</span>
-                      <span style={{ fontSize: '13px', color: 'var(--heros-brand)', fontWeight: 800 }}>128K</span>
-                    </div>
-                    <input type="range" min="8" max="200" step="8" value="128" style={{ width: '100%', accentColor: 'var(--heros-brand)' }} readOnly />
+            <section id="history" className="heros-glass-card" style={{ padding: 32 }}>
+              <SectionHeader icon={<History size={18} />} title="History" description="Transcript retention and saved recording limits." />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                <RangeRow
+                  title="History limit"
+                  description="Maximum saved transcript entries retained in history."
+                  value={settings.history_limit ?? 5}
+                  min={1}
+                  max={100}
+                  step={1}
+                  suffix=""
+                  onChange={(value) => void update('history_limit', value)}
+                />
+                <SelectRow
+                  title="Recording retention"
+                  description="How long source audio recordings are preserved."
+                  value={(settings.recording_retention_period ?? 'preserve_limit') as RecordingRetentionPeriod}
+                  options={retentionOptions}
+                  onChange={(value) => void update('recording_retention_period', value)}
+                />
+              </div>
+            </section>
+
+            <section id="appearance" className="heros-glass-card" style={{ padding: 32 }}>
+              <SectionHeader icon={<Palette size={18} />} title="Appearance" description="HerOS shell scale and atmospheric rendering." />
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 18 }}>
+                <div style={{ padding: 18, borderRadius: 18, background: 'rgba(255,255,255,0.035)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                  <Monitor size={18} color="var(--heros-brand)" />
+                  <div style={{ marginTop: 10, fontSize: 15, fontWeight: 800, color: '#fff' }}>Native UI scale</div>
+                  <div style={{ marginTop: 6, fontSize: 13, color: 'rgba(255,255,255,0.45)', lineHeight: 1.5 }}>
+                    The current HerOS shell handles scale through Vault preferences and native webview zoom.
                   </div>
                 </div>
-
-                <div style={{ padding: '20px', background: 'rgba(255,255,255,0.03)', borderRadius: 12, border: '1px solid rgba(255,255,255,0.05)' }}>
-                  <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff', marginBottom: 8 }}>Active Shard: Claude-3.5-Sonnet</div>
-                  <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>Engine is currently running on localized cloud hybrid.</div>
+                <div style={{ padding: 18, borderRadius: 18, background: 'rgba(255,255,255,0.035)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                  <Gauge size={18} color="var(--heros-brand)" />
+                  <div style={{ marginTop: 10, fontSize: 15, fontWeight: 800, color: '#fff' }}>Atmosphere</div>
+                  <div style={{ marginTop: 6, fontSize: 13, color: 'rgba(255,255,255,0.45)', lineHeight: 1.5 }}>
+                    Theme and background controls remain in the HerOS visual layer and are intentionally not mixed with transcription settings.
+                  </div>
                 </div>
               </div>
             </section>
 
-            {/* Prompts Placeholder */}
-            <section id="prompts" className="heros-glass-card" style={{ padding: '32px' }}>
-              <h3 style={{ fontSize: '11px', fontWeight: 800, color: 'var(--heros-brand)', textTransform: 'uppercase', letterSpacing: '0.2em', marginBottom: '32px', display: 'flex', alignItems: 'center', gap: 12 }}>
-                <MessageSquare size={18} /> AI System Prompts
-              </h3>
-              
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                <div>
-                  <label style={{ fontSize: '12px', fontWeight: 700, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', display: 'block', marginBottom: 12 }}>Primary Directive</label>
-                  <textarea 
-                    placeholder="You are a helpful assistant..."
-                    style={{ 
-                      width: '100%', height: '120px', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.1)', 
-                      borderRadius: 12, padding: 16, color: '#fff', fontSize: '14px', resize: 'none', fontFamily: 'inherit'
-                    }}
-                    defaultValue="You are the Infield AI, a hyper-efficient data sovereignty engine. Assist the user with marketplace management while maintaining absolute privacy protocols."
-                  />
-                </div>
-              </div>
-            </section>
-
-            {/* Advance Placeholder */}
-            <section id="advance" className="heros-glass-card" style={{ padding: '32px' }}>
-              <h3 style={{ fontSize: '11px', fontWeight: 800, color: 'var(--heros-brand)', textTransform: 'uppercase', letterSpacing: '0.2em', marginBottom: '32px', display: 'flex', alignItems: 'center', gap: 12 }}>
-                <Shield size={18} /> Advanced Protocols
-              </h3>
-              
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                <button className="heros-btn" style={{ justifyContent: 'center', border: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.02)', padding: '12px 20px', fontSize: '13px', fontWeight: 600, borderRadius: '12px' }}>
-                  <Database size={16} /> Vacuum Database
-                </button>
-                <button className="heros-btn" style={{ justifyContent: 'center', border: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.02)', padding: '12px 20px', fontSize: '13px', fontWeight: 600, borderRadius: '12px' }}>
-                  <RefreshCw size={16} /> Purge Sync Cache
-                </button>
-                <button className="heros-btn" style={{ justifyContent: 'center', border: '1px solid rgba(239, 68, 68, 0.1)', color: '#f87171', gridColumn: 'span 2', padding: '12px 20px', fontSize: '13px', fontWeight: 600, borderRadius: '12px' }}>
-                  Destroy Local Vault Instance
-                </button>
-              </div>
-            </section>
-
-            {/* About Placeholder */}
-            <section id="about" className="heros-glass-card" style={{ padding: '32px' }}>
-              <h3 style={{ fontSize: '11px', fontWeight: 800, color: 'var(--heros-brand)', textTransform: 'uppercase', letterSpacing: '0.2em', marginBottom: '32px', display: 'flex', alignItems: 'center', gap: 12 }}>
-                <Info size={18} /> About Sovereign Vault
-              </h3>
-              
+            <section id="about" className="heros-glass-card" style={{ padding: 32 }}>
+              <SectionHeader icon={<Info size={18} />} title="About" description="Current runtime details." />
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {[
-                  { label: 'Version', value: 'v2.4.0-stable' },
-                  { label: 'Core Engine', value: 'Tauri / Rust' },
-                  { label: 'Encryption', value: 'AES-256-GCM' },
-                  { label: 'Build Number', value: '2026.0423.A1' }
-                ].map(item => (
-                  <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 10, borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
-                    <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.3)' }}>{item.label}</span>
-                    <span style={{ fontSize: '13px', color: '#fff', fontWeight: 600 }}>{item.value}</span>
+                  ['Application', 'Handy / Infield'],
+                  ['Frontend', 'HerOS port'],
+                  ['Active model', activeModel?.name ?? (currentModel || 'None selected')],
+                  ['Capture mode', settings.capture_mode ?? 'microphone'],
+                  ['Embedding model', settings.embedding_model ?? 'default'],
+                ].map(([label, value]) => (
+                  <div key={label} style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 10, borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                    <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)' }}>{label}</span>
+                    <span style={{ fontSize: 13, color: '#fff', fontWeight: 600 }}>{value}</span>
                   </div>
                 ))}
               </div>
             </section>
           </div>
         </main>
-        {/* Ghost Spacer to balance the grid and keep center content truly centered */}
-        <div style={{ width: '200px', flexShrink: 0 }} />
-      </div>
 
-      <EbayConnectModal 
-        isOpen={isConnectModalOpen} 
-        onClose={() => setIsConnectModalOpen(false)} 
-      />
+        <div style={{ width: 200, flexShrink: 0 }}>
+          <div className="heros-glass-card" style={{ padding: 18, position: 'sticky', top: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--heros-brand)', fontWeight: 800, fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.12em' }}>
+              <Zap size={14} /> Wired
+            </div>
+            <p style={{ margin: '12px 0 0 0', color: 'rgba(255,255,255,0.45)', fontSize: 12, lineHeight: 1.55 }}>
+              This page now writes to Handy settings and model commands. Changes apply immediately unless the underlying backend needs the next capture.
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
-

@@ -714,8 +714,14 @@ pub fn change_system_audio_paragraph_silence_secs_setting(
     secs: f32,
 ) -> Result<(), String> {
     let mut settings = settings::get_settings(&app);
-    settings.system_audio_paragraph_silence_secs = secs.clamp(0.5, 10.0);
+    let secs = secs.clamp(0.5, 10.0);
+    settings.system_audio_paragraph_silence_secs = secs;
     settings::write_settings(&app, settings);
+    if let Some(manager) =
+        app.try_state::<std::sync::Arc<crate::managers::system_audio::SystemAudioManager>>()
+    {
+        manager.set_paragraph_silence_secs(secs);
+    }
     Ok(())
 }
 

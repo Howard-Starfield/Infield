@@ -31,6 +31,8 @@ fn now_ms() -> u64 {
 pub const MIC_TRANSCRIBE_FOLDER: &str = "Mic Transcribe";
 /// Root workspace folder for system-audio session docs. Tree icons: see `workspaceTranscriptionFolders.ts` + `WorkspaceTreeNodeIcon`.
 pub const SYSTEM_AUDIO_FOLDER: &str = "System Audio";
+/// Root workspace folder for interview session docs (mic + system audio merged).
+pub const INTERVIEWS_FOLDER: &str = "Interviews";
 
 #[derive(Clone, Serialize)]
 pub struct WorkspaceTranscriptionSyncedPayload {

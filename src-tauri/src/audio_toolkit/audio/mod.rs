@@ -1,12 +1,14 @@
 // Re-export all audio components
 mod device;
 pub mod loopback;
+pub mod mic_chunked;
 mod recorder;
 mod resampler;
 mod utils;
 mod visualizer;
 
 pub use device::{list_input_devices, list_output_devices, CpalDeviceInfo};
+pub use mic_chunked::MicChunkedCapture;
 pub use recorder::{is_microphone_access_denied, is_no_input_device_error, AudioRecorder};
 pub use resampler::FrameResampler;
 pub use utils::{read_wav_samples, read_wav_samples_range, save_wav_file, verify_wav_file};

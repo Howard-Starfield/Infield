@@ -1180,6 +1180,40 @@ async getRenderDevices() : Promise<Result<RenderDeviceInfo[], string>> {
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Start a new interview session: mic + system audio simultaneously.
+ */
+async startInterviewSession(participantName: string) : Promise<Result<InterviewStartResult, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("start_interview_session", { participantName }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Stop the active interview session. Returns the workspace doc id
+ * (already written) or `None` if no session was active.
+ */
+async stopInterviewSession() : Promise<Result<string | null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("stop_interview_session") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Whether an interview session is currently active.
+ */
+async isInterviewSessionActive() : Promise<Result<boolean, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("is_interview_session_active") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async sendChatMessage(sessionId: string, messages: ChatMessage[]) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("send_chat_message", { sessionId, messages }) };
@@ -2160,6 +2194,7 @@ export type ImportJobDto = { id: string; file_name: string; source_path: string;
 export type ImportJobKind = "markdown" | "plain_text" | "pdf" | "audio" | "video" | "unknown"
 export type ImportJobState = "queued" | "preparing" | "segmenting" | "draft_created" | "transcribing" | "post_processing" | "finalizing" | "extracting_text" | "creating_note" | "done" | "error" | "cancelled"
 export type ImportQueueSnapshot = { jobs: ImportJobDto[] }
+export type InterviewStartResult = { workspace_doc_id: string; started_at_ms: number }
 export type KeyboardImplementation = "tauri" | "handy_keys"
 export type LLMPrompt = { id: string; name: string; prompt: string }
 export type LlmStatus = { available: boolean; model_path: string | null; disabled_reason: string | null }

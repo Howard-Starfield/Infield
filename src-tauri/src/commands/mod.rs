@@ -3,6 +3,7 @@ pub mod chat;
 pub mod database;
 pub mod history;
 pub mod import_queue;
+pub mod interview;
 pub mod llm;
 pub mod memory;
 pub mod models;

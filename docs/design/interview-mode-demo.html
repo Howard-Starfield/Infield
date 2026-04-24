@@ -1,0 +1,818 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Interview Mode — theme preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  rel="stylesheet"
+  href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Geist+Mono:wght@300;400;500;600&display=swap"
+/>
+<style>
+  :root {
+    /* Foundation — matches the note-page screenshot background */
+    --bg-foundation: #0a0b14;
+    --bg-soft: #0e1020;
+
+    /* Glass surfaces */
+    --glass-panel: rgba(255, 255, 255, 0.028);
+    --glass-panel-elevated: rgba(255, 255, 255, 0.045);
+    --glass-border: rgba(255, 255, 255, 0.06);
+    --glass-inner-highlight: rgba(255, 255, 255, 0.08);
+
+    /* Text */
+    --text-primary: rgba(255, 255, 255, 0.94);
+    --text-secondary: rgba(255, 255, 255, 0.58);
+    --text-muted: rgba(255, 255, 255, 0.32);
+    --text-faint: rgba(255, 255, 255, 0.18);
+
+    /* Brand — matches the "Strategic Ops 2024" active orange in the screenshot */
+    --brand-terracotta: #e47b4a;
+    --brand-terracotta-soft: rgba(228, 123, 74, 0.14);
+    --brand-terracotta-glow: rgba(228, 123, 74, 0.35);
+
+    /* Speaker accents */
+    --speaker-you: #e47b4a;              /* warm — mic, matches brand */
+    --speaker-you-soft: rgba(228, 123, 74, 0.12);
+    --speaker-other: #3eb8ff;            /* cool — system audio, matches existing SystemAudioView */
+    --speaker-other-soft: rgba(62, 184, 255, 0.12);
+
+    /* Status */
+    --success: #3fd490;                  /* matches HUB ACTIVE / Vault Locked */
+    --warning: #f4c95d;
+    --danger: #ff7a7a;
+
+    /* Radii */
+    --r-lg: 16px;
+    --r-md: 12px;
+    --r-sm: 8px;
+    --r-pill: 999px;
+
+    /* Shadows */
+    --shadow-panel: 0 8px 32px rgba(0, 0, 0, 0.35);
+    --shadow-glow: 0 0 32px var(--brand-terracotta-glow);
+
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
+    --space-6: 24px;
+    --space-8: 32px;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg-foundation); }
+  body {
+    min-height: 100vh;
+    color: var(--text-primary);
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-feature-settings: 'cv11', 'ss01', 'ss03';
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    overflow-x: hidden;
+  }
+
+  /* Atmospheric background — three soft radial gradients matching the screenshot */
+  .atmosphere {
+    position: fixed; inset: 0; z-index: 0; overflow: hidden;
+    pointer-events: none;
+  }
+  .atmosphere::before, .atmosphere::after, .atmosphere .accent {
+    content: ''; position: absolute;
+    border-radius: 50%;
+    filter: blur(90px);
+    opacity: 0.55;
+  }
+  .atmosphere::before {
+    width: 780px; height: 780px;
+    background: radial-gradient(circle, rgba(48, 78, 148, 0.55), transparent 65%);
+    top: 40%; right: -10%;
+    animation: drift1 14s ease-in-out infinite alternate;
+  }
+  .atmosphere::after {
+    width: 620px; height: 620px;
+    background: radial-gradient(circle, rgba(228, 123, 74, 0.32), transparent 65%);
+    bottom: -15%; left: -8%;
+    animation: drift2 12s ease-in-out infinite alternate;
+  }
+  .atmosphere .accent {
+    width: 540px; height: 540px;
+    background: radial-gradient(circle, rgba(92, 62, 148, 0.35), transparent 65%);
+    top: -10%; left: 30%;
+    animation: drift3 16s ease-in-out infinite alternate;
+  }
+  @keyframes drift1 { 0% { transform: translate(0,0); } 100% { transform: translate(-50px, 30px); } }
+  @keyframes drift2 { 0% { transform: translate(0,0); } 100% { transform: translate(40px, -20px); } }
+  @keyframes drift3 { 0% { transform: translate(0,0); } 100% { transform: translate(30px, 40px); } }
+
+  .page { position: relative; z-index: 1; padding: 40px 48px 80px; max-width: 1640px; margin: 0 auto; }
+
+  /* ── Page header ────────────────────────────────────────────── */
+  .page-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: var(--space-6);
+  }
+  .page-title {
+    margin: 0;
+    font-size: 13px; font-weight: 800; letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+  }
+  .page-title span { color: var(--text-primary); }
+
+  .demo-tabs { display: flex; gap: 4px; padding: 4px; background: var(--glass-panel); border-radius: var(--r-pill); border: 1px solid var(--glass-border); }
+  .demo-tab {
+    padding: 6px 14px; border-radius: var(--r-pill);
+    font-size: 11px; font-weight: 700; letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    background: transparent; border: 0; cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .demo-tab.is-active { background: var(--brand-terracotta); color: white; }
+  .demo-tab:hover:not(.is-active) { color: var(--text-primary); }
+
+  /* ── Main grid (matches SystemAudioView layout) ─────────────── */
+  .main {
+    display: grid; grid-template-columns: 1fr 320px; gap: 12px;
+    min-height: 680px;
+  }
+
+  /* Reusable glass card */
+  .card {
+    position: relative;
+    background: var(--glass-panel);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--r-lg);
+    box-shadow: var(--shadow-panel);
+    backdrop-filter: blur(12px);
+    overflow: hidden;
+  }
+  .card::before {
+    content: '';
+    position: absolute; top: 0; left: 8%; right: 8%; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--glass-inner-highlight), transparent);
+    pointer-events: none;
+  }
+  .card-pad { padding: 24px; }
+  .card-section-label {
+    font-size: 10px; font-weight: 800; letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin: 0 0 var(--space-4) 0;
+  }
+
+  /* ── Left column — transcript ──────────────────────────────── */
+  .transcript-card { display: flex; flex-direction: column; overflow: hidden; }
+
+  .mode-row {
+    padding: 18px 28px 14px;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid var(--glass-border);
+  }
+  .mode-pills { display: flex; gap: 4px; padding: 4px; background: rgba(255,255,255,0.03); border-radius: var(--r-pill); border: 1px solid var(--glass-border); }
+  .mode-pill {
+    padding: 7px 14px; border-radius: var(--r-pill);
+    font-size: 11px; font-weight: 700; letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    background: transparent; border: 0; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 8px;
+    transition: all 0.2s ease;
+  }
+  .mode-pill.is-active { background: var(--brand-terracotta); color: white; box-shadow: 0 4px 18px rgba(228,123,74,0.35); }
+  .mode-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: 0.7; }
+  .mode-hint { font-size: 11px; color: var(--text-muted); font-weight: 500; letter-spacing: 0.04em; }
+
+  .status-row {
+    padding: 22px 28px 18px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .status-left { display: flex; align-items: center; gap: 12px; }
+  .status-dot {
+    width: 11px; height: 11px; border-radius: 50%;
+    background: var(--brand-terracotta);
+    box-shadow: 0 0 14px var(--brand-terracotta-glow);
+    animation: pulseDot 1.6s ease-in-out infinite;
+  }
+  @keyframes pulseDot { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.6; transform: scale(0.85); } }
+  .status-label {
+    font-size: 11px; font-weight: 800; letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--text-primary);
+  }
+  .status-label .divider { color: var(--text-muted); margin: 0 8px; }
+  .status-label .you { color: var(--speaker-you); }
+  .status-label .other { color: var(--speaker-other); }
+
+  .timer {
+    font-family: 'Geist Mono', 'SF Mono', Menlo, monospace;
+    font-size: 26px; font-weight: 300;
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+  }
+
+  /* Name input — shown only when Interview Mode is active + not recording */
+  .name-input-row {
+    padding: 0 28px 18px;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .name-input-label {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .name-input-wrap {
+    position: relative;
+    background: rgba(0,0,0,0.25);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--r-md);
+    display: flex; align-items: center;
+    padding: 0 14px;
+    box-shadow: inset 0 1px 0 rgba(0,0,0,0.2);
+  }
+  .name-input-wrap:focus-within { border-color: var(--brand-terracotta); box-shadow: inset 0 1px 0 rgba(0,0,0,0.2), 0 0 0 3px rgba(228,123,74,0.18); }
+  .name-input-wrap svg { color: var(--text-muted); flex-shrink: 0; }
+  .name-input {
+    flex: 1; padding: 12px 12px; background: transparent; border: 0; outline: none;
+    font-family: inherit; font-size: 15px; color: var(--text-primary);
+    font-weight: 500;
+  }
+  .name-input::placeholder { color: var(--text-muted); font-weight: 400; }
+  .name-preview {
+    font-size: 12px; color: var(--text-secondary);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .name-preview .chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 8px;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.14em;
+    text-transform: uppercase;
+    border-radius: var(--r-pill);
+  }
+  .name-preview .chip.you { background: var(--speaker-you-soft); color: var(--speaker-you); }
+  .name-preview .chip.other { background: var(--speaker-other-soft); color: var(--speaker-other); }
+
+  /* Transcript feed */
+  .feed-wrap {
+    flex: 1; position: relative;
+    padding: 28px 0 120px 0;
+    overflow-y: auto;
+  }
+  .feed {
+    max-width: 780px; margin: 0 auto;
+    display: flex; flex-direction: column; gap: 26px;
+    padding: 0 32px;
+  }
+
+  .para {
+    display: grid; grid-template-columns: 78px 1fr; gap: 22px;
+    animation: fadeSlide 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  @keyframes fadeSlide {
+    from { opacity: 0; transform: translateY(6px); filter: blur(4px); }
+    to { opacity: 1; transform: none; filter: none; }
+  }
+  .para .ts {
+    font-family: 'Geist Mono', 'SF Mono', Menlo, monospace;
+    font-size: 11px; font-weight: 400;
+    color: var(--text-muted);
+    padding-top: 6px;
+    font-variant-numeric: tabular-nums;
+  }
+  .para .speaker {
+    font-size: 10px; font-weight: 800; letter-spacing: 0.18em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .para .speaker::before {
+    content: ''; width: 6px; height: 6px; border-radius: 50%;
+    background: currentColor;
+  }
+  .para.you .speaker { color: var(--speaker-you); }
+  .para.other .speaker { color: var(--speaker-other); }
+  .para .text {
+    font-size: 16px; font-weight: 300; line-height: 1.62;
+    color: var(--text-primary);
+    letter-spacing: 0.005em;
+  }
+
+  /* Floating controls */
+  .controls {
+    position: absolute; bottom: 30px; left: 50%;
+    transform: translateX(-50%);
+    display: flex; align-items: center; gap: 22px;
+    z-index: 5;
+  }
+  .ctrl-secondary {
+    width: 44px; height: 44px; border-radius: 50%;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--glass-border);
+    color: var(--text-secondary);
+    display: inline-flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: all 0.2s ease;
+  }
+  .ctrl-secondary:hover { background: rgba(255,255,255,0.08); color: var(--text-primary); }
+  .ctrl-primary {
+    width: 76px; height: 76px; border-radius: 50%;
+    background: var(--brand-terracotta);
+    color: white; border: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 14px 40px rgba(228,123,74,0.45), inset 0 -4px 12px rgba(0,0,0,0.2);
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .ctrl-primary:hover { transform: scale(1.05); }
+
+  /* Finalizing pill (stop → server response) */
+  .finalizing-pill {
+    position: absolute; top: 18px; left: 50%; transform: translateX(-50%);
+    background: var(--brand-terracotta-soft);
+    border: 1px solid rgba(228, 123, 74, 0.35);
+    color: var(--brand-terracotta);
+    padding: 6px 14px;
+    border-radius: var(--r-pill);
+    font-size: 10px; font-weight: 800; letter-spacing: 0.2em;
+    text-transform: uppercase;
+    display: inline-flex; align-items: center; gap: 8px;
+    animation: pulsePill 1.6s ease-in-out infinite;
+  }
+  @keyframes pulsePill { 0%,100% { opacity: 1; } 50% { opacity: 0.6; } }
+  .finalizing-pill .spinner {
+    width: 10px; height: 10px; border: 1.5px solid currentColor; border-top-color: transparent;
+    border-radius: 50%; animation: spin 0.9s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* "View in workspace" chip */
+  .saved-chip {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 6px 6px 6px 14px; border-radius: var(--r-pill);
+    background: rgba(63, 212, 144, 0.12);
+    border: 1px solid rgba(63, 212, 144, 0.32);
+    color: var(--success);
+    font-size: 11px; font-weight: 700; letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+  .saved-chip .arrow {
+    background: var(--success); color: var(--bg-foundation);
+    width: 22px; height: 22px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-weight: 900;
+  }
+
+  /* ── Right column cards ─────────────────────────────────────── */
+  .rail { display: flex; flex-direction: column; gap: 12px; }
+
+  .ai-insight-box {
+    padding: 14px; border-radius: var(--r-md);
+    background: var(--speaker-other-soft);
+    border: 1px solid rgba(62, 184, 255, 0.22);
+  }
+  .ai-insight-title {
+    display: inline-flex; align-items: center; gap: 6px;
+    color: var(--speaker-other); font-size: 12px; font-weight: 700;
+    margin-bottom: 8px;
+  }
+  .ai-insight-body { font-size: 13px; color: var(--text-secondary); line-height: 1.55; margin: 0; }
+
+  .tune-row { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+  .tune-head { display: flex; justify-content: space-between; align-items: flex-start; }
+  .tune-name { color: var(--text-primary); font-size: 12px; font-weight: 700; }
+  .tune-desc { color: var(--text-muted); font-size: 10.5px; line-height: 1.45; margin-top: 2px; }
+  .tune-status {
+    font-size: 9px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--speaker-other);
+  }
+  .tune-controls { display: flex; align-items: center; gap: 10px; }
+  .tune-range {
+    flex: 1; height: 4px; border-radius: var(--r-pill);
+    background: linear-gradient(to right, var(--brand-terracotta) 0%, var(--brand-terracotta) 35%, rgba(255,255,255,0.08) 35%, rgba(255,255,255,0.08) 100%);
+    position: relative;
+  }
+  .tune-range::after {
+    content: ''; position: absolute; left: 35%; top: 50%;
+    width: 12px; height: 12px; border-radius: 50%;
+    background: white;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+  }
+  .tune-val {
+    min-width: 42px; text-align: right;
+    font-family: 'Geist Mono', monospace; font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-primary);
+  }
+  .tune-scale { display: flex; justify-content: space-between; font-size: 10px; color: var(--text-faint); }
+
+  .dev-row { display: flex; justify-content: space-between; font-size: 12px; padding: 6px 0; }
+  .dev-row .k { color: var(--text-muted); }
+  .dev-row .v { color: var(--text-primary); }
+
+  /* Banner for stream-unavailable */
+  .banner {
+    margin: 0 28px 14px;
+    padding: 10px 14px; border-radius: var(--r-md);
+    background: rgba(255, 122, 122, 0.08);
+    border: 1px solid rgba(255, 122, 122, 0.24);
+    color: var(--danger);
+    font-size: 12px; font-weight: 600;
+    display: flex; align-items: center; gap: 10px;
+  }
+
+  /* ── Style guide strip ──────────────────────────────────────── */
+  .guide { margin-top: 32px; }
+  .guide-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .swatch {
+    padding: 14px;
+    border-radius: var(--r-md);
+    background: var(--glass-panel);
+    border: 1px solid var(--glass-border);
+  }
+  .swatch-color { height: 54px; border-radius: var(--r-sm); margin-bottom: 12px; }
+  .swatch-name { font-size: 11px; font-weight: 700; color: var(--text-primary); letter-spacing: 0.04em; }
+  .swatch-hex { font-family: 'Geist Mono', monospace; font-size: 11px; color: var(--text-muted); }
+  .swatch-role { font-size: 10px; color: var(--text-secondary); margin-top: 6px; line-height: 1.4; }
+
+  .type-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 12px; }
+  .type-card { padding: 18px; }
+  .type-label { font-size: 10px; font-weight: 800; letter-spacing: 0.22em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 10px; }
+  .type-sample { color: var(--text-primary); }
+
+  .two-col { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 12px; }
+  .state-demo .card-pad { padding: 16px 22px; }
+  .state-demo .status-label { font-size: 10.5px; }
+</style>
+</head>
+
+<body>
+
+<div class="atmosphere"><div class="accent"></div></div>
+
+<main class="page">
+
+  <!-- Page header -->
+  <header class="page-header">
+    <h1 class="page-title">Infield · <span>Interview Mode</span> · theme preview</h1>
+    <div class="demo-tabs">
+      <button class="demo-tab is-active">Live capture</button>
+      <button class="demo-tab">Idle · setup</button>
+      <button class="demo-tab">Finalizing</button>
+      <button class="demo-tab">Just saved</button>
+    </div>
+  </header>
+
+  <!-- MAIN: transcript card + right rail -->
+  <div class="main">
+
+    <!-- Transcript card (Interview Mode, live) -->
+    <section class="card transcript-card">
+
+      <!-- Mode pills -->
+      <div class="mode-row">
+        <div class="mode-pills">
+          <button class="mode-pill"><span class="dot"></span> System Audio</button>
+          <button class="mode-pill is-active"><span class="dot"></span> Interview</button>
+        </div>
+        <div class="mode-hint">Mic + system audio · transcribed independently · merged by time</div>
+      </div>
+
+      <!-- Status + timer -->
+      <div class="status-row">
+        <div class="status-left">
+          <span class="status-dot"></span>
+          <span class="status-label">Interview <span class="divider">·</span> <span class="you">You</span> ↔ <span class="other">Howard</span></span>
+        </div>
+        <div class="timer">07:02</div>
+      </div>
+
+      <!-- Inline banner example — stream unavailable -->
+      <!-- (commented out by default; uncomment to preview) -->
+      <!--
+      <div class="banner">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+        Mic transcription stopped — system audio continues. You can stop and review what was captured.
+      </div>
+      -->
+
+      <!-- Transcript feed -->
+      <div class="feed-wrap">
+        <div class="feed">
+
+          <div class="para you">
+            <div class="ts">14:30:12</div>
+            <div>
+              <div class="speaker">You</div>
+              <div class="text">Hi Howard, thanks for making the time today. I wanted to walk through the early feedback we've had on the interview transcript feature and see where you'd push back.</div>
+            </div>
+          </div>
+
+          <div class="para other">
+            <div class="ts">14:30:19</div>
+            <div>
+              <div class="speaker">Howard</div>
+              <div class="text">Happy to be here. The thing that jumped out to me is the speaker-label colour split — it's the one cue that tells me at a glance who said what, so I'd make sure the two accents read clearly even for folks with contrast sensitivity.</div>
+            </div>
+          </div>
+
+          <div class="para you">
+            <div class="ts">14:30:34</div>
+            <div>
+              <div class="speaker">You</div>
+              <div class="text">Right — we landed on the warm terracotta for the mic side and the cool blue for system audio. Both are already used elsewhere in the app, so they read as "yours" and "theirs" without us having to explain it.</div>
+            </div>
+          </div>
+
+          <div class="para other">
+            <div class="ts">14:30:51</div>
+            <div>
+              <div class="speaker">Howard</div>
+              <div class="text">That works. One thing though — the timestamps. Are they elapsed or wall-clock?</div>
+            </div>
+          </div>
+
+          <div class="para you">
+            <div class="ts">14:30:58</div>
+            <div>
+              <div class="speaker">You</div>
+              <div class="text">Wall-clock, local time. Feels more natural when reading back an interview — you remember what time something was said, not how many minutes in.</div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Floating controls -->
+        <div class="controls">
+          <button class="ctrl-secondary" title="Export (W6)" disabled style="opacity: 0.4; cursor: not-allowed;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          </button>
+          <button class="ctrl-primary" title="Stop interview">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1.5"/></svg>
+          </button>
+          <button class="ctrl-secondary" title="Clear on-screen transcript">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+          </button>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- Right rail -->
+    <aside class="rail">
+
+      <section class="card card-pad">
+        <h3 class="card-section-label">AI Insight</h3>
+        <div class="ai-insight-box">
+          <div class="ai-insight-title">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2l3 7 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1z"/></svg>
+            Coming in W6
+          </div>
+          <p class="ai-insight-body">Live insights from the model land once AI chat is wired up.</p>
+        </div>
+      </section>
+
+      <section class="card card-pad">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px;">
+          <h3 class="card-section-label" style="margin: 0;">Tuning · shared</h3>
+          <span class="tune-status">Live</span>
+        </div>
+
+        <div class="tune-row">
+          <div class="tune-head">
+            <div>
+              <div class="tune-name">Max chunk</div>
+              <div class="tune-desc">Force transcribe long speech before VAD sees a pause.</div>
+            </div>
+            <span class="tune-status" style="color: var(--text-muted);">Next capture</span>
+          </div>
+          <div class="tune-controls">
+            <div class="tune-range"></div>
+            <div class="tune-val">2.0s</div>
+          </div>
+          <div class="tune-scale"><span>0.5–10s</span><span>Default 2.0s</span></div>
+        </div>
+
+        <div class="tune-row">
+          <div class="tune-head">
+            <div>
+              <div class="tune-name">VAD hangover</div>
+              <div class="tune-desc">Trailing silence before a spoken segment is cut.</div>
+            </div>
+            <span class="tune-status" style="color: var(--text-muted);">Next capture</span>
+          </div>
+          <div class="tune-controls">
+            <div class="tune-range" style="background: linear-gradient(to right, var(--brand-terracotta) 0%, var(--brand-terracotta) 12%, rgba(255,255,255,0.08) 12%, rgba(255,255,255,0.08) 100%);"></div>
+            <div class="tune-val">0.5s</div>
+          </div>
+          <div class="tune-scale"><span>0.3–10s</span><span>Default 0.5s</span></div>
+        </div>
+
+        <div class="tune-row" style="margin-bottom: 0;">
+          <div class="tune-head">
+            <div>
+              <div class="tune-name">Paragraph gap</div>
+              <div class="tune-desc">Silence between chunks that starts a new timestamp.</div>
+            </div>
+            <span class="tune-status">Live</span>
+          </div>
+          <div class="tune-controls">
+            <div class="tune-range" style="background: linear-gradient(to right, var(--brand-terracotta) 0%, var(--brand-terracotta) 24%, rgba(255,255,255,0.08) 24%, rgba(255,255,255,0.08) 100%);"></div>
+            <div class="tune-val">1.5s</div>
+          </div>
+          <div class="tune-scale"><span>0.5–10s</span><span>Default 1.5s</span></div>
+        </div>
+      </section>
+
+      <section class="card card-pad">
+        <h3 class="card-section-label">Device</h3>
+        <div class="dev-row"><span class="k">Mic</span><span class="v">MacBook Pro Microphone</span></div>
+        <div class="dev-row"><span class="k">Render output</span><span class="v">MacBook Pro Speakers</span></div>
+        <div class="dev-row"><span class="k">Method</span><span class="v" style="color: var(--speaker-other);">WASAPI loopback + mic</span></div>
+      </section>
+
+    </aside>
+  </div>
+
+  <!-- ── Auxiliary states (Idle / Finalizing / Just-saved) ─────────────── -->
+  <section class="guide">
+    <h3 class="card-section-label" style="margin-bottom: 12px;">States</h3>
+    <div class="two-col">
+
+      <!-- Idle — Interview Mode with name input -->
+      <div class="card state-demo">
+        <div class="mode-row">
+          <div class="mode-pills">
+            <button class="mode-pill"><span class="dot"></span> System Audio</button>
+            <button class="mode-pill is-active"><span class="dot"></span> Interview</button>
+          </div>
+          <div class="mode-hint">Setup</div>
+        </div>
+        <div class="status-row">
+          <div class="status-left">
+            <span class="status-dot" style="background: var(--text-faint); box-shadow: none; animation: none;"></span>
+            <span class="status-label" style="color: var(--text-secondary);">Interview Mode · Idle</span>
+          </div>
+          <div class="timer" style="color: var(--text-muted);">00:00</div>
+        </div>
+
+        <div class="name-input-row">
+          <label class="name-input-label">Other person</label>
+          <div class="name-input-wrap">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <input class="name-input" value="Howard" placeholder="Other person's name (optional)" />
+          </div>
+          <div class="name-preview">
+            Labels will show as
+            <span class="chip you">● You</span>
+            ↔
+            <span class="chip other">● Howard</span>
+          </div>
+        </div>
+
+        <div style="padding: 20px 28px 28px; color: var(--text-muted); font-size: 12px; line-height: 1.55;">
+          Press the record button to start. Both streams are transcribed to their own file, then merged by time into a single doc under <span style="color: var(--text-secondary); font-weight: 600;">Interviews/</span>.
+        </div>
+      </div>
+
+      <!-- Finalizing -->
+      <div class="card state-demo">
+        <div class="mode-row">
+          <div class="mode-pills">
+            <button class="mode-pill" disabled style="opacity: 0.5;"><span class="dot"></span> System Audio</button>
+            <button class="mode-pill is-active" disabled><span class="dot"></span> Interview</button>
+          </div>
+          <div class="mode-hint" style="color: var(--brand-terracotta);">Writing doc…</div>
+        </div>
+        <div class="status-row" style="position: relative;">
+          <div class="finalizing-pill">
+            <span class="spinner"></span> Finalizing
+          </div>
+        </div>
+        <div style="padding: 28px 28px 32px; color: var(--text-secondary); font-size: 13px; line-height: 1.6;">
+          Draining both transcription workers (up to 5s), merging paragraphs by start-time, then writing to <span style="color: var(--text-primary); font-weight: 600; font-family: 'Geist Mono', monospace;">Interviews/Interview — 2026-04-23 14-37-14.md</span>.
+        </div>
+      </div>
+
+      <!-- Just-saved chip -->
+      <div class="card state-demo">
+        <div class="mode-row">
+          <div class="mode-pills">
+            <button class="mode-pill"><span class="dot"></span> System Audio</button>
+            <button class="mode-pill is-active"><span class="dot"></span> Interview</button>
+          </div>
+          <div class="mode-hint">Ready for next session</div>
+        </div>
+        <div class="status-row">
+          <div class="saved-chip">
+            Saved · Interview — 14:37
+            <span class="arrow">→</span>
+          </div>
+          <div class="timer" style="color: var(--text-muted);">—</div>
+        </div>
+        <div style="padding: 8px 28px 24px; color: var(--text-muted); font-size: 12px;">
+          Chip stays for 5 seconds. Click to open the new doc in the workspace tree.
+        </div>
+      </div>
+
+      <!-- Stream unavailable -->
+      <div class="card state-demo">
+        <div class="mode-row">
+          <div class="mode-pills">
+            <button class="mode-pill"><span class="dot"></span> System Audio</button>
+            <button class="mode-pill is-active"><span class="dot"></span> Interview</button>
+          </div>
+          <div class="mode-hint">Recording continues on one side</div>
+        </div>
+        <div class="status-row">
+          <div class="status-left">
+            <span class="status-dot"></span>
+            <span class="status-label">Interview <span class="divider">·</span> <span class="other">Howard</span> only</span>
+          </div>
+          <div class="timer">03:48</div>
+        </div>
+        <div class="banner" style="margin: 0 28px 20px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+          Mic transcription stopped — system audio continues. Stop to save what was captured.
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── Style guide strip ──────────────────────────────────────── -->
+  <section class="guide">
+    <h3 class="card-section-label" style="margin-bottom: 12px;">Colour system</h3>
+    <div class="guide-grid">
+      <div class="swatch">
+        <div class="swatch-color" style="background: var(--brand-terracotta);"></div>
+        <div class="swatch-name">Brand terracotta</div>
+        <div class="swatch-hex">#e47b4a</div>
+        <div class="swatch-role">Active state · You (mic) speaker · primary action</div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background: var(--speaker-other);"></div>
+        <div class="swatch-name">Speaker other</div>
+        <div class="swatch-hex">#3eb8ff</div>
+        <div class="swatch-role">System audio · the other participant · live-capture accents</div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background: var(--success);"></div>
+        <div class="swatch-name">Success</div>
+        <div class="swatch-hex">#3fd490</div>
+        <div class="swatch-role">Saved chip · vault-locked indicator · passing states</div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background: var(--danger);"></div>
+        <div class="swatch-name">Danger</div>
+        <div class="swatch-hex">#ff7a7a</div>
+        <div class="swatch-role">Inline banner · stream-unavailable · blocking errors</div>
+      </div>
+    </div>
+
+    <h3 class="card-section-label" style="margin: 28px 0 12px;">Typography</h3>
+    <div class="type-grid">
+      <div class="card type-card">
+        <div class="type-label">Inter · UI</div>
+        <div class="type-sample" style="font-size: 16px; line-height: 1.6; font-weight: 300;">Hi Howard, thanks for making the time today.</div>
+        <div style="margin-top: 10px; color: var(--text-muted); font-size: 11px; line-height: 1.5;">
+          Body 16/1.62 weight 300 for transcript readability over long sessions. Headings 11px/0.22em uppercase weight 800. UI Inter with cv11 (single-storey g) and ss01 for cleaner i/l.
+        </div>
+      </div>
+      <div class="card type-card">
+        <div class="type-label">Geist Mono · numeric</div>
+        <div class="type-sample" style="font-family: 'Geist Mono', monospace; font-size: 26px; font-weight: 300; font-variant-numeric: tabular-nums;">14:30:12 · 07:02</div>
+        <div style="margin-top: 10px; color: var(--text-muted); font-size: 11px; line-height: 1.5;">
+          Timestamps and timer use tabular figures so digits don't jitter as they count up. Geist Mono reads cleaner at small sizes than SF Mono / JetBrains Mono.
+        </div>
+      </div>
+      <div class="card type-card">
+        <div class="type-label">Speaker labels</div>
+        <div class="type-sample" style="font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 800;">
+          <span style="color: var(--speaker-you);">● You</span> · <span style="color: var(--speaker-other);">● Howard</span>
+        </div>
+        <div style="margin-top: 10px; color: var(--text-muted); font-size: 11px; line-height: 1.5;">
+          Two-accent system with the dot glyph as a second channel so the colour split isn't the only cue — WCAG-friendly for low-contrast-sensitivity users.
+        </div>
+      </div>
+    </div>
+
+    <h3 class="card-section-label" style="margin: 28px 0 12px;">Readability notes</h3>
+    <div class="card" style="padding: 20px 24px;">
+      <ul style="margin: 0; padding-left: 20px; color: var(--text-secondary); font-size: 13px; line-height: 1.7;">
+        <li><strong style="color: var(--text-primary);">16px body at 1.62 line-height, weight 300</strong> — matches the existing SystemAudioView transcript. Thin weight feels editorial for long reading; the 1.62 line-height gives room for eye tracking across the 780px max content width (optimal 50–75 CPL).</li>
+        <li><strong style="color: var(--text-primary);">Speaker names and accents carry two channels</strong> — colour + dot glyph. If someone's printing the transcript in greyscale or has reduced colour perception, the dot still lands.</li>
+        <li><strong style="color: var(--text-primary);">Timestamps in mono tabular figures</strong> — 14:30:12 in a monospace font means the column stays rigid, scannable, and doesn't wiggle as seconds tick up in the live feed.</li>
+        <li><strong style="color: var(--text-primary);">Uppercase labels with 0.2em tracking</strong> — matches the note page's "VAULT EXPLORER" / "SIDE NOTES" rhythm. Consistency across pages signals "this is the same app."</li>
+        <li><strong style="color: var(--text-primary);">Atmosphere stays behind a 12px backdrop blur</strong> — text never sits directly on a shifting gradient, so contrast stays stable during blob drift.</li>
+      </ul>
+    </div>
+  </section>
+
+</main>
+
+</body>
+</html>

@@ -28,6 +28,13 @@ use transcribe_rs::{
     SpeechModel, TranscribeOptions,
 };
 
+/// BP-3: Whisper returns garbage or hallucinated priors for sub-half-second audio
+/// ("Thank you.", "Thanks for watching!"). Reject upstream in `transcribe()`.
+pub(crate) const WHISPER_MIN_CHUNK_SECS: f32 = 0.5;
+
+/// Standard Whisper sample rate. Keep in sync with the audio_toolkit pipeline.
+const WHISPER_SAMPLE_RATE: usize = 16_000;
+
 /// Mic dictation or system-audio loopback — model must stay loaded across
 /// chunks until stop. Also consumed by `EmbeddingWorker` (Rule 16a): when an
 /// interactive transcription ORT session is active, the embedding worker
@@ -531,6 +538,18 @@ impl TranscriptionManager {
         if audio.is_empty() {
             debug!("Empty audio vector");
             self.maybe_unload_immediately("empty audio");
+            return Ok(String::new());
+        }
+
+        // BP-3: reject sub-half-second chunks. Whisper's positional encoding
+        // needs ~500ms minimum; shorter chunks produce hallucinated text
+        // sampled from the model's training priors.
+        let duration_secs = audio.len() as f32 / WHISPER_SAMPLE_RATE as f32;
+        if duration_secs < WHISPER_MIN_CHUNK_SECS {
+            debug!(
+                "Audio too short ({:.3}s < {:.3}s); skipping transcribe",
+                duration_secs, WHISPER_MIN_CHUNK_SECS
+            );
             return Ok(String::new());
         }
 

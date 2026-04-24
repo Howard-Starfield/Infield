@@ -259,6 +259,12 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     let llm_manager =
         Arc::new(LlmManager::new(app_handle).expect("Failed to initialize local LLM manager"));
     let voice_session_manager = Arc::new(VoiceSessionManager::new());
+    let interview_session_manager = Arc::new(
+        crate::managers::interview_session::InterviewSessionManager::new(),
+    );
+    let interview_worker = Arc::new(
+        crate::managers::interview_worker::InterviewTranscriptionWorker::new(app_handle),
+    );
 
     // Open workspace.db + apply the canonical PRAGMA block. The worker
     // connection (opened inside EmbeddingWorker::new) calls the same helper
@@ -387,6 +393,8 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     app_handle.manage(history_manager.clone());
     app_handle.manage(llm_manager.clone());
     app_handle.manage(voice_session_manager.clone());
+    app_handle.manage(interview_session_manager.clone());
+    app_handle.manage(interview_worker.clone());
     app_handle.manage(search_manager.clone());
     app_handle.manage(system_audio_manager.clone());
     let import_queue_service = import::ImportQueueService::spawn(
@@ -777,6 +785,9 @@ pub fn run(cli_args: CliArgs) {
             commands::system_audio::get_system_audio_capture_elapsed_secs,
             commands::system_audio::test_loopback_device,
             commands::system_audio::get_render_devices,
+            commands::interview::start_interview_session,
+            commands::interview::stop_interview_session,
+            commands::interview::is_interview_session_active,
             commands::chat::send_chat_message,
             commands::chat::set_chat_provider,
             commands::chat::save_chat_provider_options,

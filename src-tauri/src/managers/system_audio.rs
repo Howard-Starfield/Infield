@@ -13,7 +13,10 @@ use anyhow::Result;
 use chrono::Local;
 use log::error;
 use serde::Serialize;
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    atomic::{AtomicU32, AtomicUsize, Ordering},
+    Arc, Mutex,
+};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -25,6 +28,14 @@ pub const PARAGRAPH_SILENCE_THRESHOLD_SECS: f32 = 1.5;
 const SHORT_CHUNK_MAX_WORDS: usize = 4;
 
 const WORKSPACE_PERSIST_INTERVAL_MS: u64 = 1000;
+
+fn secs_to_bits(secs: f32) -> u32 {
+    secs.clamp(0.5, 10.0).to_bits()
+}
+
+fn secs_from_bits(bits: u32) -> f32 {
+    f32::from_bits(bits).clamp(0.5, 10.0)
+}
 
 #[derive(Serialize, Clone, Debug)]
 pub struct SystemAudioParagraph {
@@ -106,6 +117,11 @@ pub struct SystemAudioManager {
     /// Workspace child document under "System Audio" for this session.
     workspace_session_doc_id: Arc<Mutex<Option<String>>>,
     last_workspace_persist_ms: Arc<Mutex<u64>>,
+    paragraph_silence_secs: Arc<AtomicU32>,
+    /// BP-2: count of spawned transcribe tasks that haven't finished yet.
+    /// stop_loopback polls this to avoid clearing session state while a
+    /// late task is still writing to the workspace doc.
+    in_flight_chunks: Arc<AtomicUsize>,
 }
 
 impl SystemAudioManager {
@@ -120,6 +136,10 @@ impl SystemAudioManager {
             last_chunk_ended_at: Arc::new(Mutex::new(None)),
             workspace_session_doc_id: Arc::new(Mutex::new(None)),
             last_workspace_persist_ms: Arc::new(Mutex::new(0)),
+            paragraph_silence_secs: Arc::new(AtomicU32::new(secs_to_bits(
+                PARAGRAPH_SILENCE_THRESHOLD_SECS,
+            ))),
+            in_flight_chunks: Arc::new(AtomicUsize::new(0)),
         })
     }
 
@@ -141,6 +161,7 @@ impl SystemAudioManager {
         }
         *self.session_started_at.lock().unwrap() = Some(Instant::now());
         *self.last_chunk_ended_at.lock().unwrap() = None;
+        self.set_paragraph_silence_secs(paragraph_silence_secs);
 
         let app = self.app_handle.clone();
         let current_note_id = Arc::clone(&self.current_note_id);
@@ -150,6 +171,8 @@ impl SystemAudioManager {
         let last_chunk_ended_at = Arc::clone(&self.last_chunk_ended_at);
         let workspace_session_doc_id = Arc::clone(&self.workspace_session_doc_id);
         let last_workspace_persist_ms = Arc::clone(&self.last_workspace_persist_ms);
+        let paragraph_silence_secs = Arc::clone(&self.paragraph_silence_secs);
+        let in_flight_chunks = Arc::clone(&self.in_flight_chunks);
 
         let on_chunk = move |audio: Vec<f32>, trigger: ChunkTrigger| {
             let app = app.clone();
@@ -160,9 +183,34 @@ impl SystemAudioManager {
             let last_chunk_ended_at = Arc::clone(&last_chunk_ended_at);
             let workspace_session_doc_id = Arc::clone(&workspace_session_doc_id);
             let last_workspace_persist_ms = Arc::clone(&last_workspace_persist_ms);
-            let paragraph_silence_secs = paragraph_silence_secs;
+            let paragraph_silence_secs = Arc::clone(&paragraph_silence_secs);
+            let in_flight_chunks = Arc::clone(&in_flight_chunks);
+
+            // BP-1: snapshot VAD-cut wall-clock offset BEFORE spawning, so paragraph
+            // ordering tracks the audio cut time — not whenever Whisper happens to
+            // return. `transcribe()` can take 200-500ms and two short chunks can race.
+            let chunk_start_offset_ms: u64 = {
+                let session = session_started_at.lock().unwrap();
+                match *session {
+                    Some(start) => start.elapsed().as_millis() as u64,
+                    None => return,
+                }
+            };
+
+            // BP-2: increment before spawn so the task is guaranteed-counted even if
+            // spawn scheduling is delayed.
+            in_flight_chunks.fetch_add(1, Ordering::SeqCst);
 
             tauri::async_runtime::spawn(async move {
+                // BP-2: RAII — decrement on task exit (return, early return, or panic).
+                struct DoneGuard(Arc<AtomicUsize>);
+                impl Drop for DoneGuard {
+                    fn drop(&mut self) {
+                        self.0.fetch_sub(1, Ordering::SeqCst);
+                    }
+                }
+                let _done = DoneGuard(in_flight_chunks);
+
                 // ── Transcribe ────────────────────────────────────────────────
                 let transcription_manager = app.state::<Arc<TranscriptionManager>>();
                 let transcribed = match transcription_manager.transcribe(audio) {
@@ -207,19 +255,16 @@ impl SystemAudioManager {
                     let last = last_chunk_ended_at.lock().unwrap();
                     last.map(|t| now.duration_since(t))
                 };
-                let new_paragraph =
-                    gap.is_some_and(|g| g.as_secs_f32() >= paragraph_silence_secs);
+                let paragraph_silence_secs =
+                    secs_from_bits(paragraph_silence_secs.load(Ordering::Relaxed));
+                let new_paragraph = gap.is_some_and(|g| g.as_secs_f32() >= paragraph_silence_secs);
 
                 let wc = word_count(&trimmed);
 
                 // ── Merge into paragraph list ─────────────────────────────────
                 let rendered = {
-                    let session = session_started_at.lock().unwrap();
-                    let Some(start) = *session else {
-                        error!("System audio: session_started_at unset");
-                        return;
-                    };
-                    let elapsed_secs = start.elapsed().as_secs();
+                    // BP-1: use captured VAD-cut offset, not post-transcribe elapsed.
+                    let elapsed_secs = chunk_start_offset_ms / 1000;
 
                     let mut paras = paragraphs.lock().unwrap();
 
@@ -251,13 +296,11 @@ impl SystemAudioManager {
                 // ── Workspace mirror (folder + child doc, throttled persist) ─
                 if let Some(state) = app.try_state::<Arc<AppState>>() {
                     let ws_mgr = &state.workspace_manager;
-                    let needs_child = workspace_session_doc_id
-                        .lock()
-                        .unwrap()
-                        .is_none();
+                    let needs_child = workspace_session_doc_id.lock().unwrap().is_none();
                     if needs_child {
-                        if let Ok(folder_id) =
-                            ws_mgr.ensure_transcription_folder(&app, SYSTEM_AUDIO_FOLDER).await
+                        if let Ok(folder_id) = ws_mgr
+                            .ensure_transcription_folder(&app, SYSTEM_AUDIO_FOLDER)
+                            .await
                         {
                             let title = current_note_title.lock().unwrap().clone();
                             match ws_mgr
@@ -265,11 +308,14 @@ impl SystemAudioManager {
                                 .await
                             {
                                 Ok(doc) => {
-                                    *workspace_session_doc_id.lock().unwrap() = Some(doc.id.clone());
+                                    *workspace_session_doc_id.lock().unwrap() =
+                                        Some(doc.id.clone());
                                     *last_workspace_persist_ms.lock().unwrap() = now_ms();
-                                    
+
                                     // Initial vault write for the new session document
-                                    if let Err(e) = ws_mgr.write_node_to_vault(&app, &doc, None).await {
+                                    if let Err(e) =
+                                        ws_mgr.write_node_to_vault(&app, &doc, None).await
+                                    {
                                         error!("Failed to write initial system audio doc {} to vault: {}", doc.id, e);
                                     }
 
@@ -307,16 +353,22 @@ impl SystemAudioManager {
                             {
                                 Ok(node) => {
                                     emit_workspace_node_body_updated_throttled(&app, &node);
-                                    
+
                                     // Mirror to vault
                                     match ws_mgr.write_node_to_vault(&app, &node, None).await {
                                         Ok(rel_path) => {
-                                            if let Err(e) = ws_mgr.update_vault_rel_path(&node.id, &rel_path).await {
+                                            if let Err(e) = ws_mgr
+                                                .update_vault_rel_path(&node.id, &rel_path)
+                                                .await
+                                            {
                                                 error!("Failed to update vault_rel_path for system audio doc {}: {}", node.id, e);
                                             }
                                         }
                                         Err(e) => {
-                                            error!("Failed to write system audio doc {} to vault: {}", node.id, e);
+                                            error!(
+                                                "Failed to write system audio doc {} to vault: {}",
+                                                node.id, e
+                                            );
                                         }
                                     }
                                 }
@@ -366,6 +418,25 @@ impl SystemAudioManager {
             *capture_guard = None;
         }
 
+        // ── BP-2: drain in-flight transcribe tasks before clearing state ────
+        // Late-completing tasks would otherwise see cleared state and spawn
+        // a phantom "Media Recording — …" workspace doc.
+        let in_flight = Arc::clone(&self.in_flight_chunks);
+        let drain = async move {
+            while in_flight.load(Ordering::SeqCst) > 0 {
+                tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            }
+        };
+        if tokio::time::timeout(std::time::Duration::from_secs(5), drain)
+            .await
+            .is_err()
+        {
+            log::warn!(
+                "System audio stop_loopback: drain timeout; {} tasks still in flight",
+                self.in_flight_chunks.load(Ordering::SeqCst)
+            );
+        }
+
         // ── Read session state before clearing ───────────────────────────────
         let note_id = self.current_note_id.lock().unwrap().clone();
         let note_title = self.current_note_title.lock().unwrap().clone();
@@ -387,20 +458,28 @@ impl SystemAudioManager {
                         .await
                     {
                         Ok(node) => {
-                            emit_workspace_node_body_updated_immediate(
-                                &self.app_handle,
-                                &node,
-                            );
-                            
+                            emit_workspace_node_body_updated_immediate(&self.app_handle, &node);
+
                             // Final mirror to vault
-                            match state.workspace_manager.write_node_to_vault(&self.app_handle, &node, None).await {
+                            match state
+                                .workspace_manager
+                                .write_node_to_vault(&self.app_handle, &node, None)
+                                .await
+                            {
                                 Ok(rel_path) => {
-                                    if let Err(e) = state.workspace_manager.update_vault_rel_path(&node.id, &rel_path).await {
+                                    if let Err(e) = state
+                                        .workspace_manager
+                                        .update_vault_rel_path(&node.id, &rel_path)
+                                        .await
+                                    {
                                         error!("Failed to update final vault_rel_path for system audio doc {}: {}", node.id, e);
                                     }
                                 }
                                 Err(e) => {
-                                    error!("Failed to write final system audio doc {} to vault: {}", node.id, e);
+                                    error!(
+                                        "Failed to write final system audio doc {} to vault: {}",
+                                        node.id, e
+                                    );
                                 }
                             }
                         }
@@ -435,6 +514,11 @@ impl SystemAudioManager {
             .as_ref()
             .map(|c| c.is_running())
             .unwrap_or(false)
+    }
+
+    pub fn set_paragraph_silence_secs(&self, secs: f32) {
+        self.paragraph_silence_secs
+            .store(secs_to_bits(secs), Ordering::Relaxed);
     }
 
     /// Wall-clock elapsed since loopback session started (`start_loopback`), if active.
