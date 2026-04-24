@@ -34,12 +34,22 @@ export function findNodeLinkRanges(state: EditorState): NodeLinkRange[] {
   return out
 }
 
+export interface NodeLinkClickOpts {
+  meta: boolean
+}
+
 /**
  * Mark decoration plugin: decorate every `node://<uuid>` URL span with
  * class `cm-node-link` + data-node-id. A view-level click handler
- * intercepts clicks on those spans and calls `onClick(nodeId)`.
+ * intercepts clicks on those spans and calls `onClick(nodeId, opts)`.
+ *
+ * `opts.meta` is `true` when the user held Cmd (macOS) or Ctrl during
+ * the click — used by NotesView to route to a new tab vs. replace the
+ * active tab.
  */
-export function nodeLinkClickPlugin(onClick: (nodeId: string) => void) {
+export function nodeLinkClickPlugin(
+  onClick: (nodeId: string, opts: NodeLinkClickOpts) => void,
+) {
   const build = (view: EditorView): DecorationSet => {
     const ranges = findNodeLinkRanges(view.state)
     return Decoration.set(
@@ -71,7 +81,7 @@ export function nodeLinkClickPlugin(onClick: (nodeId: string) => void) {
           if (!el) return
           ev.preventDefault()
           const id = el.dataset.nodeId!
-          onClick(id)
+          onClick(id, { meta: ev.metaKey || ev.ctrlKey })
         },
       },
     },

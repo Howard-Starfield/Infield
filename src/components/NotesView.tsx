@@ -108,7 +108,7 @@ export function NotesView() {
         >
           <MarkdownEditor
             nodeId={activeNodeId}
-            onNodeLinkClick={setActiveNodeId}
+            onNodeLinkClick={(id, _opts) => setActiveNodeId(id)}
           />
         </section>
       ) : (

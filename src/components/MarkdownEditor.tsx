@@ -31,7 +31,7 @@ import {
 
 interface MarkdownEditorProps {
   nodeId: string
-  onNodeLinkClick: (id: string) => void
+  onNodeLinkClick: (id: string, opts: { meta: boolean }) => void
 }
 
 /**
@@ -157,7 +157,7 @@ export function MarkdownEditor({ nodeId, onNodeLinkClick }: MarkdownEditorProps)
           activateOnTyping: true,
         }),
         voiceMemoPillPlugin(),
-        nodeLinkClickPlugin((id) => onNodeLinkClickRef.current(id)),
+        nodeLinkClickPlugin((id, opts) => onNodeLinkClickRef.current(id, opts)),
         autosavePlugin(saver, () => {
           /* dirty state derived from reducer — nothing to do here */
         }),
