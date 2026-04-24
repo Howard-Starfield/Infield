@@ -328,3 +328,69 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ── EditorTitleBar (W2.5) ─────────────────────────────────────── */
+.editor-title-bar {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: var(--space-6) var(--space-8) var(--space-2);
+  position: relative;
+}
+.editor-title-bar__icon-btn {
+  font-size: var(--text-xl);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: var(--space-1);
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast);
+  line-height: 1;
+}
+.editor-title-bar__icon-btn:hover {
+  background: var(--surface-hover);
+}
+.editor-title-bar__picker {
+  position: absolute;
+  top: 100%;
+  left: var(--space-8);
+  z-index: 10;
+  display: grid;
+  grid-template-columns: repeat(10, auto);
+  gap: var(--space-1);
+  padding: var(--space-2);
+  background: var(--heros-glass-black);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-container);
+  box-shadow: var(--shadow-lg);
+}
+.editor-title-bar__picker-item {
+  font-size: var(--text-lg);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: var(--space-1);
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast);
+  line-height: 1;
+}
+.editor-title-bar__picker-item:hover {
+  background: var(--surface-hover);
+}
+.editor-title-bar__title {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-3xl);
+  font-weight: 300;
+  color: var(--heros-text-premium);
+  background: transparent;
+  border: none;
+  outline: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0;
+}
+.editor-title-bar__title::placeholder {
+  color: var(--heros-text-dim);
+}
