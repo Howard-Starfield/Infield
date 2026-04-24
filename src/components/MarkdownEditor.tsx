@@ -1,12 +1,12 @@
-import { useEffect, useReducer, useRef } from 'react'
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import { EditorState } from '@codemirror/state'
-import { EditorView, keymap } from '@codemirror/view'
+import { EditorView, keymap, placeholder } from '@codemirror/view'
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
 import { searchKeymap } from '@codemirror/search'
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
 import { GFM } from '@lezer/markdown'
 import { autocompletion, completionKeymap } from '@codemirror/autocomplete'
-import { commands } from '../bindings'
+import { commands, type WorkspaceNode } from '../bindings'
 import { toast } from 'sonner'
 import { herosEditorTheme } from '../editor/herosTheme'
 import { slashCompletionSource } from '../editor/slashCompletion'
@@ -28,10 +28,19 @@ import {
   isVaultConflictError,
   parseVaultConflictError,
 } from '../editor/conflictState'
+import { Breadcrumb } from './Breadcrumb'
+import { EditorTitleBar } from './EditorTitleBar'
+import { PropertiesPanel } from './PropertiesPanel'
+import { clearAncestorsCache } from '../editor/ancestors'
 
 interface MarkdownEditorProps {
   nodeId: string
-  onNodeLinkClick: (id: string, opts: { meta: boolean }) => void
+  onNodeLinkClick: (id: string) => void
+  onOpenInNewTab: (id: string) => void
+  onDirtyChange?: (dirty: boolean) => void
+  onScrollChange?: (scrollTop: number) => void
+  initialScrollTop?: number
+  autoFocusTitle?: boolean
 }
 
 /**
@@ -45,7 +54,15 @@ const tauriWikilinkSearch: WikilinkSearchFn = async (query, limit) => {
   return res.status === 'ok' ? res.data : []
 }
 
-export function MarkdownEditor({ nodeId, onNodeLinkClick }: MarkdownEditorProps) {
+export function MarkdownEditor({
+  nodeId,
+  onNodeLinkClick,
+  onOpenInNewTab,
+  onDirtyChange,
+  onScrollChange,
+  initialScrollTop,
+  autoFocusTitle,
+}: MarkdownEditorProps) {
   const parentRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
   const saverRef = useRef<DebouncedSaver | null>(null)
@@ -55,6 +72,7 @@ export function MarkdownEditor({ nodeId, onNodeLinkClick }: MarkdownEditorProps)
     properties: string
   } | null>(null)
   const [state, dispatch] = useReducer(conflictReducer, initialConflictState)
+  const [node, setNode] = useState<WorkspaceNode | null>(null)
   const stateRef = useRef(state)
   useEffect(() => {
     stateRef.current = state
@@ -63,6 +81,18 @@ export function MarkdownEditor({ nodeId, onNodeLinkClick }: MarkdownEditorProps)
   useEffect(() => {
     onNodeLinkClickRef.current = onNodeLinkClick
   }, [onNodeLinkClick])
+  const onOpenInNewTabRef = useRef(onOpenInNewTab)
+  useEffect(() => {
+    onOpenInNewTabRef.current = onOpenInNewTab
+  }, [onOpenInNewTab])
+  const onDirtyChangeRef = useRef(onDirtyChange)
+  useEffect(() => {
+    onDirtyChangeRef.current = onDirtyChange
+  }, [onDirtyChange])
+  const onScrollChangeRef = useRef(onScrollChange)
+  useEffect(() => {
+    onScrollChangeRef.current = onScrollChange
+  }, [onScrollChange])
 
   // Build the saver once per nodeId; its closure calls commands.updateNode
   // with the latest mtime from stateRef. Recreated on node switch because
@@ -133,6 +163,7 @@ export function MarkdownEditor({ nodeId, onNodeLinkClick }: MarkdownEditorProps)
         icon: node.icon,
         properties: node.properties,
       }
+      setNode(node)
       dispatch({ type: 'NODE_LOAD', mtime: node.updated_at })
 
       const saver = saverRef.current
@@ -149,6 +180,7 @@ export function MarkdownEditor({ nodeId, onNodeLinkClick }: MarkdownEditorProps)
           indentWithTab,
         ]),
         markdown({ base: markdownLanguage, extensions: [GFM] }),
+        placeholder('Type / for commands · [[ for links'),
         autocompletion({
           override: [
             slashCompletionSource(allSlashCommands),
@@ -157,10 +189,11 @@ export function MarkdownEditor({ nodeId, onNodeLinkClick }: MarkdownEditorProps)
           activateOnTyping: true,
         }),
         voiceMemoPillPlugin(),
-        nodeLinkClickPlugin((id, opts) => onNodeLinkClickRef.current(id, opts)),
-        autosavePlugin(saver, () => {
-          /* dirty state derived from reducer — nothing to do here */
+        nodeLinkClickPlugin((id, { meta }) => {
+          if (meta) onOpenInNewTabRef.current(id)
+          else onNodeLinkClickRef.current(id)
         }),
+        autosavePlugin(saver, (isDirty) => onDirtyChangeRef.current?.(isDirty)),
         herosEditorTheme,
       ]
 
@@ -179,11 +212,34 @@ export function MarkdownEditor({ nodeId, onNodeLinkClick }: MarkdownEditorProps)
         parent: parentRef.current,
       })
       viewRef.current = view
+
+      if (initialScrollTop && initialScrollTop > 0) {
+        requestAnimationFrame(() => {
+          if (!cancelled) view.scrollDOM.scrollTop = initialScrollTop
+        })
+      }
+
+      let scrollRafScheduled = false
+      const onScroll = () => {
+        if (scrollRafScheduled) return
+        scrollRafScheduled = true
+        requestAnimationFrame(() => {
+          scrollRafScheduled = false
+          onScrollChangeRef.current?.(view.scrollDOM.scrollTop)
+        })
+      }
+      view.scrollDOM.addEventListener('scroll', onScroll, { passive: true })
+      ;(view as any).__onScroll = onScroll
+
       view.focus()
     }
     void build()
     return () => {
       cancelled = true
+      const prior = viewRef.current as any
+      if (prior && prior.__onScroll) {
+        prior.scrollDOM.removeEventListener('scroll', prior.__onScroll)
+      }
     }
   }, [nodeId])
 
@@ -195,6 +251,54 @@ export function MarkdownEditor({ nodeId, onNodeLinkClick }: MarkdownEditorProps)
       viewRef.current = null
     }
   }, [])
+
+  const persistMeta = useCallback(
+    async (partial: { name?: string; icon?: string; properties?: string }) => {
+      const meta = nodeMetaRef.current
+      if (!meta) return
+      const nextName = partial.name ?? meta.name
+      const nextIcon = partial.icon ?? meta.icon
+      const nextProps = partial.properties ?? meta.properties
+      const body = viewRef.current?.state.doc.toString() ?? ''
+      const res = await commands.updateNode(
+        nodeId,
+        nextName,
+        nextIcon,
+        nextProps,
+        body,
+        stateRef.current.lastSeenMtime,
+      )
+      if (res.status === 'ok') {
+        nodeMetaRef.current = { name: nextName, icon: nextIcon, properties: nextProps }
+        dispatch({ type: 'SAVE_OK', updatedAt: res.data.updated_at })
+        setNode((prev) =>
+          prev
+            ? { ...prev, name: nextName, icon: nextIcon, properties: nextProps, updated_at: res.data.updated_at }
+            : prev,
+        )
+        clearAncestorsCache()
+      } else {
+        toast.error('Save failed', { description: res.error })
+      }
+    },
+    [nodeId],
+  )
+
+  const handleRename = useCallback((next: string) => persistMeta({ name: next }), [persistMeta])
+  const handleIconChange = useCallback((next: string) => persistMeta({ icon: next }), [persistMeta])
+  const handleTagsChange = useCallback(
+    async (tags: string[]) => {
+      let base: Record<string, unknown> = {}
+      try {
+        base = JSON.parse(nodeMetaRef.current?.properties || '{}')
+      } catch {
+        /* keep empty */
+      }
+      base.tags = tags
+      await persistMeta({ properties: JSON.stringify(base) })
+    },
+    [persistMeta],
+  )
 
   return (
     <div className="editor-root">
@@ -233,6 +337,27 @@ export function MarkdownEditor({ nodeId, onNodeLinkClick }: MarkdownEditorProps)
             void saverRef.current?.flush()
           }}
         />
+      )}
+      {node && (
+        <>
+          <Breadcrumb
+            nodeId={node.id}
+            onNavigate={(id) => onNodeLinkClickRef.current(id)}
+          />
+          <EditorTitleBar
+            nodeId={node.id}
+            name={node.name}
+            icon={node.icon}
+            onRename={handleRename}
+            onIconChange={handleIconChange}
+            autoFocusTitle={autoFocusTitle}
+          />
+          <PropertiesPanel
+            node={node}
+            onIconChange={handleIconChange}
+            onTagsChange={handleTagsChange}
+          />
+        </>
       )}
       <div ref={parentRef} className="editor-cm-host" />
       <SaveFooter

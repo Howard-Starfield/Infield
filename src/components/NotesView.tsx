@@ -108,7 +108,10 @@ export function NotesView() {
         >
           <MarkdownEditor
             nodeId={activeNodeId}
-            onNodeLinkClick={(id, _opts) => setActiveNodeId(id)}
+            onNodeLinkClick={(id) => setActiveNodeId(id)}
+            onOpenInNewTab={(_id) => {
+              /* Task 16 will wire tabs; no-op for now. */
+            }}
           />
         </section>
       ) : (
