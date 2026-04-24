@@ -9,8 +9,13 @@ import {
   Shield,
   Calendar,
   ChevronDown,
+  Play,
+  Pause,
+  AlertTriangle,
+  VolumeX,
 } from 'lucide-react'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
+import { convertFileSrc } from '@tauri-apps/api/core'
 import { toast } from 'sonner'
 import { commands } from '../bindings'
 import { ScrollShadow } from './ScrollShadow'
@@ -33,6 +38,8 @@ interface RecordingErrorPayload {
 
 interface VoiceMemoBlock {
   recordedAtMs: number | null
+  /** Absolute path to the recorded audio file, or null if no audio was retained. */
+  audioPath: string | null
   text: string
   /** Position in the doc — stable across re-parses, used for React keys. */
   index: number
@@ -49,6 +56,110 @@ function formatTimeOfDay(ms: number | null): string {
   if (!ms) return '—'
   const d = new Date(ms)
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+
+/** Format mm:ss / mm:ss for a playback progress clock. */
+function formatPlaybackClock(currentSec: number, durationSec: number): string {
+  const fmt = (s: number) => {
+    if (!Number.isFinite(s) || s < 0) return '00:00'
+    const m = Math.floor(s / 60)
+    const r = Math.floor(s % 60)
+    return `${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`
+  }
+  return `${fmt(currentSec)} / ${fmt(durationSec)}`
+}
+
+/** Play / Pause / Loading / Unavailable button for a single voice memo block. */
+function PlayButton(props: {
+  hasAudio: boolean
+  isPlaying: boolean
+  isLoading: boolean
+  isUnavailable: boolean
+  onClick: () => void
+}) {
+  const { hasAudio, isPlaying, isLoading, isUnavailable, onClick } = props
+
+  // Resolve visual state — order matters: unavailable beats loading beats
+  // playing because once we know a file is broken, we shouldn't pretend
+  // it's still loading or playable.
+  const state: 'no-audio' | 'unavailable' | 'loading' | 'playing' | 'idle' = !hasAudio
+    ? 'no-audio'
+    : isUnavailable
+    ? 'unavailable'
+    : isLoading
+    ? 'loading'
+    : isPlaying
+    ? 'playing'
+    : 'idle'
+
+  const baseStyle: React.CSSProperties = {
+    width: 28,
+    height: 28,
+    borderRadius: '50%',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    border: '1px solid rgba(255,255,255,0.1)',
+    cursor: 'pointer',
+    transition: 'all 0.15s ease',
+    flexShrink: 0,
+  }
+
+  if (state === 'no-audio') {
+    return (
+      <span
+        style={{
+          ...baseStyle,
+          background: 'rgba(255,255,255,0.02)',
+          color: 'rgba(255,255,255,0.18)',
+          cursor: 'not-allowed',
+        }}
+        title="No audio file was retained for this memo."
+        aria-label="No audio available"
+        role="img"
+      >
+        <VolumeX size={12} />
+      </span>
+    )
+  }
+
+  if (state === 'unavailable') {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        style={{
+          ...baseStyle,
+          background: 'rgba(204,76,43,0.10)',
+          color: 'rgba(255,180,160,0.7)',
+          borderColor: 'rgba(204,76,43,0.25)',
+        }}
+        title="Audio file could not be loaded. Click to retry."
+        aria-label="Audio unavailable — retry"
+      >
+        <AlertTriangle size={12} />
+      </button>
+    )
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        ...baseStyle,
+        background: state === 'playing' ? 'var(--heros-brand)' : 'rgba(255,255,255,0.06)',
+        color: state === 'playing' ? '#fff' : 'rgba(255,255,255,0.85)',
+        borderColor: state === 'playing' ? 'transparent' : 'rgba(255,255,255,0.12)',
+        opacity: state === 'loading' ? 0.6 : 1,
+      }}
+      title={state === 'playing' ? 'Pause' : state === 'loading' ? 'Loading…' : 'Play'}
+      aria-label={state === 'playing' ? 'Pause voice memo' : 'Play voice memo'}
+      disabled={state === 'loading'}
+    >
+      {state === 'playing' ? <Pause size={12} fill="currentColor" /> : <Play size={12} fill="currentColor" />}
+    </button>
+  )
 }
 
 /** Local-date ISO string (YYYY-MM-DD) — matches the Rust voice-memo title format. */
@@ -75,11 +186,16 @@ function isoToLabel(iso: string): string {
 /**
  * Parse every `::voice_memo_recording{...}` block from a workspace doc body.
  *
- * Rust appends each recording as:
- *   ::voice_memo_recording{"recorded_at_ms": 1714039200000, ...}
+ * Rust writes each recording as:
+ *   ::voice_memo_recording{path="<absolute file path>"}
+ *
  *   <transcript text…>
  *
- * Returns blocks in document order so the on-screen list matches the file.
+ * (See actions.rs `voice_memo_recording_block` for the canonical writer.)
+ *
+ * Forward-compat: also accepts the older JSON-style metadata shape so docs
+ * written by a future revision keep parsing. Returns blocks in document order
+ * so the on-screen list matches the file.
  */
 function parseAllVoiceMemoBlocks(body: string): VoiceMemoBlock[] {
   const marker = '::voice_memo_recording'
@@ -91,20 +207,40 @@ function parseAllVoiceMemoBlocks(body: string): VoiceMemoBlock[] {
     if (idx === -1) break
     const closeIdx = body.indexOf('}', idx)
     if (closeIdx === -1) break
+
+    const metaRaw = body.slice(idx + marker.length, closeIdx + 1) // "{...}"
+    const inner = metaRaw.slice(1, -1).trim() // strip outer { }
+
+    // Primary format: path="..." — single attribute, double-quoted.
+    let audioPath: string | null = null
+    const pathMatch = inner.match(/path\s*=\s*"([^"]*)"/)
+    if (pathMatch) audioPath = pathMatch[1]
+
+    // Forward-compat: JSON shape with audio_file_path / recorded_at_ms.
     let recordedAtMs: number | null = null
-    try {
-      const meta = JSON.parse(body.slice(idx + marker.length, closeIdx + 1))
-      recordedAtMs = meta?.recorded_at_ms ?? null
-    } catch {
-      /* malformed metadata — skip parse, still capture text */
+    if (inner.startsWith('"') || inner.startsWith('{') || inner.includes(':')) {
+      try {
+        const meta = JSON.parse(metaRaw)
+        if (audioPath == null && typeof meta?.audio_file_path === 'string') {
+          audioPath = meta.audio_file_path
+        }
+        if (typeof meta?.recorded_at_ms === 'number') {
+          recordedAtMs = meta.recorded_at_ms
+        }
+      } catch {
+        /* not valid JSON — already covered by the path="..." extraction above */
+      }
     }
+
+    if (audioPath != null && audioPath.trim() === '') audioPath = null
+
     const nextIdx = body.indexOf(marker, closeIdx + 1)
     const text = (nextIdx === -1
       ? body.slice(closeIdx + 1)
       : body.slice(closeIdx + 1, nextIdx)
     ).trim()
     if (text) {
-      blocks.push({ recordedAtMs, text, index: blockIndex++ })
+      blocks.push({ recordedAtMs, audioPath, text, index: blockIndex++ })
     }
     searchFrom = closeIdx + 1
   }
@@ -147,6 +283,21 @@ export function AudioView() {
   const [blocks, setBlocks] = useState<VoiceMemoBlock[]>([])
   const [showDatePicker, setShowDatePicker] = useState(false)
   const [loading, setLoading] = useState(false)
+
+  // Playback state — single audio element shared across all blocks; only one
+  // memo plays at a time. `playingPath` doubles as the per-row identity
+  // (rows compare against this to render Play/Pause). `unavailablePaths`
+  // remembers files that already failed to load so we don't keep retrying
+  // and don't keep toasting the same error.
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const [playingPath, setPlayingPath] = useState<string | null>(null)
+  const [loadingPath, setLoadingPath] = useState<string | null>(null)
+  const [unavailablePaths, setUnavailablePaths] = useState<Set<string>>(() => new Set())
+  const [playbackProgress, setPlaybackProgress] = useState<{ pct: number; current: number; duration: number }>({
+    pct: 0,
+    current: 0,
+    duration: 0,
+  })
 
   const isViewingToday = selectedDate === today
 
@@ -320,6 +471,125 @@ export function AudioView() {
     setBlocks([])
   }
 
+  // ── Playback ─────────────────────────────────────────────────────────────
+
+  const stopPlayback = useCallback(() => {
+    const a = audioRef.current
+    if (a) {
+      a.pause()
+      // Reset src so the asset URL can be GC'd and a fresh load happens next time.
+      a.removeAttribute('src')
+      a.load()
+    }
+    setPlayingPath(null)
+    setLoadingPath(null)
+    setPlaybackProgress({ pct: 0, current: 0, duration: 0 })
+  }, [])
+
+  const togglePlayback = useCallback(
+    async (path: string | null) => {
+      if (!path) return
+      // Same path already playing → pause + stop.
+      if (playingPath === path) {
+        stopPlayback()
+        return
+      }
+      // Different path → stop current, start new.
+      stopPlayback()
+      setLoadingPath(path)
+
+      // Lazy-create the singleton audio element so AudioView can mount
+      // without paying for an audio element every load.
+      if (!audioRef.current) {
+        const el = new Audio()
+        el.preload = 'auto'
+        audioRef.current = el
+      }
+      const a = audioRef.current
+
+      // Wire one-shot listeners per load. They self-clean on the next
+      // setSrc-and-load cycle because we replace src + call load().
+      const onLoaded = () => {
+        setLoadingPath((cur) => (cur === path ? null : cur))
+        setPlayingPath(path)
+        void a.play().catch((err) => {
+          console.error('[AudioView] play() rejected:', err)
+          handleAudioError(path, 'Playback was blocked by the browser.')
+        })
+      }
+      const onTime = () => {
+        if (!a.duration || !Number.isFinite(a.duration)) return
+        setPlaybackProgress({
+          pct: (a.currentTime / a.duration) * 100,
+          current: a.currentTime,
+          duration: a.duration,
+        })
+      }
+      const onEnd = () => {
+        setPlayingPath(null)
+        setPlaybackProgress({ pct: 0, current: 0, duration: 0 })
+      }
+      const onErr = () => {
+        handleAudioError(path, 'Audio file is missing or unreadable.')
+      }
+
+      a.onloadedmetadata = onLoaded
+      a.ontimeupdate = onTime
+      a.onended = onEnd
+      a.onerror = onErr
+
+      try {
+        const url = convertFileSrc(path)
+        a.src = url
+        a.load()
+      } catch (err) {
+        console.error('[AudioView] convertFileSrc failed:', err)
+        handleAudioError(path, 'Could not resolve the audio path.')
+      }
+    },
+    [playingPath, stopPlayback],
+  )
+
+  const handleAudioError = useCallback(
+    (path: string, message: string) => {
+      setLoadingPath((cur) => (cur === path ? null : cur))
+      setPlayingPath((cur) => (cur === path ? null : cur))
+      setUnavailablePaths((prev) => {
+        if (prev.has(path)) return prev
+        const next = new Set(prev)
+        next.add(path)
+        // Toast only once per path so re-renders don't spam.
+        toast.error('Cannot play voice memo', { description: message })
+        return next
+      })
+    },
+    [],
+  )
+
+  // Cleanup playback when the user navigates away from the page or unmounts.
+  useEffect(() => {
+    return () => {
+      const a = audioRef.current
+      if (a) {
+        a.pause()
+        a.onloadedmetadata = null
+        a.ontimeupdate = null
+        a.onended = null
+        a.onerror = null
+        a.removeAttribute('src')
+      }
+    }
+  }, [])
+
+  // Switching dates while audio is playing should stop playback — the audio
+  // belongs to a memo on the previous day; continuing it would mislead.
+  useEffect(() => {
+    stopPlayback()
+    setUnavailablePaths(new Set())
+    // Only depends on selectedDate; stopPlayback identity is stable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDate])
+
   // ── Render ───────────────────────────────────────────────────────────────
 
   return (
@@ -488,50 +758,111 @@ export function AudioView() {
                 </p>
               )}
 
-              {blocks.map((block) => (
-                <motion.div
-                  key={`${selectedDate}-${block.index}`}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  style={{ display: 'grid', gridTemplateColumns: '60px 1fr', gap: 20 }}
-                >
-                  <div
-                    style={{
-                      fontFamily: 'monospace',
-                      fontSize: '11px',
-                      color: 'rgba(255,255,255,0.3)',
-                      paddingTop: 4,
-                    }}
+              {blocks.map((block) => {
+                const isPlaying = block.audioPath != null && playingPath === block.audioPath
+                const isLoading = block.audioPath != null && loadingPath === block.audioPath
+                const isUnavailable = block.audioPath != null && unavailablePaths.has(block.audioPath)
+                const hasAudio = block.audioPath != null
+                return (
+                  <motion.div
+                    key={`${selectedDate}-${block.index}`}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    style={{ display: 'grid', gridTemplateColumns: '60px 1fr', gap: 20 }}
                   >
-                    {formatTimeOfDay(block.recordedAtMs)}
-                  </div>
-                  <div>
                     <div
                       style={{
-                        fontSize: '10px',
-                        fontWeight: 800,
-                        letterSpacing: '0.15em',
-                        textTransform: 'uppercase',
-                        color: 'rgba(255,255,255,0.4)',
-                        marginBottom: 6,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: 6,
+                        paddingTop: 2,
                       }}
                     >
-                      You
+                      <PlayButton
+                        hasAudio={hasAudio}
+                        isPlaying={isPlaying}
+                        isLoading={isLoading}
+                        isUnavailable={isUnavailable}
+                        onClick={() => void togglePlayback(block.audioPath)}
+                      />
+                      <span
+                        style={{
+                          fontFamily: 'monospace',
+                          fontSize: '10px',
+                          color: 'rgba(255,255,255,0.3)',
+                        }}
+                      >
+                        {formatTimeOfDay(block.recordedAtMs)}
+                      </span>
                     </div>
-                    <div
-                      style={{
-                        fontSize: '16px',
-                        lineHeight: 1.6,
-                        fontWeight: 300,
-                        color: 'rgba(255,255,255,0.85)',
-                        whiteSpace: 'pre-wrap',
-                      }}
-                    >
-                      {block.text}
+                    <div>
+                      <div
+                        style={{
+                          fontSize: '10px',
+                          fontWeight: 800,
+                          letterSpacing: '0.15em',
+                          textTransform: 'uppercase',
+                          color: 'rgba(255,255,255,0.4)',
+                          marginBottom: 6,
+                        }}
+                      >
+                        You
+                      </div>
+                      <div
+                        style={{
+                          fontSize: '16px',
+                          lineHeight: 1.6,
+                          fontWeight: 300,
+                          color: 'rgba(255,255,255,0.85)',
+                          whiteSpace: 'pre-wrap',
+                        }}
+                      >
+                        {block.text}
+                      </div>
+                      {isPlaying && (
+                        <div
+                          style={{
+                            marginTop: 10,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 10,
+                          }}
+                        >
+                          <div
+                            style={{
+                              flex: 1,
+                              height: 3,
+                              borderRadius: 2,
+                              background: 'rgba(255,255,255,0.08)',
+                              overflow: 'hidden',
+                            }}
+                          >
+                            <div
+                              style={{
+                                height: '100%',
+                                width: `${playbackProgress.pct}%`,
+                                background: 'var(--heros-brand)',
+                                transition: 'width 0.15s linear',
+                              }}
+                            />
+                          </div>
+                          <span
+                            style={{
+                              fontFamily: 'monospace',
+                              fontSize: 10,
+                              color: 'rgba(255,255,255,0.5)',
+                              fontVariantNumeric: 'tabular-nums',
+                            }}
+                          >
+                            {formatPlaybackClock(playbackProgress.current, playbackProgress.duration)}
+                          </span>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                </motion.div>
-              ))}
+                  </motion.div>
+                )
+              })}
 
               {isRecording && (
                 <motion.div
