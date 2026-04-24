@@ -90,18 +90,127 @@ any command. Wire:
 - System audio capture → wire into the same pipeline behind a
   toggle (backend already supports via `system_audio::*`)
 
-### W2 — Workspace tree + MDX editor 🔜 NEXT
+### W2 — Workspace tree + CodeMirror 6 editor 🔜 NEXT
 
 The ported `NotesView` is an eBay note-list shell. Handy needs a
-**tree + editor split pane** inside `NotesView`'s glass frame:
-- Left pane: workspace tree (drag/drop via `@dnd-kit`, fractional
-  positions) fed by `commands::workspace_nodes::list_children`
-- Right pane: MDX editor (wraps `@mdxeditor/editor`) with:
-  - Wikilink `[[` autocomplete (query `searchNodes`, 150ms debounce)
-  - `node://uuid` click handler → navigate to that page
-  - Autosave (300ms debounce) through `update_node` with Rule 13
-    conflict guard + banner for external edits
-  - Voice-memo pill rendering per Rule 9
+**tree + editor split pane** inside `NotesView`'s glass frame.
+
+**Editor decision (locked — CLAUDE.md Rule 22):** CodeMirror 6 +
+`@codemirror/lang-markdown` with GFM extensions enabled. Not
+MDXEditor, not TipTap, not BlockNote — those treat markdown as an
+export format and violate Rule 10 (body is raw markdown). CM6 is
+markdown-native on disk + has a real Lezer AST for decorations
+(table / task list / wikilink pill / voice-memo embed). Do NOT use
+the `Agentz360/secure-lang-markdown` fork — it ships a telemetry
+SDK that POSTs to a remote ingestionUrl, incompatible with
+Invariant #1. Only use official `@codemirror/*` packages.
+
+**Deliverables:**
+
+- **Left pane — workspace tree** (new `src/components/Tree.tsx`,
+  flat per Rule 5 of Definition of Done):
+  - Drag/drop via `@dnd-kit`, fractional-indexed positions
+  - Fed by `commands::workspace_nodes::list_children` (one flat
+    query per SQLite Performance section, build hierarchy in JS)
+  - Caret toggles open/closed; a document with ≥1 non-deleted child
+    is itself the folder (Rule 11 — no `folder` node_type)
+  - Soft-delete on Delete key per Keyboard Contracts
+  - Windowed past ~1k nodes to hit perf target (10k nodes < 400ms)
+
+- **Right pane — CodeMirror 6 editor** (new
+  `src/components/MarkdownEditor.tsx`):
+  - Extensions: `markdown({ base: markdownLanguage, extensions:
+    [GFM] })` for tables / task lists / strikethrough / autolinks
+  - `@codemirror/autocomplete` with TWO sources: `/` slash
+    commands (Rule 23 — catalog already stubbed at
+    `src/editor/slashCommands.ts`) and `[[` wikilink autocomplete
+    (queries `searchNodes` with 150ms debounce, title-only)
+  - Custom link renderer catches every `node://uuid` href and
+    routes to `'notes'` + node id via the Rule 2 page-setter —
+    never let the browser handle `node://`
+  - Autosave: 300ms debounce → `update_node` with
+    `last_read_mtime` for the Rule 13 conflict guard
+  - External-edit conflict: inline banner (NOT modal) with
+    Reload / Keep mine / Open diff — pauses autosave on the
+    conflicted node until resolved
+  - Voice-memo pill: Lezer decoration replaces each
+    `::voice_memo_recording{path="…"}` directive with an inline
+    "▶ Play" control that loads the audio file via
+    `convertFileSrc()` + the shared singleton `<audio>` element
+    already used by `AudioView`
+  - No round-trip serialization — the CM6 doc IS the raw markdown
+    body written to `workspace_nodes.body` and the vault `.md`
+    file (Rule 10)
+
+- **Slash commands** (Rule 23, stub at `src/editor/slashCommands.ts`):
+  - Tier 1 (ship in W2): 10 block primitives already stubbed —
+    `/h1` `/h2` `/h3` `/ul` `/ol` `/todo` `/quote` `/divider`
+    `/code` `/table`
+  - Tier 2 (defer to W2.5 if it stretches scope): Handy-native
+    commands live in `src/editor/commands/` — `/link` (wikilink
+    autocomplete trigger), `/today` (insert link to today's
+    daily note, resolving via a new or existing Tauri command),
+    `/voice` (inserts a `::voice_memo_recording` directive and
+    starts a mic recording into the block on stop), `/database`
+    (creates a child database node), `/embed` (transcludes
+    another node's body at render time)
+  - Line-start guard: completion source only fires when the text
+    before `/` on the current line is whitespace-only
+    (prevents triggering mid-sentence in `"go to /usr/bin"`)
+
+- **`NotesView` shell wiring** — replace the eBay-style note list
+  with the tree/editor split. Keep `NotesView`'s outer
+  `.heros-page-container` + `.heros-glass-panel` wrapper intact;
+  the split pane mounts inside. Use the HerOS primitives
+  (`<HerOSInput>` for the tree filter / search input at the top
+  of the left pane, `<HerOSButton>` for actions). No new visual
+  primitives — everything stays on the HerOS Design System.
+
+**Approach**: start with the brainstorming skill to surface open
+questions (tree filtering UX, new-node keyboard flow, how to render
+the voice-memo pill's "Unavailable" state when `pathsExist` returns
+false, how to handle the conflict banner visually inside the glass
+frame). Then write a plan via writing-plans. TDD the pure pieces
+(slash source matching, `::voice_memo_recording` Lezer widget
+parse, autosave debounce) in Vitest. Verify end-to-end through the
+preview tools — open a node, type, switch nodes, reload, confirm
+the body persists to both `workspace.db` and the `.md` file on
+disk.
+
+**Done when**: tree renders 1000+ nodes smoothly; clicking opens
+a node in the right pane; typing autosaves under 200ms for bodies
+≤50KB; `/table` + `[[` both trigger their completion menus; a
+voice-memo pill renders for every `::voice_memo_recording` block
+and plays the audio on click; external-edit conflict shows the
+inline banner; `cargo test --lib` + `bunx vitest run` + `bun run
+build` all green.
+
+**Spec:** [docs/superpowers/specs/2026-04-23-w2-notes-wiring-design.md](docs/superpowers/specs/2026-04-23-w2-notes-wiring-design.md).
+
+### W2.5 — Editor follow-ups (deferred from W2)
+
+Carved out of W2 to keep the first editor release shippable. Pick up
+once W2 is verified in production use and any pitfalls surface.
+
+- [ ] **`/voice` slash command** (`src/editor/commands/voice.ts`) —
+  inserts a `::voice_memo_recording` directive placeholder and starts
+  a mic recording that appends into the block on stop. Overlaps with
+  the AudioView recording UX; needs a shared session manager so the
+  two surfaces don't compete for the mic.
+- [ ] **`/database` slash command** (`src/editor/commands/database.ts`)
+  — creates a child database node under the current doc. Blocked on
+  W4 (database views) shipping a usable embedded database renderer.
+- [ ] **`/embed` slash command** (`src/editor/commands/embed.ts`) —
+  transcludes another node's body at render time via a Lezer
+  decoration. Blocked on deciding whether embeds are live
+  (re-rendered on source change) or snapshot (copied once) — design
+  call, not engineering.
+- [ ] **Conflict banner "Open diff" view** — the third button in the
+  external-edit conflict banner, disabled in W2. Side-by-side merge
+  view comparing in-editor body vs. on-disk body.
+- [ ] **Split-pane resize** in NotesView (left/editor/right column
+  widths) — W2 ships static widths; add `react-resizable-panels`
+  (already a dep) if manual resize becomes a friction point.
 
 ### W3 — Hybrid search
 
@@ -890,7 +999,7 @@ preserved from current pipeline).
 
 | Field | Value |
 |---|---|
-| Current phase | W2 — Workspace tree + MDX editor (kickoff next) |
+| Current phase | W2 — Workspace tree + CodeMirror 6 editor (kickoff next) |
 | In flight | W0 + W1 + Audio polish all merged to local main on 2026-04-23. Howard's two runtime smokes from Phase A still open — non-blocking. |
 | Blockers | None. Audio Intelligence + System Audio Capture pages are user-tested and shipping. |
 | Last phase completed | W1 — voice transcribe + per-memo playback + lazy vault reconciliation (2026-04-23). Plus W0 onboarding (2026-04-23) and bonus SystemAudioView page. |
