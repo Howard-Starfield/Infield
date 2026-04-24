@@ -19,6 +19,7 @@ import { convertFileSrc } from '@tauri-apps/api/core'
 import { toast } from 'sonner'
 import { commands } from '../bindings'
 import { ScrollShadow } from './ScrollShadow'
+import { pathsExist } from '../utils/pathsExist'
 
 interface BodyUpdatedPayload {
   node_id: string
@@ -254,34 +255,6 @@ async function findVoiceMemosDocId(dateIso: string): Promise<string | null> {
   if (result.status !== 'ok') return null
   const exact = result.data.find((r) => r.name === title)
   return exact?.id ?? null
-}
-
-/**
- * Batch existence check for absolute file paths.
- *
- * Returns the subset of input paths that actually exist on disk. Runs
- * existence checks in parallel via Promise.all — `exists()` is a single
- * `stat` syscall, microseconds per file, so even 100+ paths complete in a
- * few ms. Falls back to "assume all OK" on plugin failure so a missing
- * permission can't break the page.
- *
- * Per CLAUDE.md Rule 14 (no fs watcher / no aggressive startup scan), this
- * runs only on user-triggered loads (mount, date switch, post-stop refresh)
- * — never on a timer or boot.
- */
-async function pathsExist(paths: string[]): Promise<Set<string>> {
-  if (paths.length === 0) return new Set()
-  try {
-    const { exists } = await import('@tauri-apps/plugin-fs')
-    const results = await Promise.all(
-      paths.map(async (p) => ({ p, ok: await exists(p).catch(() => false) })),
-    )
-    return new Set(results.filter((r) => r.ok).map((r) => r.p))
-  } catch {
-    // Plugin unavailable — best to assume the files exist; the per-block
-    // click-to-play path will still surface real failures via onerror.
-    return new Set(paths)
-  }
 }
 
 /**
