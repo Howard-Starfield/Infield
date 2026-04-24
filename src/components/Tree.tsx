@@ -194,6 +194,7 @@ function SortableRow(props: {
       onClick={() => onSelect(row.id)}
       onContextMenu={(e) => {
         e.preventDefault()
+        if (isDragging) return
         onOpenContextMenu({ x: e.clientX, y: e.clientY }, row.id)
       }}
     >
