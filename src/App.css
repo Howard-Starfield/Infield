@@ -26,6 +26,14 @@ html, body {
   --surface-container-highest: rgba(255, 255, 255, 0.12);
   --surface-bright:            rgba(255, 255, 255, 0.16);
 
+  /* W2.5 — semantic surface tints used by tabs, context menu, tag chips */
+  --surface-1:       rgba(255, 255, 255, 0.03);   /* least-pronounced surface */
+  --surface-2:       rgba(255, 255, 255, 0.06);   /* card tint */
+  --surface-hover:   rgba(255, 255, 255, 0.08);   /* hover highlight */
+  --surface-active:  color-mix(in srgb, var(--heros-brand) 15%, transparent);
+  --border-subtle:   rgba(255, 255, 255, 0.08);   /* card / divider borders */
+  --transition-fast: 120ms ease;                  /* standard hover/active ease */
+
   /* Primary — HerOS Terracotta accent */
   --primary:            #cc4c2b;
   --primary-container:  rgba(204, 76, 43, 0.15);
@@ -47,6 +55,8 @@ html, body {
 
   /* Elevation tokens */
   --ghost-border:  1px solid rgba(255, 255, 255, 0.15);
+  --radius-sm:        calc(6px * var(--ui-scale));
+  --radius-pill:      999px;
   --radius-container: 14px;
   --radius-lg:        24px;
   --blur-glass:       blur(24px);
@@ -105,6 +115,7 @@ html, body {
   --text-lg:   calc(16px * var(--ui-scale));
   --text-xl:   calc(20px * var(--ui-scale));
   --text-2xl:  calc(24px * var(--ui-scale));
+  --text-3xl:  calc(28px * var(--ui-scale));
 
   /* ── Spacing Scale (Dynamic) ── */
   --space-1: calc(4px * var(--ui-scale));
