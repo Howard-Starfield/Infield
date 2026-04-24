@@ -13,18 +13,18 @@ export const herosEditorTheme = EditorView.theme({
   },
   '.cm-scroller': {
     fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif",
-    fontSize: 'var(--text-base, 15px)',
+    fontSize: 'var(--text-base)',
     lineHeight: '1.7',
     overflow: 'auto',
   },
   '.cm-content': {
-    padding: 'var(--space-6, 24px) 0',
+    padding: 'var(--space-6) 0',
     maxWidth: '760px',
     margin: '0 auto',
     caretColor: 'var(--heros-brand)',
   },
   '.cm-line': {
-    padding: '0 var(--space-6, 24px)',
+    padding: '0 var(--space-6)',
   },
   '.cm-activeLine, .cm-activeLineGutter': {
     backgroundColor: 'transparent',
@@ -39,28 +39,28 @@ export const herosEditorTheme = EditorView.theme({
   // Autocomplete popup — HerOS card
   '.cm-tooltip-autocomplete': {
     background: 'var(--heros-glass-black)',
-    border: '1px solid rgba(255, 255, 255, 0.08)',
-    borderRadius: 'var(--radius-container, 10px)',
+    border: '1px solid var(--border-subtle)',
+    borderRadius: 'var(--radius-container)',
     boxShadow: 'var(--shadow-lg)',
     fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif",
-    padding: 'var(--space-1, 4px)',
+    padding: 'var(--space-1)',
   },
   '.cm-tooltip-autocomplete > ul > li': {
-    padding: 'var(--space-2, 8px) var(--space-3, 12px)',
-    borderRadius: '6px',
-    color: 'rgba(255, 255, 255, 0.85)',
+    padding: 'var(--space-2) var(--space-3)',
+    borderRadius: 'var(--radius-sm)',
+    color: 'var(--heros-text-muted)',
   },
   '.cm-tooltip-autocomplete > ul > li[aria-selected]': {
     background: 'color-mix(in srgb, var(--heros-brand) 15%, transparent)',
-    color: '#fff',
+    color: 'var(--heros-text-premium)',
   },
   '.cm-tooltip-autocomplete .cm-completionLabel': {
     fontWeight: 500,
   },
   '.cm-tooltip-autocomplete .cm-completionDetail': {
-    color: 'rgba(255, 255, 255, 0.4)',
-    fontSize: 'var(--text-xs, 11px)',
-    marginLeft: 'var(--space-3, 12px)',
+    color: 'var(--heros-text-faint)',
+    fontSize: 'var(--text-xs)',
+    marginLeft: 'var(--space-3)',
   },
   // node:// link mark — see Task 7
   '.cm-node-link': {
