@@ -1,0 +1,30 @@
+diff --git a/src/components/AppShell.tsx b/src/components/AppShell.tsx
+--- a/src/components/AppShell.tsx
++++ b/src/components/AppShell.tsx
+@@ -69,6 +69,26 @@ export default function AppShell({ currentPage, onNavigate }: AppShellProps) {
+           })
+         }
+       }
++      // Cmd+T → new tab + new doc (notes only; auto-navigate if elsewhere).
++      if (e.key.toLowerCase() === 't' && !e.shiftKey) {
++        e.preventDefault()
++        onNavigate('notes')
++        window.dispatchEvent(new Event('notes:new-tab'))
++        return
++      }
++      // Cmd+W → close active tab (notes only).
++      if (e.key.toLowerCase() === 'w' && currentPage === 'notes') {
++        e.preventDefault()
++        window.dispatchEvent(new Event('notes:close-active'))
++        return
++      }
++      // Cmd+1..9 → switch tab (notes only; 1-based from user, 0-based in state).
++      if (currentPage === 'notes' && /^[1-9]$/.test(e.key)) {
++        e.preventDefault()
++        const idx = Number(e.key) - 1
++        window.dispatchEvent(new CustomEvent('notes:switch-index', { detail: idx }))
++        return
++      }
+     }
+     window.addEventListener('keydown', onKey)
+     return () => window.removeEventListener('keydown', onKey)

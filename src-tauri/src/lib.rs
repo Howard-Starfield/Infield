@@ -1060,19 +1060,11 @@ pub fn run(cli_args: CliArgs) {
                     let _ = apply_acrylic(&main_window, None);
                 }
 
-                // Disable Windows 11 DWM corner rounding so ONLY the
-                // frontend's `#root { border-radius: 18px }` defines the
-                // visible curve. Previously we used DWMWCP_ROUND, which
-                // makes DWM draw its default ~8px rounding on the window
-                // silhouette — that didn't match `#root`'s 18px and
-                // produced a visible double-curve (inner frontend
-                // clipped at 18px, outer window at ~8px showing
-                // transparent pixels in the gap).
-                //
-                // With DWMWCP_DONOTROUND the OS window is rectangular
-                // and transparent; #root's 18px radius is the only
-                // curve you see. To change the visible corner radius,
-                // edit `#root { border-radius: ... }` in src/app.css.
+                // Use the frontend-defined rounded shell rather than
+                // Windows 11's fixed native corner radius. DWM's built-in
+                // radius is smaller than Infield's glass panels, so it
+                // creates a mismatched double-corner. The top bar and root
+                // are clipped in CSS with `--window-corner-radius`.
                 //
                 // No-op on Windows 10 / older (the attribute is ignored).
                 if let Ok(hwnd) = main_window.hwnd() {

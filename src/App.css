@@ -90,6 +90,7 @@ html, body {
   /* Layout */
   --space-grid: 5px;
   --title-bar-height: 48px;
+  --window-corner-radius: 18px;
   --icon-rail-width:  56px;
   --account-sidebar-width: 240px;
   --conversation-list-width: 320px;
@@ -361,8 +362,10 @@ html, body {
   height: 100vh;
   position: relative;
   background-color: var(--heros-bg-foundation); /* Match foundation */
-  border-radius: 18px; /* Restored window roundness */
+  border-radius: var(--window-corner-radius);
+  background-clip: padding-box;
   overflow: hidden; /* Clips children to the rounded corners */
+  isolation: isolate;
   /* Zoom is NOT applied here — we use Tauri's native webview zoom
    * via the `set_app_zoom` command (src-tauri/src/commands/ui.rs)
    * because CSS `zoom` leaves black gutters at scale < 1 on Chromium
@@ -502,7 +505,9 @@ button:active:not(.win-btn),
   height: var(--title-bar-height);
   display: flex;
   align-items: center;
-  z-index: 100;
+  z-index: 5000;
+  border-radius: var(--window-corner-radius) var(--window-corner-radius) 0 0;
+  overflow: hidden;
   /* Deep charcoal with very subtle warm tint matching the brand */
   background: rgba(10, 11, 15, 0.92);
   backdrop-filter: blur(32px) saturate(180%);
@@ -970,6 +975,18 @@ button:active:not(.win-btn),
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 20px;
   position: relative;
+  transition:
+    width 260ms cubic-bezier(0.16, 1, 0.3, 1),
+    background 180ms ease-out,
+    box-shadow 180ms ease-out;
+}
+
+.icon-rail.is-expanded {
+  width: 212px;
+  background: rgba(255, 255, 255, 0.045);
+  box-shadow:
+    0 16px 44px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .rail-active-indicator {
@@ -987,15 +1004,34 @@ button:active:not(.win-btn),
   transform: translateY(var(--rail-indicator-y, 0px));
   transition:
     transform 460ms cubic-bezier(0.16, 1, 0.3, 1),
-    opacity 140ms ease-out,
-    height 220ms cubic-bezier(0.16, 1, 0.3, 1);
-  z-index: 120;
+    width 260ms cubic-bezier(0.16, 1, 0.3, 1),
+    height 260ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-radius 260ms cubic-bezier(0.16, 1, 0.3, 1),
+    background 180ms ease-out,
+    box-shadow 180ms ease-out,
+    opacity 140ms ease-out;
+  z-index: 0;
   pointer-events: none;
   will-change: transform;
 }
 
 .rail-active-indicator.visible {
   opacity: 1;
+}
+
+.icon-rail.is-expanded .rail-active-indicator {
+  left: 6px;
+  width: calc(100% - 12px);
+  height: 40px;
+  border-radius: 12px;
+  background:
+    linear-gradient(90deg, rgba(204, 76, 43, 0.22), rgba(204, 76, 43, 0.08) 56%, rgba(255, 255, 255, 0.025)),
+    rgba(204, 76, 43, 0.055);
+  box-shadow:
+    inset 3px 0 0 var(--heros-brand),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 10px 26px rgba(204, 76, 43, 0.1);
+  transform: translateY(calc(var(--rail-indicator-y, 0px) - 11px));
 }
 
 .rail-btn {
@@ -1024,32 +1060,87 @@ button:active:not(.win-btn),
   transform: translateZ(0);
 }
 
+.rail-btn:focus,
+.rail-btn:focus-visible {
+  outline: none;
+  box-shadow: none !important;
+}
+
 .rail-btn:hover {
   width: max-content;
   min-width: 44px;
   max-width: 240px;
   transition: 
     width 320ms cubic-bezier(0.16, 1, 0.3, 1),
-    background 180ms ease-out,
-    box-shadow 180ms ease-out,
     transform 140ms cubic-bezier(0.2, 0, 0, 1);
   transition-delay: 0.4s;
-  background: var(--heros-glass-black);
+  background: transparent;
   color: #fff;
   z-index: 100;
   border-color: transparent;
-  box-shadow: 0 12px 32px rgba(0,0,0,0.4);
+  box-shadow: none;
   padding-right: 16px;
 }
 
-.rail-btn:active {
-  opacity: 1;
-  transform: scale(0.94);
-  background: rgba(255, 255, 255, 0.07);
+.icon-rail.is-expanded .rail-btn {
+  width: 100%;
+  max-width: none;
+  padding-right: 14px;
+}
+
+.icon-rail.is-expanded .rail-btn:hover {
+  width: 100%;
+  max-width: none;
+  transition-delay: 0ms;
+}
+
+.icon-rail.is-expanded .rail-btn:hover::after {
+  transition-delay: 0ms;
+}
+
+.rail-btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.018)),
+    rgba(10, 11, 15, 0.54);
   box-shadow:
-    0 6px 16px rgba(0, 0, 0, 0.26),
+    0 12px 32px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  opacity: 0;
+  transition: opacity 160ms ease-out;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.rail-btn:hover::after {
+  opacity: 1;
+  transition-delay: 0.4s;
+}
+
+.rail-btn:active {
+  width: max-content;
+  min-width: 44px;
+  max-width: 240px;
+  padding-right: 14px;
+  opacity: 1;
+  transform: scale(0.96);
+  background: rgba(12, 13, 17, 0.42);
+  backdrop-filter: blur(22px) saturate(145%);
+  -webkit-backdrop-filter: blur(22px) saturate(145%);
+  border-color: rgba(255, 255, 255, 0.07);
+  box-shadow:
+    0 8px 22px rgba(0, 0, 0, 0.26),
     inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    inset 0 -10px 18px rgba(0, 0, 0, 0.16);
+    inset 0 -12px 18px rgba(0, 0, 0, 0.18);
+  transition-delay: 0ms;
+  z-index: 110;
+}
+
+.rail-btn:active::after {
+  opacity: 0;
   transition-delay: 0ms;
 }
 
@@ -1060,6 +1151,8 @@ button:active:not(.win-btn),
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  position: relative;
+  z-index: 1;
   transition:
     background 180ms ease-out,
     border-color 180ms ease-out,
@@ -1076,6 +1169,8 @@ button:active:not(.win-btn),
   transform: translateX(-8px);
   transition: none; /* Disappear instantly on exit */
   pointer-events: none;
+  position: relative;
+  z-index: 1;
 }
 
 .rail-btn:hover .rail-label {
@@ -1083,6 +1178,25 @@ button:active:not(.win-btn),
   transform: translateX(0);
   transition: opacity 0.3s ease, transform 0.3s ease; /* Fade in on enter */
   transition-delay: 0.5s;
+}
+
+.icon-rail.is-expanded .rail-label {
+  opacity: 0.78;
+  transform: translateX(0);
+  transition: opacity 160ms ease-out, transform 160ms ease-out;
+}
+
+.icon-rail.is-expanded .rail-btn:hover .rail-label,
+.icon-rail.is-expanded .rail-btn.active .rail-label {
+  opacity: 1;
+  transition-delay: 0ms;
+}
+
+.rail-btn:active .rail-label {
+  opacity: 0.82;
+  transform: translateX(0);
+  transition: opacity 90ms ease-out, transform 90ms ease-out;
+  transition-delay: 0ms;
 }
 
 .rail-btn.active .rail-icon-wrapper {
@@ -1095,8 +1209,17 @@ button:active:not(.win-btn),
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
+.icon-rail.is-expanded .rail-btn.active .rail-icon-wrapper {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
 .rail-btn:active .rail-icon-wrapper {
   transform: scale(0.9);
+  background: rgba(255, 255, 255, 0.025);
+  border-color: transparent;
+  box-shadow: none;
 }
 
 .rail-btn.active {
@@ -1106,9 +1229,15 @@ button:active:not(.win-btn),
 }
 
 .rail-btn.active:hover {
-  background: var(--heros-glass-black);
+  background: transparent;
   border-color: transparent;
   transition-delay: 0.4s;
+}
+
+.rail-btn.active:active {
+  background: rgba(12, 13, 17, 0.42);
+  border-color: rgba(255, 255, 255, 0.07);
+  transition-delay: 0ms;
 }
 
 .rail-btn.active:hover .rail-icon-wrapper {
@@ -1126,6 +1255,85 @@ button:active:not(.win-btn),
   stroke-linecap: round;
   stroke-linejoin: round;
   fill: none;
+}
+
+/* ── Buddy Sprite Animation ───────────────────────────────── */
+.buddy-sprite-stage {
+  width: 240px;
+  height: 210px;
+  border-radius: 48px;
+  background:
+    radial-gradient(circle at 50% 46%, rgba(204, 76, 43, 0.22), transparent 48%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.015));
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow:
+    0 28px 70px rgba(204, 76, 43, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.buddy-wing-sprite {
+  width: 143px;
+  height: 92px;
+  background-image: var(--buddy-sprite);
+  background-repeat: no-repeat;
+  background-size: 858px 552px;
+  background-position: 0 var(--buddy-row-y, 0px);
+  image-rendering: auto;
+  filter: drop-shadow(0 18px 24px rgba(0, 0, 0, 0.42));
+  animation: buddy-wing-flap var(--buddy-duration, 900ms) steps(6) infinite;
+}
+
+.buddy-wing-sprite--hero {
+  transform: scale(1.52);
+}
+
+.buddy-wing-sprite--mini {
+  flex: 0 0 auto;
+  transform: scale(0.42);
+  filter: drop-shadow(0 8px 10px rgba(0, 0, 0, 0.42));
+}
+
+.buddy-wing-sprite--row-1 {
+  --buddy-row-y: 0px;
+  --buddy-duration: 900ms;
+}
+
+.buddy-wing-sprite--row-2 {
+  --buddy-row-y: -92px;
+  --buddy-duration: 980ms;
+}
+
+.buddy-wing-sprite--row-3 {
+  --buddy-row-y: -184px;
+  --buddy-duration: 840ms;
+}
+
+.buddy-wing-sprite--row-4 {
+  --buddy-row-y: -276px;
+  --buddy-duration: 1100ms;
+}
+
+.buddy-wing-sprite--row-5 {
+  --buddy-row-y: -368px;
+  --buddy-duration: 1350ms;
+}
+
+.buddy-wing-sprite--row-6 {
+  --buddy-row-y: -460px;
+  --buddy-duration: 920ms;
+}
+
+@keyframes buddy-wing-flap {
+  from {
+    background-position: 0 var(--buddy-row-y, 0px);
+  }
+  to {
+    background-position: -858px var(--buddy-row-y, 0px);
+  }
 }
 
 /* ── Account Sidebar ──────────────────────────────────────── */

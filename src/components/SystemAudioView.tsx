@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { motion } from 'motion/react'
+import { motion, AnimatePresence } from 'motion/react'
 import {
   Headphones,
   Square,
@@ -87,6 +87,13 @@ const formatTime = (s: number) => {
   return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
 }
 
+const SYSTEM_ACCENT = '#3eb8ff'
+const SYSTEM_GLOW = 'rgba(62,184,255,0.7)'
+const modeAccent = (mode: 'system' | 'interview') =>
+  mode === 'interview' ? 'var(--heros-brand)' : SYSTEM_ACCENT
+const modeGlow = (mode: 'system' | 'interview') =>
+  mode === 'interview' ? 'rgba(255,127,80,0.45)' : SYSTEM_GLOW
+
 function paragraphsToLines(
   note_id: string,
   paragraphs: SystemAudioParagraph[],
@@ -128,6 +135,7 @@ function SystemAudioTuningSlider({
   settingKey,
   isCapturing,
   live,
+  accentColor,
   onChange,
 }: {
   label: string
@@ -137,6 +145,7 @@ function SystemAudioTuningSlider({
   settingKey: TuningKey
   isCapturing: boolean
   live: boolean
+  accentColor: string
   onChange: (key: TuningKey, value: number) => void
 }) {
   const limits = TUNING_LIMITS[settingKey]
@@ -153,7 +162,7 @@ function SystemAudioTuningSlider({
         </div>
         <div
           style={{
-            color: live ? '#3eb8ff' : 'rgba(255,255,255,0.55)',
+            color: live ? accentColor : 'rgba(255,255,255,0.55)',
             fontSize: '10px',
             fontWeight: 800,
             textTransform: 'uppercase',
@@ -174,7 +183,7 @@ function SystemAudioTuningSlider({
           step={limits.step}
           value={value}
           onChange={(event) => onChange(settingKey, Number(event.currentTarget.value))}
-          style={{ flex: 1, accentColor: '#3eb8ff' }}
+          style={{ flex: 1, accentColor }}
         />
         <div
           style={{
@@ -501,128 +510,286 @@ export function SystemAudioView() {
             ? 'Live session'
             : 'Ready'
 
+  const headline =
+    mode === 'interview'
+      ? { kicker: 'Interview', title: 'Record a', highlight: 'conversation', subtitle: 'Mic + system audio captured together. Speakers separated, merged by timestamp, saved under Interviews/.' }
+      : { kicker: 'System Audio', title: 'Capture what you', highlight: 'hear', subtitle: "Transcribe anything playing through your speakers — podcasts, calls, videos. Paragraphs append to today's System Audio doc." }
+  const headlineAccent = modeAccent(mode)
+
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', height: '100%', gap: 5 }}>
-      {/* Transcript Column */}
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+      {/* Page header — always visible, mode-adaptive */}
       <section
-        className="heros-glass-card"
-        style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+        style={{
+          padding: '44px 40px 16px 40px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 16,
+          flexShrink: 0,
+        }}
       >
-        {/* Mode pills */}
-        <div
-          style={{
-            padding: '16px 32px 0 32px',
-            display: 'flex',
-            gap: 8,
-            alignItems: 'center',
-          }}
-        >
-          {(['system', 'interview'] as const).map((m) => {
-            const active = mode === m
-            const disabled = isCapturing || isTransitioning
-            return (
-              <button
-                key={m}
-                disabled={disabled}
-                onClick={() => !disabled && setMode(m)}
-                style={{
-                  padding: '6px 14px',
-                  fontSize: 11,
-                  fontWeight: 800,
-                  letterSpacing: '0.12em',
-                  textTransform: 'uppercase',
-                  background: active ? 'var(--heros-brand)' : 'rgba(255,255,255,0.03)',
-                  color: active ? '#fff' : 'rgba(255,255,255,0.55)',
-                  border: active
-                    ? '1px solid var(--heros-brand)'
-                    : '1px solid rgba(255,255,255,0.08)',
-                  borderRadius: 'var(--compact-button-radius, 10px)',
-                  opacity: disabled ? 0.5 : 1,
-                  cursor: disabled ? 'not-allowed' : 'pointer',
-                  fontFamily: 'inherit',
-                }}
-              >
-                {m === 'system' ? 'System audio' : 'Interview'}
-              </button>
-            )
-          })}
-        </div>
-
-        {/* Participant name (interview mode, pre-recording only) */}
-        {mode === 'interview' && !isCapturing && (
-          <div style={{ padding: '8px 32px 0 32px' }}>
-            <input
-              placeholder="Participant name (e.g. Alice)"
-              value={participantName}
-              onChange={(e) => {
-                setParticipantName(e.currentTarget.value)
-                setNameError(null)
-              }}
-              disabled={isCapturing || isTransitioning}
-              style={{
-                width: '100%',
-                padding: '8px 12px',
-                fontSize: 13,
-                background: 'rgba(255,255,255,0.04)',
-                border: `1px solid ${nameError ? '#ff7a7a' : 'rgba(255,255,255,0.08)'}`,
-                borderRadius: 8,
-                color: '#fff',
-                fontFamily: 'inherit',
-              }}
-            />
-            {nameError && (
-              <div style={{ color: '#ff7a7a', fontSize: 11, marginTop: 4 }}>{nameError}</div>
-            )}
-          </div>
-        )}
-
-        <div
-          style={{
-            padding: '24px 32px',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            borderBottom: '1px solid rgba(255,255,255,0.05)',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={mode}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+            style={{ textAlign: 'center' }}
+          >
             <div
               style={{
-                width: 12,
-                height: 12,
-                borderRadius: '50%',
-                background: isCapturing ? '#3eb8ff' : 'rgba(255,255,255,0.1)',
-                boxShadow: isCapturing ? '0 0 16px rgba(62,184,255,0.7)' : 'none',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 16,
+                marginBottom: 10,
               }}
-            />
-            <span
+            >
+              <div
+                style={{
+                  width: 40,
+                  height: 2,
+                  background: `linear-gradient(to right, transparent, ${headlineAccent})`,
+                  opacity: 0.5,
+                }}
+              />
+              <span
+                style={{
+                  fontSize: 11,
+                  color: headlineAccent,
+                  fontWeight: 800,
+                  letterSpacing: '0.4em',
+                  textTransform: 'uppercase',
+                }}
+              >
+                {headline.kicker}
+              </span>
+              <div
+                style={{
+                  width: 40,
+                  height: 2,
+                  background: `linear-gradient(to left, transparent, ${headlineAccent})`,
+                  opacity: 0.5,
+                }}
+              />
+            </div>
+            <h1
               style={{
-                fontSize: '11px',
-                fontWeight: 800,
-                letterSpacing: '0.2em',
-                textTransform: 'uppercase',
+                fontSize: 34,
+                fontWeight: 200,
+                margin: 0,
+                letterSpacing: '-0.03em',
                 color: '#fff',
               }}
             >
-              {isCapturing
-                ? mode === 'interview'
-                  ? 'Interview in progress'
-                  : 'Capturing system audio'
-                : 'Idle'}
-            </span>
-          </div>
+              {headline.title}{' '}
+              <span style={{ color: headlineAccent, fontWeight: 400 }}>{headline.highlight}</span>
+            </h1>
+            <p
+              style={{
+                marginTop: 10,
+                fontSize: 13,
+                color: 'rgba(255,255,255,0.45)',
+                maxWidth: 560,
+                lineHeight: 1.6,
+              }}
+            >
+              {headline.subtitle}
+            </p>
+          </motion.div>
+        </AnimatePresence>
+      </section>
+
+      {/* Segmented control + name input — fade out when recording */}
+      <AnimatePresence initial={false}>
+        {!isCapturing && (
+          <motion.section
+            key="mode-controls"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+            style={{ overflow: 'hidden', flexShrink: 0 }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 14,
+                padding: '4px 40px 22px 40px',
+              }}
+            >
+              <div
+                role="tablist"
+                aria-label="Recording mode"
+                style={{
+                  display: 'inline-flex',
+                  padding: 4,
+                  gap: 4,
+                  background: 'rgba(255,255,255,0.03)',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  borderRadius: 'var(--segmented-radius, 999px)',
+                }}
+              >
+                {(['system', 'interview'] as const).map((m) => {
+                  const active = mode === m
+                  const accent = m === 'interview' ? 'var(--heros-brand)' : '#3eb8ff'
+                  return (
+                    <button
+                      key={m}
+                      role="tab"
+                      aria-selected={active}
+                      disabled={isTransitioning}
+                      onClick={() => {
+                        if (isTransitioning) return
+                        setMode(m)
+                        setNameError(null)
+                      }}
+                      style={{
+                        padding: '8px 18px',
+                        fontSize: 11,
+                        fontWeight: 800,
+                        letterSpacing: '0.2em',
+                        textTransform: 'uppercase',
+                        background: active ? accent : 'transparent',
+                        color: active ? '#fff' : 'rgba(255,255,255,0.55)',
+                        border: 'none',
+                        borderRadius: 'var(--segmented-radius, 999px)',
+                        cursor: isTransitioning ? 'not-allowed' : 'pointer',
+                        opacity: isTransitioning ? 0.5 : 1,
+                        fontFamily: 'inherit',
+                        transition: 'background 180ms ease, color 180ms ease',
+                      }}
+                    >
+                      {m === 'system' ? 'System audio' : 'Interview'}
+                    </button>
+                  )
+                })}
+              </div>
+
+              {mode === 'interview' && (
+                <div
+                  style={{
+                    width: '100%',
+                    maxWidth: 520,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 800,
+                      letterSpacing: '0.2em',
+                      textTransform: 'uppercase',
+                      color: 'rgba(255,255,255,0.4)',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    Speaker
+                  </span>
+                  <input
+                    placeholder="Participant name (e.g. Alice)"
+                    value={participantName}
+                    onChange={(e) => {
+                      setParticipantName(e.currentTarget.value)
+                      setNameError(null)
+                    }}
+                    disabled={isCapturing || isTransitioning}
+                    style={{
+                      flex: 1,
+                      padding: '8px 12px',
+                      fontSize: 13,
+                      background: 'rgba(255,255,255,0.04)',
+                      border: `1px solid ${nameError ? '#ff7a7a' : 'rgba(255,255,255,0.08)'}`,
+                      borderRadius: 8,
+                      color: '#fff',
+                      fontFamily: 'inherit',
+                      outline: 'none',
+                    }}
+                  />
+                  {nameError && (
+                    <span style={{ color: '#ff7a7a', fontSize: 11, whiteSpace: 'nowrap' }}>
+                      {nameError}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          </motion.section>
+        )}
+      </AnimatePresence>
+
+      {/* Main grid: glass transcript card + info column */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 300px',
+          flex: 1,
+          minHeight: 0,
+          gap: 5,
+          padding: '0 0 5px 0',
+        }}
+      >
+        {/* Transcript Column */}
+        <section
+          className="heros-glass-card"
+          style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+        >
+          {/* Simplified status row: dot + label + timer */}
           <div
             style={{
-              fontFamily: 'monospace',
-              fontSize: '24px',
-              fontWeight: 300,
-              color: '#fff',
-              fontVariantNumeric: 'tabular-nums',
+              padding: '20px 32px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              borderBottom: '1px solid rgba(255,255,255,0.05)',
+              gap: 16,
             }}
           >
-            {formatTime(timer)}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div
+                style={{
+                  width: 10,
+                  height: 10,
+                  borderRadius: '50%',
+                  background: isCapturing ? modeAccent(mode) : 'rgba(255,255,255,0.15)',
+                  boxShadow: isCapturing ? `0 0 14px ${modeGlow(mode)}` : 'none',
+                  transition: 'background 200ms ease, box-shadow 200ms ease',
+                }}
+              />
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 800,
+                  letterSpacing: '0.2em',
+                  textTransform: 'uppercase',
+                  color: isCapturing ? '#fff' : 'rgba(255,255,255,0.55)',
+                }}
+              >
+                {isCapturing
+                  ? mode === 'interview'
+                    ? `Interview — You · ${participantName.trim() || 'Guest'}`
+                    : 'Capturing system audio'
+                  : 'Ready'}
+              </span>
+            </div>
+            <div
+              style={{
+                fontFamily: 'monospace',
+                fontSize: 24,
+                fontWeight: 300,
+                color: '#fff',
+                fontVariantNumeric: 'tabular-nums',
+              }}
+            >
+              {formatTime(timer)}
+            </div>
           </div>
-        </div>
 
         <div
           style={{
@@ -643,11 +810,100 @@ export function SystemAudioView() {
                 margin: '0 auto',
               }}
             >
-              {transcript.length === 0 && !isCapturing && (
+              {transcript.length === 0 && !isCapturing && mode === 'system' && (
                 <p style={{ color: 'rgba(255,255,255,0.3)', textAlign: 'center', marginTop: 64 }}>
                   Press the headphones button to capture system audio. Transcripts append to
                   today's System Audio doc.
                 </p>
+              )}
+
+              {transcript.length === 0 && !isCapturing && mode === 'interview' && (
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 24,
+                    marginTop: 48,
+                    opacity: 0.5,
+                    pointerEvents: 'none',
+                    userSelect: 'none',
+                  }}
+                  aria-hidden="true"
+                >
+                  <p
+                    style={{
+                      color: 'rgba(255,255,255,0.55)',
+                      textAlign: 'center',
+                      fontSize: 13,
+                      lineHeight: 1.6,
+                      margin: 0,
+                    }}
+                  >
+                    Mic + system audio recorded together. Paragraphs interleave by timestamp
+                    and land in <strong style={{ color: '#fff' }}>Interviews/</strong>.
+                  </p>
+
+                  {/* Example bubbles — typographic preview of the merged feed */}
+                  {[
+                    { kind: 'you' as const, ts: '00:00:03', text: "So what's your take on the roadmap?" },
+                    {
+                      kind: 'other' as const,
+                      ts: '00:00:07',
+                      speaker: participantName.trim() || 'Alice',
+                      text: "I think the merge step is what makes the transcript usable — otherwise you're just reading two columns.",
+                    },
+                  ].map((line, i) => {
+                    const accent = line.kind === 'you' ? '#3eb8ff' : 'var(--heros-brand)'
+                    const label = line.kind === 'you' ? 'You' : line.speaker
+                    return (
+                      <div
+                        key={i}
+                        style={{ display: 'grid', gridTemplateColumns: '60px 1fr', gap: 20 }}
+                      >
+                        <div
+                          style={{
+                            fontFamily: 'monospace',
+                            fontSize: 11,
+                            color: 'rgba(255,255,255,0.25)',
+                            paddingTop: 4,
+                          }}
+                        >
+                          {line.ts}
+                        </div>
+                        <div
+                          style={{
+                            borderLeft: `2px solid ${accent}`,
+                            paddingLeft: 12,
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontSize: 10,
+                              fontWeight: 800,
+                              letterSpacing: '0.15em',
+                              textTransform: 'uppercase',
+                              color: accent,
+                              marginBottom: 6,
+                            }}
+                          >
+                            {label}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: 15,
+                              lineHeight: 1.6,
+                              fontWeight: 300,
+                              color: 'rgba(255,255,255,0.6)',
+                              fontStyle: 'italic',
+                            }}
+                          >
+                            {line.text}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
               )}
               {transcript.map((line) => {
                 const accentColor =
@@ -784,22 +1040,32 @@ export function SystemAudioView() {
                 width: 80,
                 height: 80,
                 borderRadius: '50%',
-                background: isCapturing ? '#3eb8ff' : '#fff',
-                color: isCapturing ? '#fff' : '#1a4f6b',
-                border: 'none',
+                background: isCapturing ? modeAccent(mode) : '#fff',
+                color: isCapturing ? '#fff' : mode === 'interview' ? '#6b2f1a' : '#1a4f6b',
+                border: isCapturing
+                  ? 'none'
+                  : `3px solid ${mode === 'interview' ? 'rgba(255,127,80,0.7)' : 'rgba(62,184,255,0.65)'}`,
                 cursor: isTransitioning || streamUnavailable ? 'not-allowed' : 'pointer',
                 opacity: isTransitioning || streamUnavailable ? 0.5 : 1,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 boxShadow: isCapturing
-                  ? '0 12px 40px rgba(62,184,255,0.4)'
-                  : '0 8px 32px rgba(0,0,0,0.25)',
+                  ? `0 12px 40px ${modeGlow(mode)}`
+                  : `0 0 0 6px ${mode === 'interview' ? 'rgba(255,127,80,0.08)' : 'rgba(62,184,255,0.08)'}, 0 0 32px ${mode === 'interview' ? 'rgba(255,127,80,0.25)' : 'rgba(62,184,255,0.25)'}, 0 8px 32px rgba(0,0,0,0.25)`,
                 transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
                 transform: isCapturing ? 'scale(1.1)' : 'scale(1)',
               }}
               className="hover-glow"
-              aria-label={isCapturing ? 'Stop system audio capture' : 'Start system audio capture'}
+              aria-label={
+                isCapturing
+                  ? mode === 'interview'
+                    ? 'Stop interview session'
+                    : 'Stop system audio capture'
+                  : mode === 'interview'
+                    ? 'Start interview session'
+                    : 'Start system audio capture'
+              }
             >
               {isCapturing ? <Square size={24} fill="currentColor" /> : <Headphones size={32} />}
             </button>
@@ -835,8 +1101,11 @@ export function SystemAudioView() {
             style={{
               padding: '16px',
               borderRadius: 12,
-              background: 'rgba(62,184,255,0.08)',
-              border: '1px solid rgba(62,184,255,0.18)',
+              background:
+                mode === 'interview' ? 'rgba(255,127,80,0.08)' : 'rgba(62,184,255,0.08)',
+              border: `1px solid ${
+                mode === 'interview' ? 'rgba(255,127,80,0.22)' : 'rgba(62,184,255,0.18)'
+              }`,
             }}
           >
             <div
@@ -844,7 +1113,7 @@ export function SystemAudioView() {
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
-                color: '#3eb8ff',
+                color: modeAccent(mode),
                 fontSize: '12px',
                 fontWeight: 700,
                 marginBottom: 8,
@@ -853,7 +1122,9 @@ export function SystemAudioView() {
               <Sparkles size={14} /> Coming in W6
             </div>
             <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.7)', lineHeight: 1.6 }}>
-              Live insights from the model land once AI chat is wired up.
+              {mode === 'interview'
+                ? 'Interview summary + action items land once AI chat is wired up.'
+                : 'Live insights from the model land once AI chat is wired up.'}
             </p>
           </div>
         </section>
@@ -884,7 +1155,12 @@ export function SystemAudioView() {
             </div>
             <div
               style={{
-                color: saveState === 'error' ? '#ff7a7a' : 'rgba(62,184,255,0.8)',
+                color:
+                  saveState === 'error'
+                    ? '#ff7a7a'
+                    : mode === 'interview'
+                      ? 'rgba(255,127,80,0.9)'
+                      : 'rgba(62,184,255,0.8)',
                 fontSize: '10px',
                 fontWeight: 800,
                 textTransform: 'uppercase',
@@ -904,6 +1180,7 @@ export function SystemAudioView() {
               defaultValue={defaultTuning.system_audio_max_chunk_secs}
               isCapturing={isCapturing}
               live={false}
+              accentColor={mode === 'interview' ? '#ff7f50' : '#3eb8ff'}
               onChange={updateTuning}
             />
             <SystemAudioTuningSlider
@@ -914,6 +1191,7 @@ export function SystemAudioView() {
               defaultValue={defaultTuning.system_audio_vad_hangover_secs}
               isCapturing={isCapturing}
               live={false}
+              accentColor={mode === 'interview' ? '#ff7f50' : '#3eb8ff'}
               onChange={updateTuning}
             />
             <SystemAudioTuningSlider
@@ -924,6 +1202,7 @@ export function SystemAudioView() {
               defaultValue={defaultTuning.system_audio_paragraph_silence_secs}
               isCapturing={isCapturing}
               live
+              accentColor={mode === 'interview' ? '#ff7f50' : '#3eb8ff'}
               onChange={updateTuning}
             />
           </div>
@@ -990,18 +1269,19 @@ export function SystemAudioView() {
               <span>Method</span>
               <span
                 style={{
-                  color: 'rgba(62,184,255,0.9)',
+                  color: mode === 'interview' ? 'rgba(255,127,80,0.95)' : 'rgba(62,184,255,0.9)',
                   display: 'flex',
                   alignItems: 'center',
                   gap: 4,
                 }}
               >
-                <Volume2 size={12} /> WASAPI loopback
+                <Volume2 size={12} /> {mode === 'interview' ? 'Mic + loopback' : 'WASAPI loopback'}
               </span>
             </div>
           </div>
         </section>
       </div>
+    </div>
     </div>
   )
 }

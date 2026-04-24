@@ -1,0 +1,84 @@
+The asset is present and its dimensions are clean for a grid: 858 x 552, which divides into 6 x 6 frames at 143 x 92. I’m going to animate the first
+  row as a flap loop now, using CSS steps(6) and a fixed frame viewport.
+
+
+
+Yes. A sprite sheet usually plays in reading order:
+
+  Row 1: left to right
+  Row 2: left to right
+  Row 3: left to right
+  …and so on.
+
+  For your sheet, it looks like a grid of poses. If it is 6 columns x 6 rows, the animation sequence would be frame 1 through 6 on row 1, then 7 through
+  12 on row 2, etc.
+
+  To make it smooth:
+     Every pose needs the same frame box size, even if the drawing inside is smaller. For example:
+      - sheet width: 852
+      - sheet height: 547
+      - columns: 6
+      - rows: 6
+      - frame width: 142
+      - frame height: 91
+  2. Keep the character centered
+      - wings mid
+      - wings down
+      - wings mid
+      - wings up
+
+     If the sheet is a collection of random poses, we should manually pick the best 6-10 frames and order them.
+  4. Animate with steps()
+     .buddy-sprite {
+       width: 142px;
+       height: 91px;
+       background-image: url('/src/assets/buddy-wing-sprite.png');
+       background-size: 852px 547px;
+       animation: buddy-flap 900ms steps(6) infinite;
+     }
+
+     @keyframes buddy-flap {
+       from { background-position: 0 0; }
+       to { background-position: -852px 0; }
+     }
+
+  For this exact image, I would not play all frames in row order unless the rows were intentionally ordered as animation frames. I’d choose one row or
+  hand-pick a small sequence that loops naturally. That will look much smoother than playing every pose.
+
+    1259    background-size: 858px 552px;
+    1260 -  background-position: 0 0;
+    1260 +  background-position: 0 var(--buddy-row-y, 0px);
+    1261    image-rendering: auto;
+    1262 -  transform: scale(1.52);
+    1262    filter: drop-shadow(0 18px 24px rgba(0, 0, 0, 0.42));
+    1264 -  animation: buddy-wing-flap 900ms steps(6) infinite;
+    1263 +  animation: buddy-wing-flap var(--buddy-duration, 900ms) steps(6) infinite;
+    1264 +}
+    1273 +  filter: drop-shadow(0 8px 10px rgba(0, 0, 0, 0.42));
+    1274 +}
+    1275 +
+    1276 +.buddy-wing-sprite--row-1 {
+    1277 +  --buddy-row-y: 0px;
+    1278 +  --buddy-duration: 900ms;
+    1279 +}
+    1280 +
+    1281 +.buddy-wing-sprite--row-2 {
+    1282 +  --buddy-row-y: -92px;
+    1283 +  --buddy-duration: 980ms;
+    1284  }
+    1285
+    1286 +.buddy-wing-sprite--row-3 {
+    1287 +  --buddy-row-y: -184px;
+    1288 +  --buddy-duration: 840ms;
+    1289 +}
+    1292 +  --buddy-row-y: -276px;
+    1293 +  --buddy-duration: 1100ms;
+    1294 +}
+    1295 +
+    1296 +.buddy-wing-sprite--row-5 {
+    1297 +  --buddy-row-y: -368px;
+    1298 +  --buddy-duration: 1350ms;
+    1301 +.buddy-wing-sprite--row-6 {
+    1302 +  --buddy-row-y: -460px;
+    1303 +  --buddy-duration: 920ms;
+    1304 +}

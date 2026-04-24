@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Minus, Square, X, Bell, Lock, Unlock, Menu, Search, User, Copy, Layout, Check, ChevronDown, RefreshCw, Activity, Zap, Plus } from 'lucide-react';
+import { Minus, Square, X, Bell, Lock, Menu, Search, Layout, RefreshCw, Zap, Plus } from 'lucide-react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { HerOSInput } from './HerOS';
 import { useVault } from '../contexts/VaultContext';
@@ -7,12 +7,16 @@ import { toast } from 'sonner';
 import { useLayout } from '../contexts/LayoutContext';
 
 const AUTO_LOCK_SECONDS = 5 * 60; // 5 minutes
+const TITLE_BAR_Z_INDEX = 5000;
+const TITLE_BAR_MENU_Z_INDEX = TITLE_BAR_Z_INDEX + 10;
 
 interface TitleBarProps {
   currentPath: string;
+  isNavExpanded: boolean;
+  onToggleNav: () => void;
 }
 
-export function TitleBar({ currentPath }: TitleBarProps) {
+export function TitleBar({ currentPath, isNavExpanded, onToggleNav }: TitleBarProps) {
   const { vaultData, lock } = useVault();
   const { isLayoutMode, toggleLayoutMode, panelVisibility, togglePanel } = useLayout();
   
@@ -25,25 +29,20 @@ export function TitleBar({ currentPath }: TitleBarProps) {
   const [isFocused, setIsFocused] = useState(true);
   const lastActivityRef = useRef(Date.now());
   const searchRef = useRef<HTMLInputElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
   const addMenuRef = useRef<HTMLDivElement>(null);
-  const [showViewMenu, setShowViewMenu] = useState(false);
   const [showAddMenu, setShowAddMenu] = useState(false);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setShowViewMenu(false);
-      }
       if (addMenuRef.current && !addMenuRef.current.contains(e.target as Node)) {
         setShowAddMenu(false);
       }
     };
-    if (showViewMenu || showAddMenu) {
+    if (showAddMenu) {
       document.addEventListener('mousedown', handleClickOutside);
     }
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showViewMenu, showAddMenu]);
+  }, [showAddMenu]);
 
   // Ctrl+K to focus search (like VSCode / Discord)
   useEffect(() => {
@@ -148,6 +147,16 @@ export function TitleBar({ currentPath }: TitleBarProps) {
     transition: 'background 0.2s',
   };
 
+  const navToggleStyle: React.CSSProperties = {
+    ...btnStyle,
+    width: 44,
+    height: 40,
+    padding: 0,
+    borderRadius: 12,
+    background: isNavExpanded ? 'rgba(255,255,255,0.08)' : 'none',
+    color: isNavExpanded ? '#fff' : 'var(--on-surface-variant)',
+  };
+
   return (
     <header 
       data-tauri-drag-region
@@ -160,79 +169,24 @@ export function TitleBar({ currentPath }: TitleBarProps) {
         justifyContent: 'space-between',
         userSelect: 'none',
         cursor: 'default',
-        zIndex: 1000,
+        zIndex: TITLE_BAR_Z_INDEX,
       }}
     >
-      {/* Left cluster — App Menu & Title */}
-      <div data-tauri-drag-region style={{ display: 'flex', alignItems: 'center', gap: 4, paddingLeft: 12, flex: 1, height: '100%' }}>
-        <div ref={menuRef} style={{ position: 'relative' }}>
+      {/* Left cluster — Navigation Toggle & Title */}
+      <div data-tauri-drag-region style={{ display: 'flex', alignItems: 'center', gap: 4, paddingLeft: 0, flex: 1, height: '100%' }}>
+        <div style={{ position: 'relative', zIndex: TITLE_BAR_MENU_Z_INDEX, marginLeft: 11 }}>
           <button 
-            style={{ ...btnStyle, background: showViewMenu ? 'rgba(255,255,255,0.05)' : 'none' }} 
-            onClick={() => setShowViewMenu(!showViewMenu)}
-            title="App menu"
+            style={navToggleStyle}
+            onClick={onToggleNav}
+            title={isNavExpanded ? 'Collapse navigation' : 'Expand navigation'}
+            aria-label={isNavExpanded ? 'Collapse navigation' : 'Expand navigation'}
+            aria-pressed={isNavExpanded}
           >
             <Menu size={18} />
           </button>
-          
-          {showViewMenu && (
-            <div style={{
-              position: 'absolute',
-              top: '100%',
-              left: 0,
-              width: 220,
-              background: 'var(--surface-container-highest)',
-              border: '1px solid rgba(255,255,255,0.1)',
-              borderRadius: 8,
-              padding: 4,
-              boxShadow: 'var(--shadow-lg)',
-              zIndex: 2000,
-              marginTop: 4,
-            }}>
-              <div style={{ padding: '6px 12px', fontSize: 'var(--text-xs)', color: 'var(--on-surface-variant)', fontWeight: 600 }}>VIEW</div>
-              <button 
-                onClick={() => { toggleLayoutMode(); setShowViewMenu(false); }}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '8px 12px', background: 'transparent', border: 'none', borderRadius: 4, color: 'var(--on-surface)', cursor: 'pointer', textAlign: 'left', transition: 'background 0.2s'
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
-                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-              >
-                <Layout size={14} color={isLayoutMode ? 'var(--primary)' : 'currentColor'} />
-                <span style={{ flex: 1, fontSize: 'var(--text-sm)' }}>{isLayoutMode ? 'Finish Editing Layout' : 'Edit Layout Mode'}</span>
-                {isLayoutMode && <Check size={14} color="var(--primary)" />}
-              </button>
-
-              <div style={{ height: 1, background: 'rgba(255,255,255,0.05)', margin: '4px 8px' }} />
-              <div style={{ padding: '4px 12px', fontSize: 10, color: 'var(--on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Show Panels</div>
-              
-              {(['inbox', 'workspace', 'inspector'] as const).map(id => (
-                <button 
-                  key={id}
-                  onClick={() => togglePanel(id as any)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '8px 12px', background: 'transparent', border: 'none', borderRadius: 4, color: 'var(--on-surface)', cursor: 'pointer', textAlign: 'left', transition: 'background 0.2s'
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-                >
-                  <div style={{ width: 14, height: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    {panelVisibility[id] && <Check size={14} color="var(--primary)" />}
-                  </div>
-                  <span style={{ flex: 1, fontSize: 'var(--text-sm)', textTransform: 'capitalize' }}>{id}</span>
-                </button>
-              ))}
-            </div>
-          )}
         </div>
         
-        {/* Three dots logo */}
-        <div style={{ display: 'flex', gap: 6, marginRight: 16 }}>
-          <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#fff' }} />
-          <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'rgba(255,255,255,0.4)' }} />
-          <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'rgba(255,255,255,0.2)' }} />
-        </div>
-        
-        <span data-tauri-drag-region style={{ fontSize: '11px', fontWeight: 800, color: '#fff', opacity: 0.5, letterSpacing: '0.15em', textTransform: 'uppercase' }}>
+        <span data-tauri-drag-region style={{ marginLeft: 12, fontSize: '11px', fontWeight: 800, color: '#fff', opacity: 0.5, letterSpacing: '0.15em', textTransform: 'uppercase' }}>
           INFIELD  <span style={{ margin: '0 8px' }}>·</span>  VAULT - PERSONAL
         </span>
       </div>

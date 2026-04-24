@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { commands } from '../bindings';
 import { TitleBar } from './TitleBar';
@@ -18,6 +18,7 @@ import { AudioView } from './AudioView';
 import { SystemAudioView } from './SystemAudioView';
 import { NotesView } from './NotesView';
 import { DatabasesView } from './DatabasesView';
+import { BuddyView } from './BuddyView';
 
 import { HerOSBackground } from './HerOS';
 
@@ -31,6 +32,7 @@ interface AppShellProps {
 export default function AppShell({ currentPage, onNavigate }: AppShellProps) {
   const { vaultData } = useVault();
   const { isLayoutMode } = useLayout();
+  const [isNavExpanded, setIsNavExpanded] = useState(false);
 
   useEffect(() => {
     const onKey = async (e: KeyboardEvent) => {
@@ -121,9 +123,13 @@ export default function AppShell({ currentPage, onNavigate }: AppShellProps) {
 
   return (
     <div style={{ position: 'relative', width: '100vw', height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      <TitleBar currentPath={displayPath} />
+      <TitleBar
+        currentPath={displayPath}
+        isNavExpanded={isNavExpanded}
+        onToggleNav={() => setIsNavExpanded((value) => !value)}
+      />
       <div className={`app-shell ${isLayoutMode ? 'edit-mode' : ''}`}>
-        <IconRail currentPage={currentPage} onNavigate={onNavigate} />
+        <IconRail currentPage={currentPage} onNavigate={onNavigate} isExpanded={isNavExpanded} />
         <main style={{ flex: 1, position: 'relative', display: 'flex', overflow: 'hidden' }}>
           <AnimatePresence mode="wait">
             <motion.div
@@ -136,6 +142,7 @@ export default function AppShell({ currentPage, onNavigate }: AppShellProps) {
               style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', width: '100%' }}
             >
               {currentPage === 'dashboard' && <DashboardView onNavigate={onNavigate} />}
+              {currentPage === 'buddy' && <BuddyView />}
               {currentPage === 'about' && <AboutView />}
               {currentPage === 'search' && <SearchView />}
               {currentPage === 'import' && <ImportView />}

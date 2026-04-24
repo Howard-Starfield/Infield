@@ -1,14 +1,15 @@
 import React, { useCallback, useLayoutEffect, useRef, useState } from 'react';
-import { LayoutDashboard, Info, Star, Search, Download, Mic, Headphones, FileText, Database, Lock, Settings, Inbox } from 'lucide-react';
+import { LayoutDashboard, Info, Star, Search, Download, Mic, Headphones, FileText, Database, Lock, Settings, Inbox, Bot } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useVault } from '../contexts/VaultContext';
 
 interface IconRailProps {
   currentPage: string;
   onNavigate: (page: string) => void;
+  isExpanded?: boolean;
 }
 
-export function IconRail({ currentPage, onNavigate }: IconRailProps) {
+export function IconRail({ currentPage, onNavigate, isExpanded = false }: IconRailProps) {
   const { lock } = useVault();
   const railRef = useRef<HTMLElement | null>(null);
   const buttonRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
@@ -16,6 +17,7 @@ export function IconRail({ currentPage, onNavigate }: IconRailProps) {
 
   const items = [
     { id: 'dashboard', icon: LayoutDashboard, title: 'Home' },
+    { id: 'buddy', icon: Bot, title: 'Buddy System' },
     { id: 'search', icon: Search, title: 'Neural Search' },
     { id: 'import', icon: Download, title: 'Import' },
     { id: 'audio', icon: Mic, title: 'Audio Intelligence' },
@@ -75,7 +77,7 @@ export function IconRail({ currentPage, onNavigate }: IconRailProps) {
   } as React.CSSProperties & { '--rail-indicator-y': string };
 
   return (
-    <nav ref={railRef} className="icon-rail" style={railStyle}>
+    <nav ref={railRef} className={`icon-rail ${isExpanded ? 'is-expanded' : ''}`} style={railStyle}>
       <span className={`rail-active-indicator ${indicator.visible ? 'visible' : ''}`} aria-hidden="true" />
       {items.map(item => (
         <RailButton 
