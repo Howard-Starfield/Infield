@@ -84,6 +84,15 @@ export default function AppShell({ currentPage, onNavigate }: AppShellProps) {
       }
       // Cmd+1..9 → switch tab (notes only; 1-based from user, 0-based in state).
       if (currentPage === 'notes' && /^[1-9]$/.test(e.key)) {
+        // Skip when focus is in an editable element — let the field/CM6 see the digit.
+        const target = e.target as HTMLElement | null
+        const tag = target?.tagName
+        if (
+          tag === 'INPUT' ||
+          tag === 'TEXTAREA' ||
+          target?.isContentEditable ||
+          target?.closest('.cm-editor')
+        ) return
         e.preventDefault()
         const idx = Number(e.key) - 1
         window.dispatchEvent(new CustomEvent('notes:switch-index', { detail: idx }))
