@@ -170,12 +170,12 @@ import { EditorView } from '@codemirror/view'
  */
 export const herosEditorTheme = EditorView.theme({
   '&': {
-    color: 'var(--heros-text)',
+    color: 'var(--heros-text-premium)',
     backgroundColor: 'transparent',
     height: '100%',
   },
   '.cm-scroller': {
-    fontFamily: 'var(--font-sans, system-ui)',
+    fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif",
     fontSize: 'var(--text-base, 15px)',
     lineHeight: '1.7',
     overflow: 'auto',
@@ -189,28 +189,28 @@ export const herosEditorTheme = EditorView.theme({
   '.cm-line': {
     padding: '0 var(--space-6, 24px)',
   },
+  '.cm-activeLine, .cm-activeLineGutter': {
+    backgroundColor: 'transparent',
+  },
   '.cm-cursor, .cm-dropCursor': {
     borderLeftColor: 'var(--heros-brand)',
   },
-  '&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground': {
-    backgroundColor: 'color-mix(in srgb, var(--heros-brand) 25%, transparent)',
-  },
-  '.cm-selectionBackground': {
+  '&.cm-focused .cm-selectionBackground, .cm-selectionBackground': {
     backgroundColor: 'color-mix(in srgb, var(--heros-brand) 18%, transparent)',
   },
   '&.cm-focused': { outline: 'none' },
   // Autocomplete popup — HerOS card
   '.cm-tooltip-autocomplete': {
-    background: 'rgba(20, 21, 26, 0.95)',
+    background: 'var(--heros-glass-black)',
     border: '1px solid rgba(255, 255, 255, 0.08)',
-    borderRadius: 'var(--radius-container, 10px)',
-    boxShadow: '0 12px 32px rgba(0, 0, 0, 0.4)',
-    fontFamily: 'var(--font-sans, system-ui)',
+    borderRadius: 'var(--radius-container, 14px)',
+    boxShadow: 'var(--shadow-lg)',
+    fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif",
     padding: 'var(--space-1, 4px)',
   },
   '.cm-tooltip-autocomplete > ul > li': {
     padding: 'var(--space-2, 8px) var(--space-3, 12px)',
-    borderRadius: 'var(--radius-sm, 6px)',
+    borderRadius: '6px',
     color: 'rgba(255, 255, 255, 0.85)',
   },
   '.cm-tooltip-autocomplete > ul > li[aria-selected]': {
@@ -1814,7 +1814,7 @@ Create `src/styles/notes.css`:
 
 .editor-conflict-banner__btn {
   padding: var(--space-1, 4px) var(--space-3, 12px);
-  border-radius: var(--radius-sm, 6px);
+  border-radius: 6px;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.1);
   color: rgba(255, 255, 255, 0.9);
@@ -1927,7 +1927,7 @@ Create `src/styles/notes.css`:
 
 .notes-tree-header__btn {
   padding: var(--space-1, 4px) var(--space-2, 8px);
-  border-radius: var(--radius-sm, 6px);
+  border-radius: 6px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
   color: rgba(255, 255, 255, 0.8);
@@ -1953,7 +1953,7 @@ Create `src/styles/notes.css`:
   align-items: center;
   gap: var(--space-2, 8px);
   padding: var(--space-1, 4px) var(--space-2, 8px);
-  border-radius: var(--radius-sm, 6px);
+  border-radius: 6px;
   cursor: pointer;
   user-select: none;
   color: rgba(255, 255, 255, 0.75);
@@ -1996,7 +1996,7 @@ Create `src/styles/notes.css`:
   flex: 1;
   background: transparent;
   border: 1px solid var(--heros-brand);
-  border-radius: var(--radius-sm, 6px);
+  border-radius: 6px;
   color: #fff;
   padding: 0 var(--space-1, 4px);
   font-size: var(--text-sm, 13px);
@@ -2023,7 +2023,7 @@ Create `src/styles/notes.css`:
 
 .notes-backlinks__item {
   padding: var(--space-2, 8px) var(--space-3, 12px);
-  border-radius: var(--radius-sm, 6px);
+  border-radius: 6px;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.05);
   cursor: pointer;
