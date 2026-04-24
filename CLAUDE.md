@@ -76,24 +76,37 @@ shell is the remaining work.
 (formerly H6), now renamed the **Backend Wiring Phase** — see
 [PLAN.md](PLAN.md) for the current roadmap.
 
-**Known dormant surfaces** that need backend wiring:
+**Wired surfaces** (W0 + W1 shipped 2026-04-23):
+- **Onboarding** → 4-step Spotlight overlay (`OnboardingOverlay`,
+  `OnboardingStep{Mic,Accessibility,Models,Vault}.tsx`). Boot-gated
+  in `App.tsx`. State source-of-truth = Rust `onboarding_state`
+  table; VaultContext exposes `onboardingStep` + `completeStep`.
+- **Audio Intelligence (mic)** → `AudioView` calls
+  `start_ui_recording` / `stop_ui_recording` (thin Tauri wrappers
+  in `commands/audio.rs` over the existing `TranscribeAction`
+  pipeline; binding id `"ui-mic"`). Loads today's voice memos by
+  parsing every `::voice_memo_recording{path="…"}` block. Date
+  picker dropdown lists every `Voice Memos — YYYY-MM-DD` doc via
+  `searchWorkspaceTitle`. Per-memo Play button uses
+  `convertFileSrc()` + a singleton `<audio>` element. Lazy
+  vault reconciliation via `pathsExist()` on date load only
+  (per Rule 14 — no startup scan, no fs watcher).
+- **System Audio Capture (NEW page)** → `SystemAudioView` mounted
+  at route `system-audio`, sits below Audio Intelligence in the
+  IconRail. Listens to `system-audio-chunk` events (paragraphs[]
+  payload from the WASAPI loopback pipeline). Clear-on-Start,
+  persist-on-Stop UX.
+
+**Known dormant surfaces** that still need backend wiring:
 - Notes tab → Handy workspace tree + MDX editor (the `NotesView`
-  in copy/ is an eBay-style note list; Handy needs a different
-  integration, likely a tree + editor pane inside `NotesView`'s
-  glass frame)
+  in copy/ is an eBay-style note list; Handy needs a tree +
+  editor split inside `NotesView`'s glass frame). **W2 next.**
 - Databases tab → Handy database (grid / board / calendar / list /
-  gallery views) inside `DatabasesView`'s glass frame
-- Audio tab → Handy mic transcribe + system audio capture
-- Search tab → Handy hybrid FTS + vector search (Rust backend ready)
+  gallery views) inside `DatabasesView`'s glass frame.
+- Search tab → Handy hybrid FTS + vector search (Rust backend ready).
 - Settings tab → Handy settings forms (language, models, audio
   devices, keybindings, accessibility). `SettingsView` already has
   glass sections that can be wired.
-- Onboarding → **no component exists**. copy/ doesn't ship one
-  because the third_party app starts with a password unlock, not
-  a first-run flow. Must be designed from scratch using copy/'s
-  primitives (`HerOSPanel`, `HerOSInput`, `HerOSButton`,
-  `SpotlightOverlay`, etc.). See "Spotlight-style onboarding design"
-  note in PLAN.md.
 - eBay views (Inbox / Conversation / Inspector / Account) remain
   dormant — not wiring to Handy. EbayConnectModal stays as visual
   stub; eBay methods in VaultContext console.warn.

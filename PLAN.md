@@ -5,8 +5,8 @@
 > rules and invariants; this file carries the roadmap, per-phase
 > blueprint, and open decisions.
 >
-> **Last updated:** 2026-04-23 (post wholesale-swap)
-> **Current phase:** Backend Wiring Phase (W — see below)
+> **Last updated:** 2026-04-23 (W0 + W1 + Audio polish landed)
+> **Current phase:** Backend Wiring Phase (W) — W0/W1 ✅, **W2 next**
 > **Rust backend (Phase A):** ✅ complete 2026-04-22
 > **Frontend port (H1-H6):** ✅ superseded by wholesale swap on
 >   2026-04-23 (commit `49f0386`). Frontend is now 100% verbatim
@@ -32,7 +32,15 @@ actually do something.
 phase is a self-contained "wire this surface to that Rust command"
 swap. The list below is a checklist; the ordering can change.
 
-### W0 — Spotlight-style onboarding (first-run) 🔜 NEXT
+### W0 — Spotlight-style onboarding (first-run) ✅ SHIPPED 2026-04-23
+
+Commits: `0759ee3` (overlay) + Rust enum prune.
+Spec: [docs/superpowers/specs/2026-04-23-w0-w1-onboarding-and-voice-design.md](docs/superpowers/specs/2026-04-23-w0-w1-onboarding-and-voice-design.md).
+4-step overlay (mic / accessibility / models / vault), no backdrop blur (kinetic blob layer visible through), VaultContext extended additively with `onboardingStep` + `completeStep`. Backend `OnboardingStep` enum pruned to `mic | accessibility | models | vault | done`; legacy rows self-heal to `mic` on read. Welcome + theme dropped per current direction.
+
+---
+
+### W0 — original brief (kept for context)
 
 Copy/ ships no onboarding component (third_party starts with a
 password unlock). Handy needs one: mic permission → accessibility
@@ -49,7 +57,22 @@ steps.
 `current_step !== "done"`. Show Spotlight onboarding until
 `current_step === "done"`, then boot into AppShell.
 
-### W1 — Voice transcribe wire-up
+### W1 — Voice transcribe wire-up ✅ SHIPPED 2026-04-23 (+ extras)
+
+Commits: `3f24fcf` (mic wire), `64fe8ba` (System Audio page), `7a7eb87` (per-day history + date selector), `69773f1` (per-memo play button), `a0cd046` (lazy vault reconciliation).
+
+What landed:
+- **AudioView (Audio Intelligence)** — mic button drives `start_ui_recording` / `stop_ui_recording` (new thin Tauri wrappers in `src-tauri/src/commands/audio.rs` over the existing `TranscribeAction` pipeline; binding id `"ui-mic"`). Live partials via `workspace-node-body-updated`, final lock via `workspace-transcription-synced` (filtered to `source = "voice_memo"`), errors via `recording-error` Sonner toasts. Today's voice memos load on mount by parsing every `::voice_memo_recording{path="…"}` block. Date picker dropdown lists every `Voice Memos — YYYY-MM-DD` doc found via `searchWorkspaceTitle`. Per-memo Play button uses `convertFileSrc` + a singleton `<audio>` element. Lazy reconciliation on date load: `pathsExist` (parallel `stat`s via `@tauri-apps/plugin-fs`) marks missing audio files as Unavailable proactively, and a vault-doc-missing banner appears if `vault_rel_path` is gone from disk.
+- **SystemAudioView (new page)** — added below "Audio Intelligence" in the IconRail. Mirrors the layout but listens to `system-audio-chunk` events (paragraphs[] payload), wired to `startSystemAudioCapture` / `stopSystemAudioCapture`. Blue accent + Headphones icon to distinguish from mic. Clear-on-Start, persist-on-Stop UX.
+- **Critical visibility issue NOT shipped:** none. Existing `recording-error` is the only error path; we don't yet poll the recording manager for live audio levels (waveform stays cosmetic).
+
+What's still deferred (won't be picked up unless asked):
+- Backend boot-time vault-doc-deletion scan (CLAUDE.md Rule 14 says lazy-on-load, which is what shipped).
+- Real-time audio level meter in the waveform.
+
+---
+
+### W1 — original brief (kept for context)
 
 Handy's Rust transcription (ORT sessions via `transcribe-rs`,
 multiple engines: Whisper / Parakeet / Moonshine / SenseVoice /
@@ -67,7 +90,7 @@ any command. Wire:
 - System audio capture → wire into the same pipeline behind a
   toggle (backend already supports via `system_audio::*`)
 
-### W2 — Workspace tree + MDX editor
+### W2 — Workspace tree + MDX editor 🔜 NEXT
 
 The ported `NotesView` is an eBay note-list shell. Handy needs a
 **tree + editor split pane** inside `NotesView`'s glass frame:
@@ -867,10 +890,10 @@ preserved from current pipeline).
 
 | Field | Value |
 |---|---|
-| Current phase | B (ready for kickoff) |
-| In flight | Phase A wrap landed; Howard holds 2 runtime smokes (DirectML perf, `.handy.lock` dialog) — non-blocking |
-| Blockers | None. Phase A complete; Phase B entry blueprint stubbed pending kickoff. |
-| Last phase completed | A (2026-04-22 → 2026-04-22) — full wrap in REBUILD_RATIONALE.md §15a |
+| Current phase | W2 — Workspace tree + MDX editor (kickoff next) |
+| In flight | W0 + W1 + Audio polish all merged to local main on 2026-04-23. Howard's two runtime smokes from Phase A still open — non-blocking. |
+| Blockers | None. Audio Intelligence + System Audio Capture pages are user-tested and shipping. |
+| Last phase completed | W1 — voice transcribe + per-memo playback + lazy vault reconciliation (2026-04-23). Plus W0 onboarding (2026-04-23) and bonus SystemAudioView page. |
 | Reusable from pre-rebuild work | Sovereign Glass DNA port (complete), `AppShell` / `Titlebar` / `IconRail` / `AtmosphericStage` / `LoadingScreen` / `LemniscateOrb`, theme preset v2 schema migration |
 | Review gate passed | 2026-04-22 critical review addressed; see REBUILD_RATIONALE.md §16 |
 
