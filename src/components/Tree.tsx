@@ -13,7 +13,7 @@ interface TreeProps {
   refreshToken?: number   // bump to force a re-fetch
 }
 
-interface TreeState {
+export interface TreeState {
   nodes: Map<string, WorkspaceNode>
   childrenByParent: Map<string, string[]>   // "__root__" | parentId
   expanded: Set<string>
@@ -96,13 +96,13 @@ function reducer(state: TreeState, action: Action): TreeState {
   }
 }
 
-interface FlatRow {
+export interface FlatRow {
   id: string
   depth: number
   hasChildren: boolean
 }
 
-function flattenVisible(state: TreeState): FlatRow[] {
+export function flattenVisible(state: TreeState): FlatRow[] {
   const rows: FlatRow[] = []
   const q = state.filter.toLowerCase()
   const rootIds = state.childrenByParent.get(ROOT_KEY) ?? []
