@@ -70,6 +70,24 @@ pub enum ImportJobState {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct WebMediaMetadata {
+    pub url: String,
+    pub source_id: String,
+    pub title: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thumbnail_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duration_seconds: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub channel: Option<String>,
+    pub platform: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub published_at: Option<String>,
+    pub available_video_heights: Vec<u32>,
+    pub is_live: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct ImportJobDto {
     pub id: String,
     pub file_name: String,
@@ -82,6 +100,14 @@ pub struct ImportJobDto {
     pub segment_index: u32,
     pub segment_count: u32,
     pub current_step: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub web_meta: Option<WebMediaMetadata>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub download_bytes: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub download_total_bytes: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub download_speed_human: Option<String>,
 }
 
 struct ImportJob {
@@ -113,6 +139,10 @@ impl ImportJob {
             segment_index: self.segment_index,
             segment_count: self.segment_count,
             current_step: self.current_step.clone(),
+            web_meta: None,
+            download_bytes: None,
+            download_total_bytes: None,
+            download_speed_human: None,
         }
     }
 }
@@ -964,5 +994,28 @@ mod web_media_enum_tests {
         let state = ImportJobState::Downloading;
         let json = serde_json::to_string(&state).unwrap();
         assert_eq!(json, "\"downloading\"");
+    }
+
+    #[test]
+    fn import_job_dto_web_fields_default_none_for_non_web_jobs() {
+        let dto = ImportJobDto {
+            id: "test".into(),
+            file_name: "x.pdf".into(),
+            source_path: "/tmp/x.pdf".into(),
+            kind: ImportJobKind::Pdf,
+            state: ImportJobState::Queued,
+            message: None,
+            note_id: None,
+            progress: 0.0,
+            segment_index: 0,
+            segment_count: 0,
+            current_step: None,
+            web_meta: None,
+            download_bytes: None,
+            download_total_bytes: None,
+            download_speed_human: None,
+        };
+        assert!(dto.web_meta.is_none());
+        assert!(dto.download_bytes.is_none());
     }
 }

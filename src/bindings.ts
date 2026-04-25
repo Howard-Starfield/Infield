@@ -2190,9 +2190,10 @@ export type ImplementationChangeResult = { success: boolean;
  * List of binding IDs that were reset to defaults due to incompatibility
  */
 reset_bindings: string[] }
-export type ImportJobDto = { id: string; file_name: string; source_path: string; kind: ImportJobKind; state: ImportJobState; message: string | null; note_id: string | null; progress: number; segment_index: number; segment_count: number; current_step: string | null }
-export type ImportJobKind = "markdown" | "plain_text" | "pdf" | "audio" | "video" | "unknown"
-export type ImportJobState = "queued" | "preparing" | "segmenting" | "draft_created" | "transcribing" | "post_processing" | "finalizing" | "extracting_text" | "creating_note" | "done" | "error" | "cancelled"
+export type ImportJobDto = { id: string; file_name: string; source_path: string; kind: ImportJobKind; state: ImportJobState; message: string | null; note_id: string | null; progress: number; segment_index: number; segment_count: number; current_step: string | null; web_meta?: WebMediaMetadata; download_bytes?: number; download_total_bytes?: number; download_speed_human?: string }
+export type ImportJobKind = "markdown" | "plain_text" | "pdf" | "audio" | "video" | "web_media" | "unknown"
+export type ImportJobState = "queued" | "fetching_meta" | "downloading" | "preparing" | "segmenting" | "draft_created" | "transcribing" | "post_processing" | "finalizing" | "extracting_text" | "creating_note" | "done" | "error" | "cancelled"
+export type WebMediaMetadata = { url: string; source_id: string; title: string; thumbnail_url?: string; duration_seconds?: number; channel?: string; platform: string; published_at?: string; available_video_heights: number[]; is_live: boolean }
 export type ImportQueueSnapshot = { jobs: ImportJobDto[] }
 export type InterviewStartResult = { workspace_doc_id: string; started_at_ms: number }
 export type KeyboardImplementation = "tauri" | "handy_keys"
