@@ -5,6 +5,8 @@
 
 mod post_processing;
 mod segmenting;
+pub mod web_media;
+pub use web_media::{WebMediaMetadata, WebMediaError, YtDlpHandle};
 
 use crate::actions::maybe_convert_chinese_variant;
 use crate::audio_toolkit::constants;
@@ -67,24 +69,6 @@ pub enum ImportJobState {
     Done,
     Error,
     Cancelled,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-pub struct WebMediaMetadata {
-    pub url: String,
-    pub source_id: String,
-    pub title: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub thumbnail_url: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub duration_seconds: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub channel: Option<String>,
-    pub platform: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub published_at: Option<String>,
-    pub available_video_heights: Vec<u32>,
-    pub is_live: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]

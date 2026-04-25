@@ -148,6 +148,7 @@ fs2 = "0.4"
 # machinery isn't available yet.
 rfd = "0.16"
 serde_yaml = "0.9"
+thiserror = "2.0.18"
 
 [target.'cfg(unix)'.dependencies]
 signal-hook = "0.3"
