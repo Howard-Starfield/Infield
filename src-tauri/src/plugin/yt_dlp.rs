@@ -215,3 +215,80 @@ mod checksum_tests {
         assert!(parse_checksums_for(text, "nonexistent").is_none());
     }
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "phase", rename_all = "snake_case")]
+pub enum InstallProgress {
+    FetchingMetadata,
+    Downloading { bytes: u64, total: Option<u64> },
+    Verifying,
+    Finalizing,
+    Done,
+}
+
+pub async fn install(app: &AppHandle) -> Result<(), String> {
+    let dir = extension_dir(app)?;
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+
+    let _ = app.emit("plugin-install-progress", InstallProgress::FetchingMetadata);
+    let release = fetch_latest_release_metadata().await?;
+
+    let target = dir.join(binary_name());
+    let tmp = dir.join(format!("{}.downloading", binary_name()));
+
+    let app_clone = app.clone();
+    download_with_progress(&release.asset_url, &tmp, move |bytes, total| {
+        let _ = app_clone.emit("plugin-install-progress",
+            InstallProgress::Downloading { bytes, total });
+    }).await?;
+
+    let _ = app.emit("plugin-install-progress", InstallProgress::Verifying);
+    let checksums_text = fetch_text(&release.checksums_url).await?;
+    let expected = parse_checksums_for(&checksums_text, binary_name())
+        .ok_or("checksum line for our asset not found")?;
+    let actual = compute_sha256(&tmp)?;
+    if !actual.eq_ignore_ascii_case(&expected) {
+        let _ = fs::remove_file(&tmp);
+        return Err(format!("Download integrity check failed (expected {}, got {})", expected, actual));
+    }
+
+    let _ = app.emit("plugin-install-progress", InstallProgress::Finalizing);
+    if target.exists() { fs::remove_file(&target).map_err(|e| e.to_string())?; }
+    fs::rename(&tmp, &target).map_err(|e| e.to_string())?;
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = fs::metadata(&target).map_err(|e| e.to_string())?.permissions();
+        perms.set_mode(0o755);
+        fs::set_permissions(&target, perms).map_err(|e| e.to_string())?;
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let out = std::process::Command::new("codesign")
+            .args(["--force", "--sign", "-"]).arg(&target).output();
+        if let Ok(o) = out {
+            if !o.status.success() {
+                log::warn!("codesign failed: {}", String::from_utf8_lossy(&o.stderr));
+            }
+        }
+    }
+
+    fs::write(dir.join("version.txt"), &release.tag_name).map_err(|e| e.to_string())?;
+    fs::write(dir.join("installed_at.txt"), Utc::now().to_rfc3339()).map_err(|e| e.to_string())?;
+    fs::write(dir.join("checksum.sha256"), &actual).map_err(|e| e.to_string())?;
+
+    let _ = app.emit("plugin-install-progress", InstallProgress::Done);
+    let _ = app.emit("plugin-state-changed", ());
+    Ok(())
+}
+
+#[cfg(test)]
+mod install_helper_tests {
+    #[test]
+    fn case_insensitive_hex_match() {
+        assert!("deadbeef".eq_ignore_ascii_case("DEADBEEF"));
+        assert!(!"deadbeef".eq_ignore_ascii_case("deadbeed"));
+    }
+}
