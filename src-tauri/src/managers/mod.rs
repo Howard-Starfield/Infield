@@ -8,6 +8,7 @@ pub mod embedding_ort;
 pub mod embedding_worker;
 pub mod reranker_ort;
 pub mod reranker_cache;
+pub mod reranker_download;
 pub mod history;
 pub mod interview_session;
 pub mod interview_worker;
