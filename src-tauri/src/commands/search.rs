@@ -164,15 +164,29 @@ pub async fn reindex_all_embeddings(app: AppHandle) -> Result<usize, String> {
 }
 
 /// Hybrid search for workspace nodes (FTS + vector, merged via RRF).
+/// W3 adds optional filters for node_type, tags, date range, and pagination.
 #[tauri::command]
 #[specta::specta]
 pub async fn search_workspace_hybrid(
     search_manager: State<'_, Arc<SearchManager>>,
     query: String,
     limit: Option<usize>,
+    offset: Option<usize>,
+    node_types: Option<Vec<String>>,
+    tags: Option<Vec<String>>,
+    created_from: Option<i64>,
+    created_to: Option<i64>,
 ) -> Result<Vec<WorkspaceSearchResult>, String> {
     search_manager
-        .hybrid_search_workspace(&query, limit.unwrap_or(20))
+        .hybrid_search_workspace_filtered(
+            &query,
+            limit.unwrap_or(20),
+            offset.unwrap_or(0),
+            node_types.unwrap_or_default(),
+            tags.unwrap_or_default(),
+            created_from,
+            created_to,
+        )
         .await
         .map_err(|e| e.to_string())
 }

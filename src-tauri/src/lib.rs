@@ -41,6 +41,9 @@ use managers::history::HistoryManager;
 use managers::llm::LlmManager;
 use managers::memory::MemoryManager;
 use managers::model::ModelManager;
+use managers::reranker_cache::RerankerCache;
+use managers::reranker_download::RerankerDownload;
+use managers::reranker_ort::{rule_19_check_reranker, RerankerHandle, Rule19Outcome};
 use managers::search::SearchManager;
 use managers::system_audio::SystemAudioManager;
 use managers::transcription::TranscriptionManager;
@@ -380,6 +383,40 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     let system_audio_manager = Arc::new(
         SystemAudioManager::new(app_handle).expect("Failed to initialize system audio manager"),
     );
+
+    // W3: cross-encoder reranker (lazy-loaded, no boot-time work).
+    let reranker_model_dir = app_data_dir
+        .join("models")
+        .join(managers::reranker_ort::MODEL_ID);
+    let reranker_handle =
+        RerankerHandle::spawn(reranker_model_dir.clone(), app_handle.clone());
+    let reranker_cache = Arc::new(RerankerCache::new());
+    let reranker_download =
+        RerankerDownload::new(app_handle.clone(), reranker_model_dir.clone());
+
+    // Rule 19 check — clear cache on mismatch.
+    {
+        let conn_arc = workspace_manager.conn();
+        let mut conn_guard = conn_arc.blocking_lock();
+        match rule_19_check_reranker(&mut conn_guard, &reranker_model_dir) {
+            Ok(Rule19Outcome::Mismatch { reason }) => {
+                log::info!("[reranker] Rule 19 mismatch: {reason} — clearing LRU");
+                reranker_cache.clear();
+            }
+            Ok(Rule19Outcome::FirstRun) => {
+                log::info!("[reranker] Rule 19: first run, info recorded");
+            }
+            Ok(Rule19Outcome::ModelMissing) => {
+                log::info!("[reranker] Rule 19: model not yet downloaded");
+            }
+            Ok(Rule19Outcome::Match) => {}
+            Err(e) => log::warn!("[reranker] Rule 19 check failed: {e}"),
+        }
+    }
+
+    app_handle.manage(reranker_handle);
+    app_handle.manage(reranker_cache);
+    app_handle.manage(reranker_download);
 
     // Apply accelerator preferences before any model loads
     managers::transcription::apply_accelerator_settings(app_handle);
@@ -780,6 +817,9 @@ pub fn run(cli_args: CliArgs) {
             commands::search::search_workspace_hybrid,
             commands::search::search_workspace_title,
             commands::search::reindex_all_embeddings,
+            commands::rerank::rerank_candidates,
+            commands::rerank::get_reranker_status,
+            commands::rerank::download_reranker_model,
             commands::system_audio::start_system_audio_capture,
             commands::system_audio::stop_system_audio_capture,
             commands::system_audio::is_system_audio_capturing,

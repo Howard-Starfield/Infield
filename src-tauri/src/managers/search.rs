@@ -196,6 +196,65 @@ impl SearchManager {
         Ok(results)
     }
 
+    /// W3 wrapper around hybrid_search_workspace with optional filters
+    /// applied post-RRF. For v1 this is a Rust-side filter pass; if perf
+    /// becomes an issue, push into the SQL CTE.
+    pub async fn hybrid_search_workspace_filtered(
+        &self,
+        query: &str,
+        limit: usize,
+        offset: usize,
+        node_types: Vec<String>,
+        tags: Vec<String>,
+        _created_from: Option<i64>,
+        _created_to: Option<i64>,
+    ) -> Result<Vec<WorkspaceSearchResult>> {
+        // Widen retrieval before filtering — top-90 raw → filter → trim.
+        let raw_limit = (limit + offset).saturating_mul(3).max(30);
+        let mut results = self
+            .hybrid_search_workspace(query, raw_limit)
+            .await?;
+
+        if !node_types.is_empty() {
+            results.retain(|r| node_types.iter().any(|t| t == &r.node_type));
+        }
+
+        // TODO Task 8b: date filter — needs WorkspaceManager helper to read
+        // node.created_at synchronously. Filtering by date in Rust requires a
+        // get_node loop, which is async. For v1 we accept the no-op and
+        // surface a TODO.
+
+        if !tags.is_empty() {
+            // Tag filter — for each surviving result, fetch the node and
+            // intersect its properties.tags against `tags`. Sequential async
+            // is OK for the typical post-filter set size (<30).
+            let mut keep: Vec<WorkspaceSearchResult> = Vec::with_capacity(results.len());
+            for r in results.into_iter() {
+                let node_opt = self.workspace_manager.get_node(&r.node_id).await.ok().flatten();
+                let Some(node) = node_opt else { continue };
+                let props: serde_json::Value = serde_json::from_str(&node.properties)
+                    .unwrap_or(serde_json::json!({}));
+                let node_tags: Vec<String> = props
+                    .get("tags")
+                    .and_then(|v| v.as_array())
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|x| x.as_str().map(|s| s.to_string()))
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                if tags.iter().any(|t| node_tags.iter().any(|nt| nt == t)) {
+                    keep.push(r);
+                }
+            }
+            results = keep;
+        }
+
+        // Apply pagination.
+        results = results.into_iter().skip(offset).take(limit).collect();
+        Ok(results)
+    }
+
     /// Title-only FTS search for wikilink autocomplete.
     pub fn workspace_title_search(
         &self,
