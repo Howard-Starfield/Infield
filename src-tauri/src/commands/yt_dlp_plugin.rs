@@ -1,6 +1,7 @@
 //! Tauri commands for yt-dlp plugin lifecycle.
+use crate::import::ImportQueueService;
 use crate::plugin::yt_dlp;
-use tauri::AppHandle;
+use tauri::{AppHandle, State};
 
 #[tauri::command]
 #[specta::specta]
@@ -22,7 +23,12 @@ pub async fn check_yt_dlp_update(app: AppHandle) -> Result<yt_dlp::UpdateCheckRe
 
 #[tauri::command]
 #[specta::specta]
-pub async fn uninstall_yt_dlp_plugin(app: AppHandle) -> Result<(), String> {
-    // Active-job cancellation is added in Task 18 once the worker exists.
+pub async fn uninstall_yt_dlp_plugin(
+    app: AppHandle,
+    queue: State<'_, ImportQueueService>,
+) -> Result<(), String> {
+    // Cancel any active WebMedia jobs so yt-dlp child processes are signalled
+    // before the binary is removed.
+    queue.cancel_all_web_media_jobs().await?;
     yt_dlp::uninstall(&app)
 }

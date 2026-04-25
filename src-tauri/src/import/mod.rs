@@ -720,7 +720,8 @@ async fn fail_web_job(inner: &ImportQueueInner, job_id: &str, e: web_media::WebM
     transition_web_job(inner, job_id, ImportJobState::Error, Some(e.to_string())).await;
 }
 
-/// Worker entry-point for WebMedia jobs. Transitions Queued → FetchingMeta then runs the handler.
+/// Worker entry-point for WebMedia jobs. Drives the full state machine:
+/// Queued → FetchingMeta → Downloading → Preparing → [Audio pipeline].
 async fn run_web_media_job(inner: &ImportQueueInner, job_id: &str) -> Result<(), String> {
     // Confirm the job is still Queued; bail if it was already processed or removed.
     {
@@ -735,7 +736,33 @@ async fn run_web_media_job(inner: &ImportQueueInner, job_id: &str) -> Result<(),
         job.message = None;
     }
     emit_snapshot(inner).await;
-    handle_fetching_meta(inner, job_id).await
+
+    // FetchingMeta phase — on success the job transitions to Downloading.
+    handle_fetching_meta(inner, job_id).await?;
+
+    // Check whether FetchingMeta advanced us to Downloading (vs. Error/Done/Cancelled).
+    let state_after_meta = {
+        let jobs = inner.jobs.lock().await;
+        jobs.iter().find(|j| j.id == job_id).map(|j| j.state)
+    };
+    if state_after_meta != Some(ImportJobState::Downloading) {
+        return Ok(()); // terminal state reached (error, dedup-done, cancelled)
+    }
+
+    // Downloading phase — on success the job transitions to Preparing.
+    handle_downloading(inner, job_id).await?;
+
+    // Check whether Downloading advanced us to Preparing.
+    let state_after_dl = {
+        let jobs = inner.jobs.lock().await;
+        jobs.iter().find(|j| j.id == job_id).map(|j| j.state)
+    };
+    if state_after_dl != Some(ImportJobState::Preparing) {
+        return Ok(()); // cancelled or error during download
+    }
+
+    // Preparing phase — hand off to the Audio pipeline.
+    handle_preparing_web_media(inner, job_id).await
 }
 
 /// Fetch yt-dlp metadata for a WebMedia job, enforce duration limit, then advance
@@ -832,6 +859,181 @@ async fn handle_fetching_meta(inner: &ImportQueueInner, job_id: &str) -> Result<
             Ok(())
         }
     }
+}
+
+/// Download audio for a WebMedia job using yt-dlp, emit progress events, and
+/// on success transition to `Preparing`. On cancel or error, clean up the
+/// sidecar directory and transition to `Cancelled` / `Error`.
+async fn handle_downloading(inner: &ImportQueueInner, job_id: &str) -> Result<(), String> {
+    // Snapshot the fields we need without holding the lock across await points.
+    let (url, draft_node_id, cancel) = {
+        let mut jobs = inner.jobs.lock().await;
+        let job = match jobs.iter_mut().find(|j| j.id == job_id) {
+            Some(j) => j,
+            None => return Ok(()),
+        };
+        // Assign a stable node-id now so the sidecar dir is deterministic.
+        let node_id = job
+            .draft_node_id
+            .clone()
+            .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+        job.draft_node_id = Some(node_id.clone());
+        (
+            job.source_path.to_string_lossy().to_string(),
+            node_id,
+            job.cancel_requested.clone(),
+        )
+    };
+
+    let bin = match crate::plugin::yt_dlp::binary_path(&inner.app) {
+        Ok(p) => p,
+        Err(e) => {
+            let msg = format!("yt-dlp binary path error: {e}");
+            transition_web_job(inner, job_id, ImportJobState::Error, Some(msg)).await;
+            return Ok(());
+        }
+    };
+
+    // Sidecar dir lives under <vault>/.handy-media/web/<draft_node_id>/.
+    let vault_root = inner.workspace.vault_root(&inner.app);
+    let media_dir = vault_root
+        .join(".handy-media")
+        .join("web")
+        .join(&draft_node_id);
+
+    let handle = web_media::YtDlpHandle::new(bin);
+
+    let app_for_emit = inner.app.clone();
+    let job_id_owned = job_id.to_string();
+    let on_progress = move |p: web_media::DownloadProgress| {
+        let _ = app_for_emit.emit(
+            "import-queue-job-progress",
+            serde_json::json!({
+                "id": job_id_owned,
+                "bytes": p.bytes,
+                "total": p.total_bytes,
+                "speed": p.speed_human,
+                "eta": p.eta_human,
+            }),
+        );
+    };
+
+    let result = handle
+        .download_audio(&url, &media_dir, on_progress, cancel.clone())
+        .await;
+
+    // Cancellation: clean up dir and mark Cancelled.
+    if cancel.load(Ordering::Relaxed) {
+        let _ = fs::remove_dir_all(&media_dir);
+        transition_web_job(inner, job_id, ImportJobState::Cancelled, Some("Cancelled by user".into())).await;
+        return Ok(());
+    }
+
+    match result {
+        Ok(artefacts) => {
+            if let Err(e) = web_media::verify_artefacts(&artefacts) {
+                let _ = fs::remove_dir_all(&media_dir);
+                fail_web_job(inner, job_id, e).await;
+                return Ok(());
+            }
+            // Stash paths on the job for the Preparing handler.
+            {
+                let mut jobs = inner.jobs.lock().await;
+                if let Some(job) = jobs.iter_mut().find(|j| j.id == job_id) {
+                    job.local_audio_path = artefacts.audio_path.clone();
+                    job.media_dir = Some(media_dir.clone());
+                }
+            }
+            transition_web_job(inner, job_id, ImportJobState::Preparing, None).await;
+            Ok(())
+        }
+        Err(e) => {
+            let _ = fs::remove_dir_all(&media_dir);
+            fail_web_job(inner, job_id, e).await;
+            Ok(())
+        }
+    }
+}
+
+/// Hand a downloaded WebMedia job off to the existing Audio import pipeline.
+/// Reads `local_audio_path` and `web_meta.title` from the job, creates a
+/// temporary work dir, then delegates to `run_import_media`.
+async fn handle_preparing_web_media(inner: &ImportQueueInner, job_id: &str) -> Result<(), String> {
+    let (audio_path, title, cancel) = {
+        let jobs = inner.jobs.lock().await;
+        let job = match jobs.iter().find(|j| j.id == job_id) {
+            Some(j) => j,
+            None => return Ok(()),
+        };
+        let audio_path = match &job.local_audio_path {
+            Some(p) => p.clone(),
+            None => {
+                drop(jobs);
+                transition_web_job(
+                    inner,
+                    job_id,
+                    ImportJobState::Error,
+                    Some("WebMedia job missing downloaded audio path".into()),
+                )
+                .await;
+                return Ok(());
+            }
+        };
+        let title = job
+            .web_meta
+            .as_ref()
+            .map(|m| m.title.clone())
+            .unwrap_or_else(|| "Imported Media".to_string());
+        (audio_path, title, job.cancel_requested.clone())
+    };
+
+    // Create a temporary work directory for WAV conversion and segment files.
+    let app_data = match crate::portable::app_data_dir(&inner.app)
+        .or_else(|_| inner.app.path().app_data_dir())
+    {
+        Ok(p) => p,
+        Err(e) => {
+            transition_web_job(
+                inner,
+                job_id,
+                ImportJobState::Error,
+                Some(format!("app data dir: {e}")),
+            )
+            .await;
+            return Ok(());
+        }
+    };
+    let tmp_dir = app_data.join("import_tmp").join(job_id);
+    let _ = fs::remove_dir_all(&tmp_dir);
+    if let Err(e) = fs::create_dir_all(&tmp_dir) {
+        transition_web_job(
+            inner,
+            job_id,
+            ImportJobState::Error,
+            Some(format!("import tmp dir: {e}")),
+        )
+        .await;
+        return Ok(());
+    }
+
+    // Delegate to the same Audio pipeline used for local file imports.
+    // It will create the draft note, transcribe, post-process, and finalize.
+    let r = run_import_media(
+        inner,
+        job_id,
+        &audio_path,
+        ImportJobKind::Audio,
+        &title,
+        &tmp_dir,
+        cancel,
+    )
+    .await;
+    let _ = fs::remove_dir_all(&tmp_dir);
+    if let Err(e) = r {
+        update_job_state(inner, job_id, ImportJobState::Error, Some(e.clone())).await;
+        return Err(e);
+    }
+    Ok(())
 }
 
 impl ImportQueueService {
@@ -1001,6 +1203,40 @@ impl ImportQueueService {
         drop(jobs);
         emit_snapshot(&self.inner).await;
         Ok(())
+    }
+
+    /// Cancel all in-flight WebMedia jobs. Called by `uninstall_yt_dlp_plugin`
+    /// before removing the binary so any active yt-dlp processes are signalled
+    /// first. Best-effort — ignores errors from already-terminal jobs.
+    pub async fn cancel_all_web_media_jobs(&self) -> Result<(), String> {
+        let ids: Vec<String> = {
+            let jobs = self.inner.jobs.lock().await;
+            jobs.iter()
+                .filter(|j| {
+                    j.kind == ImportJobKind::WebMedia
+                        && matches!(
+                            j.state,
+                            ImportJobState::Queued
+                                | ImportJobState::FetchingMeta
+                                | ImportJobState::Downloading
+                                | ImportJobState::Preparing
+                        )
+                })
+                .map(|j| j.id.clone())
+                .collect()
+        };
+        for id in ids {
+            // Ignore "already finished" errors — race between check and cancel.
+            let _ = self.cancel_job(id).await;
+        }
+        Ok(())
+    }
+
+    /// Expose the underlying WorkspaceManager so Tauri commands (e.g.
+    /// `fetch_url_metadata`) can call workspace queries without needing a
+    /// separate `tauri::State<Arc<WorkspaceManager>>` parameter.
+    pub fn workspace_manager(&self) -> Arc<WorkspaceManager> {
+        self.inner.workspace.clone()
     }
 
     async fn run_one_job(inner: &ImportQueueInner, job_id: &str) -> Result<(), String> {
