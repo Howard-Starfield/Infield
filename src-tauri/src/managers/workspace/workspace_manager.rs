@@ -3616,6 +3616,44 @@ impl WorkspaceManager {
         }
         Ok(())
     }
+
+    // ── W7: Already-imported detection ────────────────────────────────────────
+
+    /// Look up a workspace node by its web-media `source_id` (the platform-specific
+    /// video/audio ID returned by yt-dlp, e.g. "dQw4w9WgXcQ" for YouTube).
+    ///
+    /// # Current implementation: stub returning Ok(None)
+    ///
+    /// The `workspace_nodes` table stores `properties TEXT NOT NULL DEFAULT '{}'`
+    /// which holds database field metadata — it is NOT a generic per-node JSON bag.
+    /// The `source_id` field lives in `WebMediaMetadata` (in-memory) and is written
+    /// into the vault markdown frontmatter (`properties_json` key) but is NOT indexed
+    /// in SQLite, making a `json_extract` query impractical without a migration.
+    ///
+    /// # TODO (Task 17 follow-up): add a dedicated indexed column
+    ///
+    /// Add a migration:
+    /// ```sql
+    /// ALTER TABLE workspace_nodes ADD COLUMN web_source_id TEXT;
+    /// CREATE INDEX IF NOT EXISTS idx_workspace_nodes_web_source_id
+    ///     ON workspace_nodes (web_source_id) WHERE web_source_id IS NOT NULL;
+    /// ```
+    /// Then write `web_source_id` when creating/finalizing a WebMedia node (Task 18),
+    /// and implement this method as:
+    /// ```sql
+    /// SELECT id, vault_rel_path, created_at
+    /// FROM workspace_nodes
+    /// WHERE web_source_id = ?1 AND deleted_at IS NULL
+    /// LIMIT 1
+    /// ```
+    /// Deferred to avoid conflicting with W3 parallel schema work. Task 34 E2E
+    /// verification will catch any duplicate-import escapes in the interim.
+    pub async fn find_node_by_source_id(
+        &self,
+        _source_id: &str,
+    ) -> Result<Option<crate::import::AlreadyImportedHit>, String> {
+        Ok(None)
+    }
 }
 
 #[cfg(test)]

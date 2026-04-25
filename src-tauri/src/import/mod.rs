@@ -779,6 +779,30 @@ async fn handle_fetching_meta(inner: &ImportQueueInner, job_id: &str) -> Result<
                 }
             }
 
+            // Dedup: if a node with this source_id already exists in the workspace,
+            // transition to Done and reuse the existing node rather than importing again.
+            // (Preview flow will surface the hit via fetch_url_metadata in Task 19.)
+            match inner.workspace.find_node_by_source_id(&meta.source_id).await {
+                Ok(Some(hit)) => {
+                    let msg = format!("Already imported as {}", hit.vault_path);
+                    {
+                        let mut jobs = inner.jobs.lock().await;
+                        if let Some(j) = jobs.iter_mut().find(|j| j.id == job_id) {
+                            j.note_id = Some(hit.node_id);
+                        }
+                    }
+                    transition_web_job(inner, job_id, ImportJobState::Done, Some(msg)).await;
+                    return Ok(());
+                }
+                Ok(None) => {
+                    // Not previously imported — continue.
+                }
+                Err(e) => {
+                    // Non-fatal: log and continue. Dedup is best-effort.
+                    warn!("find_node_by_source_id error (continuing import): {e}");
+                }
+            }
+
             if meta.is_live {
                 fail_web_job(inner, job_id, web_media::WebMediaError::LiveStream).await;
                 return Ok(());
