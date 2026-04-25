@@ -1,0 +1,75 @@
+/* ── search.css — W3 search result rendering ───────────────────── */
+
+.search-result {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  text-align: left;
+  cursor: pointer;
+  width: 100%;
+  transition: background var(--transition-fast);
+}
+.search-result:hover,
+.search-result--active {
+  background: var(--surface-hover);
+}
+.search-result__header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.search-result__icon {
+  flex-shrink: 0;
+  font-size: var(--text-base);
+  line-height: 1;
+}
+.search-result__title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--heros-text-premium);
+}
+.search-result__breadcrumb {
+  flex-shrink: 0;
+  font-size: var(--text-xs);
+  color: var(--heros-text-dim);
+}
+.search-result__snippet {
+  font-size: var(--text-xs);
+  color: var(--heros-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.search-result__hit {
+  background: color-mix(in srgb, var(--heros-brand) 25%, transparent);
+  color: var(--heros-text-premium);
+  font-weight: 500;
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-sm);
+}
+.search-result__badges {
+  display: flex;
+  gap: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--heros-text-dim);
+}
+.search-result__badge {
+  font-size: var(--text-xs);
+  opacity: 0.7;
+}
+.search-result__debug {
+  margin-left: var(--space-2);
+  font-family: 'JetBrains Mono', 'Menlo', 'Consolas', monospace;
+  font-size: var(--text-xs);
+  color: var(--heros-text-faint);
+}
