@@ -3,7 +3,7 @@ import { motion } from 'motion/react'
 import { ArrowRight } from 'lucide-react'
 import { HerOSButton } from './HerOS'
 
-export const ONBOARDING_TOTAL_STEPS = 4
+export const ONBOARDING_TOTAL_STEPS = 5
 
 interface Props {
   stepIndex: number // 1-based: 1, 2, 3, 4

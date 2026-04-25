@@ -5,6 +5,7 @@ import { OnboardingStepMic } from './OnboardingStepMic'
 import { OnboardingStepAccessibility } from './OnboardingStepAccessibility'
 import { OnboardingStepModels } from './OnboardingStepModels'
 import { OnboardingStepVault } from './OnboardingStepVault'
+import { OnboardingStepExtensions } from './OnboardingStepExtensions'
 
 export function OnboardingOverlay() {
   const { onboardingStep } = useVault()
@@ -25,6 +26,9 @@ export function OnboardingOverlay() {
         )}
         {onboardingStep === 'models' && <OnboardingStepModels key="models" />}
         {onboardingStep === 'vault' && <OnboardingStepVault key="vault" />}
+        {onboardingStep === 'extensions' && (
+          <OnboardingStepExtensions key="extensions" />
+        )}
       </AnimatePresence>
     </div>
   )

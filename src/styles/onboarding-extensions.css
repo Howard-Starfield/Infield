@@ -1,0 +1,45 @@
+.onboarding-extension-option {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-container);
+  cursor: pointer;
+  background: var(--surface-container);
+  align-items: flex-start;
+}
+
+.onboarding-extension-option input[type="checkbox"] {
+  margin-top: 3px;
+  flex-shrink: 0;
+  accent-color: var(--heros-brand);
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.onboarding-extension-option__body {
+  flex: 1;
+}
+
+.onboarding-extension-option__body strong {
+  display: inline;
+}
+
+.onboarding-extension-option__size {
+  color: rgba(255, 255, 255, 0.45);
+  margin-left: var(--space-2);
+  font-size: var(--text-sm);
+}
+
+.onboarding-extension-option__desc {
+  color: rgba(255, 255, 255, 0.45);
+  margin: var(--space-2) 0 0 0;
+  font-size: var(--text-sm);
+}
+
+.onboarding-extensions__error {
+  color: var(--warning);
+  font-size: var(--text-sm);
+  margin: 0;
+}

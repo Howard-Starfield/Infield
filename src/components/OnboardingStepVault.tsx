@@ -25,11 +25,10 @@ export function OnboardingStepVault() {
   }
 
   const finish = async () => {
-    const now = Math.floor(Date.now() / 1000)
     await completeStep({
       vault_root: chosenPath ?? DEFAULT_VAULT_LABEL,
-      current_step: 'done',
-      completed_at: now,
+      current_step: 'extensions',
+      completed_at: null,
       mic_permission: null,
       accessibility_permission: null,
       models_downloaded: null,
