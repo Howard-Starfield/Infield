@@ -6,6 +6,7 @@ pub mod chunking;
 pub mod database;
 pub mod embedding_ort;
 pub mod embedding_worker;
+pub mod reranker_ort;
 pub mod history;
 pub mod interview_session;
 pub mod interview_worker;
