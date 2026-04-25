@@ -667,9 +667,53 @@ async fn run_import_media(
     })
     .await;
 
+    // ── WebMedia Finalizing branch ───────────────────────────────────────────
+    // For WebMedia jobs, override the plain transcript body with a
+    // ::web_clip-directive-prefixed body and store web metadata in
+    // workspace_nodes.properties (same pattern as voice_memo_mirror).
+    let (body_to_write, web_properties_to_write) = {
+        let jobs = inner.jobs.lock().await;
+        if let Some(job) = jobs.iter().find(|j| j.id == job_id) {
+            if job.kind == ImportJobKind::WebMedia {
+                match (
+                    job.web_meta.as_ref(),
+                    job.draft_node_id.as_deref(),
+                    job.web_opts.as_ref(),
+                ) {
+                    (Some(meta), Some(node_id), opts) => {
+                        let opts_ref = opts.cloned().unwrap_or_default();
+                        // Split final_body into paragraphs for the builder.
+                        let paragraphs: Vec<String> = final_body
+                            .split("\n\n")
+                            .map(|s| s.to_string())
+                            .collect();
+                        match build_web_media_document(
+                            job_id, meta, &opts_ref, node_id, &paragraphs,
+                        ) {
+                            Ok((props, body)) => {
+                                let media_dir = job.media_dir.clone();
+                                let keep = opts_ref.keep_media;
+                                (body, Some((props, media_dir, keep)))
+                            }
+                            Err(e) => {
+                                warn!("build_web_media_document failed (using plain body): {e}");
+                                (final_body.clone(), None)
+                            }
+                        }
+                    }
+                    _ => (final_body.clone(), None),
+                }
+            } else {
+                (final_body.clone(), None)
+            }
+        } else {
+            (final_body.clone(), None)
+        }
+    };
+
     let finalized_node = match inner
         .workspace
-        .update_node_body_persist_only(&note_id, &final_body)
+        .update_node_body_persist_only(&note_id, &body_to_write)
         .await
     {
         Ok(node) => node,
@@ -680,6 +724,25 @@ async fn run_import_media(
             return Ok(());
         }
     };
+
+    // Store web metadata in properties and write segments sidecar.
+    if let Some((props_json, media_dir_opt, keep_media)) = web_properties_to_write {
+        if let Err(e) = inner.workspace.update_node_properties(&note_id, &props_json).await {
+            warn!("update_node_properties for WebMedia job {job_id}: {e}");
+        }
+        if let Some(mdir) = media_dir_opt {
+            // W7 v1: write empty segments.json — timestamps not yet plumbed through
+            // the Audio pipeline. TODO(W2): populate with real (start_ms, end_ms, text).
+            if let Err(e) = write_segments_json(&mdir, &[]) {
+                warn!("write_segments_json for job {job_id}: {e}");
+            }
+            // Cleanup: remove audio.mp3 when keep_media=false; thumbnail + segments.json stay.
+            if !keep_media {
+                let _ = std::fs::remove_file(mdir.join("audio.mp3"));
+            }
+        }
+    }
+
     emit_workspace_node_body_updated_immediate(&inner.app, &finalized_node);
     if let Err(e) = inner.workspace.finalize_node_search_index(&note_id).await {
         update_job_state(inner, job_id, ImportJobState::Error, Some(format!("{e}"))).await;
@@ -698,6 +761,77 @@ async fn run_import_media(
     emit_workspace_import_synced(inner, &note_id).await;
 
     Ok(())
+}
+
+// ── W7: WebMedia vault-write helpers ────────────────────────────────────────
+
+/// Build the YAML metadata map and the body string for a WebMedia import node.
+///
+/// Returns `(web_properties_json, body)` where `web_properties_json` is a
+/// JSON object suitable for storage in `workspace_nodes.properties` (mirrors
+/// the pattern used by `voice_memo_mirror`) and `body` is the raw markdown
+/// body prefixed with a `::web_clip{...}` directive followed by the
+/// transcript paragraphs.
+fn build_web_media_document(
+    job_id: &str,
+    web_meta: &web_media::WebMediaMetadata,
+    web_opts: &web_media::WebMediaImportOpts,
+    draft_node_id: &str,
+    transcript_paragraphs: &[String],
+) -> Result<(String, String), String> {
+    let mut map = serde_json::Map::new();
+    map.insert("web_media".into(), serde_json::json!({
+        "source_url":           web_meta.url,
+        "source_id":            web_meta.source_id,
+        "source_platform":      web_meta.platform,
+        "source_channel":       web_meta.channel,
+        "source_duration_seconds": web_meta.duration_seconds.map(|d| d as i64),
+        "source_published_at":  web_meta.published_at,
+        "media_dir":            format!(".handy-media/web/{}/", draft_node_id),
+        "imported_at":          chrono::Utc::now().to_rfc3339(),
+        "imported_via":         "web_media",
+        "media_kept":           web_opts.keep_media,
+        "playlist_source":      web_opts.playlist_source.as_ref().map(|ps| serde_json::json!({
+            "title": ps.title,
+            "url":   ps.url,
+            "index": ps.index,
+        })),
+        "import_job_id":        job_id,
+    }));
+    let properties_json = serde_json::to_string(&serde_json::Value::Object(map))
+        .map_err(|e| format!("serialize web_media properties: {e}"))?;
+
+    let directive = format!(
+        "::web_clip{{url=\"{}\" thumb=\".handy-media/web/{}/thumbnail.jpg\" platform=\"{}\"}}\n\n",
+        web_meta.url, draft_node_id, web_meta.platform,
+    );
+    let body = format!("{}{}", directive, transcript_paragraphs.join("\n\n"));
+
+    Ok((properties_json, body))
+}
+
+/// Write a `segments.json` sidecar to the media directory.
+///
+/// `segments` is a slice of `(start_ms, end_ms, text)` tuples.  In W7 v1 we
+/// write an empty array because the per-segment timestamps are not yet plumbed
+/// through `run_import_media` to the Finalizing site (the existing Audio
+/// pipeline coalesces segments into a single assembled string).  The file is
+/// always created so the sidecar directory is complete; W2 click-to-seek will
+/// populate it when that feature lands.
+///
+/// TODO(W2): plumb `Vec<(u64, u64, String)>` from the transcription loop
+/// through `run_import_media` so the real timestamps are written here.
+fn write_segments_json(media_dir: &Path, segments: &[(u64, u64, String)]) -> Result<(), String> {
+    let json: Vec<serde_json::Value> = segments
+        .iter()
+        .map(|(s, e, t)| serde_json::json!({ "start_ms": s, "end_ms": e, "text": t }))
+        .collect();
+    let path = media_dir.join("segments.json");
+    std::fs::write(
+        &path,
+        serde_json::to_vec_pretty(&json).map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| e.to_string())
 }
 
 // ── W7: WebMedia worker helpers ──────────────────────────────────────────────
@@ -1533,5 +1667,99 @@ mod web_media_enum_tests {
         };
         assert!(dto.web_meta.is_none());
         assert!(dto.download_bytes.is_none());
+    }
+}
+
+#[cfg(test)]
+mod web_media_vault_write_tests {
+    use super::*;
+    use crate::import::web_media::{WebMediaImportOpts, WebMediaMetadata};
+
+    fn make_meta() -> WebMediaMetadata {
+        WebMediaMetadata {
+            url: "https://www.youtube.com/watch?v=test".into(),
+            source_id: "test".into(),
+            title: "Test Video".into(),
+            thumbnail_url: None,
+            duration_seconds: Some(213.0),
+            channel: Some("Channel".into()),
+            platform: "youtube".into(),
+            published_at: Some("2025-10-15".into()),
+            available_video_heights: vec![720, 1080],
+            is_live: false,
+        }
+    }
+
+    #[test]
+    fn build_document_includes_required_properties_keys() {
+        let meta = make_meta();
+        let opts = WebMediaImportOpts::default();
+        let paragraphs = vec!["Hello.".into(), "World.".into()];
+        let (props_json, body) =
+            build_web_media_document("job-1", &meta, &opts, "node-uuid-here", &paragraphs)
+                .unwrap();
+
+        // Properties JSON must be a valid object containing a "web_media" key.
+        let v: serde_json::Value = serde_json::from_str(&props_json).unwrap();
+        let wm = v.get("web_media").expect("missing web_media key");
+        for key in [
+            "source_url", "source_id", "source_platform", "media_dir",
+            "imported_at", "imported_via", "media_kept", "import_job_id",
+        ] {
+            assert!(
+                wm.get(key).is_some(),
+                "missing web_media.{key} in properties"
+            );
+        }
+
+        // Body must start with the ::web_clip directive and contain transcript content.
+        assert!(body.starts_with("::web_clip{"), "body does not start with ::web_clip directive");
+        assert!(body.contains("Hello."), "body missing first paragraph");
+        assert!(body.contains("World."), "body missing second paragraph");
+    }
+
+    #[test]
+    fn build_document_directive_contains_url_and_platform() {
+        let meta = make_meta();
+        let opts = WebMediaImportOpts::default();
+        let (_, body) =
+            build_web_media_document("job-2", &meta, &opts, "nid", &[]).unwrap();
+        assert!(body.contains("youtube.com/watch"), "directive missing URL");
+        assert!(body.contains("youtube"), "directive missing platform");
+    }
+
+    #[test]
+    fn build_document_media_dir_uses_draft_node_id() {
+        let meta = make_meta();
+        let opts = WebMediaImportOpts::default();
+        let (props_json, _) =
+            build_web_media_document("job-3", &meta, &opts, "abc-123", &[]).unwrap();
+        let v: serde_json::Value = serde_json::from_str(&props_json).unwrap();
+        let media_dir = v["web_media"]["media_dir"].as_str().unwrap();
+        assert!(media_dir.contains("abc-123"), "media_dir does not embed draft_node_id");
+    }
+
+    #[test]
+    fn write_segments_json_empty_is_valid_json_array() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        write_segments_json(tmp.path(), &[]).unwrap();
+        let content = std::fs::read_to_string(tmp.path().join("segments.json")).unwrap();
+        let v: serde_json::Value = serde_json::from_str(&content).unwrap();
+        assert!(v.is_array());
+        assert_eq!(v.as_array().unwrap().len(), 0);
+    }
+
+    #[test]
+    fn write_segments_json_roundtrip() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let segs = vec![(0u64, 1500u64, "Hello world.".to_string())];
+        write_segments_json(tmp.path(), &segs).unwrap();
+        let content = std::fs::read_to_string(tmp.path().join("segments.json")).unwrap();
+        let v: serde_json::Value = serde_json::from_str(&content).unwrap();
+        let arr = v.as_array().unwrap();
+        assert_eq!(arr.len(), 1);
+        assert_eq!(arr[0]["start_ms"], 0);
+        assert_eq!(arr[0]["end_ms"], 1500);
+        assert_eq!(arr[0]["text"], "Hello world.");
     }
 }
