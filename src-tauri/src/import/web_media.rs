@@ -443,3 +443,51 @@ fn kill_process_group(_pid: Option<u32>) {
     // On Windows, killing via process-group requires a Job Object or sending CTRL_BREAK_EVENT.
     // For v1 we rely on tokio's Child::start_kill via the worker layer if needed.
 }
+
+// ── Task 14: Integrity verification ─────────────────────────────────────────
+
+pub fn verify_artefacts(artefacts: &MediaArtefacts) -> Result<(), WebMediaError> {
+    let Some(audio) = &artefacts.audio_path else { return Err(WebMediaError::IntegrityCheckFailed); };
+    if !audio.exists() { return Err(WebMediaError::IntegrityCheckFailed); }
+    let meta = std::fs::metadata(audio).map_err(|_| WebMediaError::IntegrityCheckFailed)?;
+    if meta.len() < 1024 { return Err(WebMediaError::IntegrityCheckFailed); }
+
+    use std::io::Read;
+    let mut buf = [0u8; 4];
+    let mut f = std::fs::File::open(audio).map_err(|_| WebMediaError::IntegrityCheckFailed)?;
+    f.read_exact(&mut buf).map_err(|_| WebMediaError::IntegrityCheckFailed)?;
+    let is_id3 = &buf[..3] == b"ID3";
+    let is_mpeg_sync = buf[0] == 0xFF && (buf[1] & 0xE0) == 0xE0;
+    if !is_id3 && !is_mpeg_sync { return Err(WebMediaError::IntegrityCheckFailed); }
+    Ok(())
+}
+
+#[cfg(test)]
+mod verify_tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn rejects_too_small() {
+        let tmp = TempDir::new().unwrap();
+        let p = tmp.path().join("audio.mp3");
+        std::fs::write(&p, b"tiny").unwrap();
+        let r = verify_artefacts(&MediaArtefacts {
+            audio_path: Some(p), video_path: None, thumbnail_path: None,
+        });
+        assert!(matches!(r, Err(WebMediaError::IntegrityCheckFailed)));
+    }
+
+    #[test]
+    fn accepts_id3_header() {
+        let tmp = TempDir::new().unwrap();
+        let p = tmp.path().join("audio.mp3");
+        let mut data = b"ID3".to_vec();
+        data.resize(2048, 0);
+        std::fs::write(&p, &data).unwrap();
+        let r = verify_artefacts(&MediaArtefacts {
+            audio_path: Some(p), video_path: None, thumbnail_path: None,
+        });
+        assert!(r.is_ok());
+    }
+}
