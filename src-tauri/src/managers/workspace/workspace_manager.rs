@@ -2244,6 +2244,17 @@ impl WorkspaceManager {
                 );
             "#,
             ),
+            M::up(r#"
+                -- Rule 19: model identity for the cross-encoder reranker (W3).
+                -- Singleton (CHECK id = 1). Populated by RerankerHandle on first
+                -- successful session load. Mismatch on boot invalidates the
+                -- in-memory rerank LRU (no persisted scores to delete).
+                CREATE TABLE IF NOT EXISTS reranker_model_info (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    model_id TEXT NOT NULL,
+                    model_hash TEXT NOT NULL
+                );
+            "#),
         ])
     }
 
