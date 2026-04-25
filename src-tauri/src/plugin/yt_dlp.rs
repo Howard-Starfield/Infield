@@ -147,3 +147,71 @@ mod release_tests {
         assert!(r.checksums_url.contains("SHA2-256SUMS"));
     }
 }
+
+pub fn compute_sha256(path: &Path) -> Result<String, String> {
+    let bytes = fs::read(path).map_err(|e| e.to_string())?;
+    let mut hasher = Sha256::new();
+    hasher.update(&bytes);
+    Ok(format!("{:x}", hasher.finalize()))
+}
+
+pub fn parse_checksums_for(checksums_text: &str, asset_name: &str) -> Option<String> {
+    for line in checksums_text.lines() {
+        let mut parts = line.splitn(2, "  ");
+        let hex = parts.next()?.trim();
+        let name = parts.next()?.trim();
+        if name == asset_name { return Some(hex.to_string()); }
+    }
+    None
+}
+
+pub async fn fetch_text(url: &str) -> Result<String, String> {
+    let client = reqwest::Client::builder().user_agent("Handy/1.0").build().map_err(|e| e.to_string())?;
+    client.get(url).send().await.map_err(|e| e.to_string())?
+        .error_for_status().map_err(|e| e.to_string())?
+        .text().await.map_err(|e| e.to_string())
+}
+
+pub async fn download_with_progress(
+    url: &str, target: &Path,
+    on_progress: impl Fn(u64, Option<u64>),
+) -> Result<(), String> {
+    use futures_util::StreamExt;
+    let client = reqwest::Client::builder().user_agent("Handy/1.0").build().map_err(|e| e.to_string())?;
+    let resp = client.get(url).send().await.map_err(|e| e.to_string())?
+        .error_for_status().map_err(|e| e.to_string())?;
+    let total = resp.content_length();
+    let mut file = fs::File::create(target).map_err(|e| e.to_string())?;
+    let mut stream = resp.bytes_stream();
+    let mut so_far: u64 = 0;
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|e| e.to_string())?;
+        file.write_all(&chunk).map_err(|e| e.to_string())?;
+        so_far += chunk.len() as u64;
+        on_progress(so_far, total);
+    }
+    file.flush().map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[cfg(test)]
+mod checksum_tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn computes_known_sha256() {
+        let tmp = TempDir::new().unwrap();
+        let f = tmp.path().join("x.bin");
+        fs::write(&f, b"hello").unwrap();
+        let h = compute_sha256(&f).unwrap();
+        assert_eq!(h, "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824");
+    }
+
+    #[test]
+    fn parses_sha256sums_format() {
+        let text = "abc123  yt-dlp_linux\ndef456  yt-dlp_macos\n789xyz  yt-dlp.exe\n";
+        assert_eq!(parse_checksums_for(text, "yt-dlp_macos").as_deref(), Some("def456"));
+        assert!(parse_checksums_for(text, "nonexistent").is_none());
+    }
+}
