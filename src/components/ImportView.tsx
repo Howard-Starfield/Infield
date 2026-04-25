@@ -3,11 +3,13 @@ import { Upload } from 'lucide-react';
 import { commands } from '../bindings';
 import { useImportQueue } from '../hooks/useImportQueue';
 import { useYtDlpPlugin } from '../hooks/useYtDlpPlugin';
+import { PlaylistSelectorModal } from './PlaylistSelectorModal';
 import type {
   ImportJobDto,
   UrlMetadataResult,
   AlreadyImportedHit,
   PlaylistEnvelope,
+  PlaylistEntry,
   WebMediaImportOpts,
 } from '../bindings';
 import '../styles/import.css';
@@ -107,6 +109,23 @@ export function ImportView() {
     await commands.enqueueImportUrls(urls, opts);
   }
 
+  async function commitPlaylist(
+    envelope: PlaylistEnvelope,
+    sel: PlaylistEntry[],
+    opts: WebMediaImportOpts,
+  ) {
+    for (let index = 0; index < sel.length; index++) {
+      const e = sel[index];
+      const result = await commands.enqueueImportUrls([e.url], {
+        ...opts,
+        playlist_source: { title: envelope.playlist_title, url: envelope.playlist_url, index },
+      });
+      if (result.status === 'error') console.error('enqueue failed:', result.error);
+    }
+    setSelectedUrl(null);
+    setPreview({ kind: 'idle' });
+  }
+
   const processing = jobs.filter(j => !TERMINAL_STATES.has(j.state));
   const completed = jobs.filter(j => TERMINAL_STATES.has(j.state));
 
@@ -137,6 +156,13 @@ export function ImportView() {
           <CompletedPanel jobs={completed} />
         </div>
       </div>
+      {preview.kind === 'playlist' && (
+        <PlaylistSelectorModal
+          envelope={preview.envelope}
+          onCancel={() => setPreview({ kind: 'idle' })}
+          onCommit={sel => commitPlaylist(preview.envelope, sel, defaultOpts())}
+        />
+      )}
     </div>
   );
 }
@@ -209,7 +235,8 @@ function PreviewSection({
           : `Could not fetch metadata: ${preview.message}`}
     </p>
   );
-  if (preview.kind === 'playlist') return <PreviewPlaylist envelope={preview.envelope} onCommit={onCommit} />;
+  // playlist is handled as a full-screen modal overlay at ImportView level
+  if (preview.kind === 'playlist') return null;
   // ready
   return (
     <PreviewCard
@@ -262,35 +289,6 @@ function PreviewCard({
             Import →
           </button>
         )}
-      </div>
-    </div>
-  );
-}
-
-// ── PreviewPlaylist ────────────────────────────────────────────
-function PreviewPlaylist({
-  envelope,
-  onCommit,
-}: {
-  envelope: PlaylistEnvelope;
-  onCommit: (opts: WebMediaImportOpts) => void;
-}) {
-  return (
-    <div className="preview-card">
-      <div className="preview-card__body">
-        <strong style={{ fontSize: 'var(--text-sm)' }}>{envelope.playlist_title}</strong>
-        <span className="preview-card__meta">
-          {envelope.entries.length} items{envelope.channel ? ` · ${envelope.channel}` : ''}
-        </span>
-        <p className="import-view__empty" style={{ padding: 0, textAlign: 'left', fontSize: 'var(--text-xs)' }}>
-          Playlist selector (Task 30) — import all or pick tracks.
-        </p>
-        <button
-          className="heros-btn heros-btn-brand"
-          onClick={() => onCommit(defaultOpts())}
-        >
-          Import all ({envelope.entries.length})
-        </button>
       </div>
     </div>
   );

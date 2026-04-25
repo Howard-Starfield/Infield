@@ -95,6 +95,85 @@
   50% { opacity: 0.4; }
 }
 
+/* Playlist selector modal — Task 30 */
+.playlist-modal {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+.playlist-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6); /* intentional hardcode: standard modal scrim */
+}
+.playlist-modal__panel {
+  position: relative;
+  width: min(720px, 92vw);
+  max-height: 86vh;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+.playlist-modal__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: var(--space-5);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.playlist-modal__header h2 { margin: 0; }
+.playlist-modal__header p { color: var(--heros-text-muted); margin: var(--space-1) 0 0 0; }
+.playlist-modal__close {
+  background: transparent;
+  border: none;
+  color: var(--heros-text-muted);
+  font-size: var(--text-lg);
+  cursor: pointer;
+}
+.playlist-modal__toolbar {
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-5);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.playlist-modal__filter {
+  flex: 1;
+  background: var(--surface-container);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-container);
+  padding: var(--space-2) var(--space-3);
+  color: var(--heros-text-premium);
+}
+.playlist-modal__list {
+  flex: 1;
+  overflow: auto;
+  padding: var(--space-3) var(--space-5);
+}
+.playlist-row {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  cursor: pointer;
+  padding: var(--space-2);
+  border-radius: var(--radius-container);
+}
+.playlist-row:hover { background: var(--surface-container); }
+.playlist-row__thumb { width: 60px; height: 34px; object-fit: cover; border-radius: var(--radius-sm); }
+.playlist-row__body { flex: 1; min-width: 0; }
+.playlist-row__title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.playlist-row__meta { color: var(--heros-text-muted); }
+.playlist-modal__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-5);
+  border-top: 1px solid var(--border-subtle);
+}
+
 /* Plugin missing banner — Task 29 */
 .plugin-banner {
   display: flex;
