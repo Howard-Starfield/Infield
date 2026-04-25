@@ -191,6 +191,21 @@ mod tests {
     }
 
     #[test]
+    fn web_media_format_serializes_with_snake_case_kind() {
+        // Guards against bindings drift — serde's rename_all = "snake_case"
+        // produces "mp3_audio" and "mp4_video" (no underscore around the digit).
+        // The TS bindings MUST match these wire strings exactly or
+        // enqueue_import_urls deserialization fails silently.
+        let f = WebMediaFormat::Mp3Audio;
+        assert_eq!(serde_json::to_string(&f).unwrap(), r#"{"kind":"mp3_audio"}"#);
+        let f2 = WebMediaFormat::Mp4Video { max_height: 720 };
+        assert_eq!(
+            serde_json::to_string(&f2).unwrap(),
+            r#"{"kind":"mp4_video","max_height":720}"#
+        );
+    }
+
+    #[test]
     fn error_serializes_with_kind_tag() {
         let e = WebMediaError::AuthRequired;
         let json = serde_json::to_string(&e).unwrap();

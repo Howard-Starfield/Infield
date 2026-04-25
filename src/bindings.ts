@@ -2161,7 +2161,11 @@ chat_omit_max_tokens_for_openai_compatible?: boolean;
 /**
  * When true, the onboarding flow runs on each app start until the user turns it off in settings.
  */
-show_onboarding?: boolean }
+show_onboarding?: boolean; 
+/**
+ * W7: URL media import pipeline configuration.
+ */
+web_import?: WebImportSettings }
 export type AudioDevice = { index: string; name: string; is_default: boolean }
 export type AutoSubmitKey = "enter" | "ctrl_enter" | "cmd_enter"
 export type AvailableAccelerators = { whisper: string[]; ort: string[]; gpu_devices: GpuDeviceOption[] }
@@ -2372,7 +2376,7 @@ export type OnboardingStatePatch = { current_step: OnboardingStep | null; mic_pe
  * `get()` for the on-read self-heal). Keep this list and the
  * frontend's discriminated union in lockstep.
  */
-export type OnboardingStep = "mic" | "accessibility" | "models" | "vault" | "done"
+export type OnboardingStep = "mic" | "accessibility" | "models" | "vault" | "extensions" | "done"
 export type OrtAcceleratorSetting = "auto" | "cpu" | "cuda" | "directml" | "rocm"
 export type OverlayPosition = "none" | "top" | "bottom"
 export type PaginatedHistory = { entries: HistoryEntry[]; has_more: boolean }
@@ -2490,7 +2494,51 @@ export type VaultSyncStatus = { total_documents: number; synced_documents: numbe
  * with the frontend binding and return 0.
  */
 export type VectorIndexStatus = { dimension: number; model_name: string; total_chunks: number; stale_chunks: number; is_empty: boolean; index_size_bytes: number; health: string }
-export type WebMediaFormat = { kind: "mp_3_audio" } | { kind: "mp_4_video"; max_height: number }
+/**
+ * W7: settings governing the URL media import pipeline.
+ */
+export type WebImportSettings = { 
+/**
+ * Default parent workspace node id for newly imported media (null = inbox root).
+ */
+default_parent_folder_id?: string | null; 
+/**
+ * Preferred download format (mp3 audio or mp4 video).
+ */
+default_format?: WebMediaFormat; 
+/**
+ * Keep the downloaded media file after transcription.
+ */
+default_keep_media?: boolean; 
+/**
+ * Hard cap on media duration accepted into the queue (seconds). Default 4h.
+ */
+max_duration_seconds?: number; 
+/**
+ * Days after which transcribed media files are deleted (0 = never).
+ */
+media_cleanup_after_days?: number; 
+/**
+ * Maximum concurrent yt-dlp download processes.
+ */
+concurrent_downloads?: number; 
+/**
+ * Maximum concurrent metadata-fetch (yt-dlp --dump-json) processes.
+ */
+concurrent_meta_fetches?: number; 
+/**
+ * Minimum politeness sleep between requests (seconds).
+ */
+politeness_sleep_min?: number; 
+/**
+ * Maximum politeness sleep between requests (seconds).
+ */
+politeness_sleep_max?: number; 
+/**
+ * When true, yt-dlp binary is checked for updates on each queue run.
+ */
+yt_dlp_auto_check_updates?: boolean }
+export type WebMediaFormat = { kind: "mp3_audio" } | { kind: "mp4_video"; max_height: number }
 export type WebMediaImportOpts = { keep_media: boolean; format: WebMediaFormat; parent_folder_node_id: string | null; playlist_source: PlaylistSource | null }
 export type WebMediaMetadata = { url: string; source_id: string; title: string; thumbnail_url?: string | null; duration_seconds?: number | null; channel?: string | null; platform: string; published_at?: string | null; available_video_heights: number[]; is_live: boolean }
 export type WhisperAcceleratorSetting = "auto" | "cpu" | "gpu"

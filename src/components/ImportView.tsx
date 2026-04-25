@@ -40,7 +40,7 @@ function formatDuration(seconds: number): string {
 function defaultOpts(): WebMediaImportOpts {
   return {
     keep_media: false,
-    format: { kind: 'mp_3_audio' },
+    format: { kind: 'mp3_audio' },
     parent_folder_node_id: null,
     playlist_source: null,
   };
@@ -100,13 +100,20 @@ export function ImportView() {
   async function commitSingle(opts: WebMediaImportOpts) {
     if (!selectedUrl) return;
     const urls = [selectedUrl];
-    await commands.enqueueImportUrls(urls, opts);
+    const result = await commands.enqueueImportUrls(urls, opts);
+    if (result.status === 'error') {
+      console.error('enqueueImportUrls failed:', result.error);
+      return;
+    }
     setSelectedUrl(null);
     setPreview({ kind: 'idle' });
   }
 
   async function commitBulk(urls: string[], opts: WebMediaImportOpts) {
-    await commands.enqueueImportUrls(urls, opts);
+    const result = await commands.enqueueImportUrls(urls, opts);
+    if (result.status === 'error') {
+      console.error('enqueueImportUrls failed:', result.error);
+    }
   }
 
   async function commitPlaylist(
