@@ -1173,12 +1173,40 @@ async fn handle_preparing_web_media(inner: &ImportQueueInner, job_id: &str) -> R
     Ok(())
 }
 
+/// Mark any import jobs that were in a transient state at the time of the last
+/// process exit as `Error` with a "Interrupted — retry" message.
+///
+/// **Current implementation is a no-op stub.**
+///
+/// The import queue is entirely in-memory (jobs are not persisted to SQLite —
+/// see the comment on `ImportJob` and `enqueue_urls`).  Because there is no
+/// persistent store, stale jobs from a previous process cannot be recovered;
+/// they simply vanish when the process exits.  This function is called at
+/// boot so the wiring point is in place: when Task 34 or a future task adds
+/// SQLite persistence for the queue, the healing logic goes here.
+///
+/// States that would be healed when persistence lands:
+///   fetching_meta, downloading, preparing, segmenting, transcribing, post_processing
+fn heal_interrupted_jobs() {
+    // No-op: queue is in-memory only. See function docstring.
+    // TODO: when import_jobs table is added, execute:
+    // UPDATE import_jobs
+    //   SET state = 'error', message = 'Interrupted — retry'
+    //   WHERE state IN ('fetching_meta','downloading','preparing',
+    //                   'segmenting','transcribing','post_processing');
+}
+
 impl ImportQueueService {
     pub fn spawn(
         app: AppHandle,
         workspace: Arc<WorkspaceManager>,
         tm: Arc<TranscriptionManager>,
     ) -> Self {
+        // Heal any stale jobs left over from a previous process exit.
+        // Currently a no-op because the queue is in-memory; the hook is here
+        // so it's easy to wire up when SQLite persistence lands (Task 34).
+        heal_interrupted_jobs();
+
         let wake = Arc::new(tokio::sync::Notify::new());
         let paused = Arc::new(AtomicBool::new(false));
         let inner = Arc::new(ImportQueueInner {
@@ -1563,6 +1591,20 @@ impl ImportQueueService {
         emit_snapshot(inner).await;
         emit_workspace_import_synced(inner, &note.id).await;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod boot_recovery_tests {
+    use super::*;
+
+    /// `heal_interrupted_jobs` must not panic (it is a no-op stub today).
+    /// When SQLite persistence for the queue lands, this test will be extended
+    /// to pre-populate a persisted state and assert jobs move to Error.
+    #[test]
+    fn heal_interrupted_jobs_is_safe_noop() {
+        // Should complete without panic or error.
+        heal_interrupted_jobs();
     }
 }
 
