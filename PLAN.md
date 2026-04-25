@@ -5,8 +5,8 @@
 > rules and invariants; this file carries the roadmap, per-phase
 > blueprint, and open decisions.
 >
-> **Last updated:** 2026-04-23 (W0 + W1 + Audio polish landed)
-> **Current phase:** Backend Wiring Phase (W) — W0/W1/W2 ✅, **W3 next**
+> **Last updated:** 2026-04-24 (W7 designed, slotted between W6 and Cleanup)
+> **Current phase:** Backend Wiring Phase (W) — W0/W1/W2/W2.5 ✅, **W3 next**. W7 (URL Media Import) designed and ready to plan; W8 (Visual Import) stub awaiting W4. Cleanup renumbered W7→W9.
 > **Rust backend (Phase A):** ✅ complete 2026-04-22
 > **Frontend port (H1-H6):** ✅ superseded by wholesale swap on
 >   2026-04-23 (commit `49f0386`). Frontend is now 100% verbatim
@@ -440,7 +440,66 @@ scale slider ✅ already wired) + other sections dormant. Wire:
 Gemini/Vertex via user's Google OAuth (per Phase G from old plan).
 Deferred until W1-W5 land and the base app is fully usable.
 
-### W7 — Cleanup
+### W7 — URL Media Import 🟦 DESIGNED 2026-04-24
+
+Spec: [docs/superpowers/specs/2026-04-24-w7-url-media-import-design.md](docs/superpowers/specs/2026-04-24-w7-url-media-import-design.md).
+
+Wires the dormant `ImportView` to a new URL-paste pipeline that downloads media (audio or video), transcribes via the existing whisper pipeline, and lands a workspace document under `Web Clips/` with full source metadata, cached thumbnail, cached audio (default), and a `segments.json` sidecar for forward-compat with W2 click-to-seek.
+
+**Key architecture decisions** (full detail in spec):
+- Extends `import/mod.rs` (the shipped 939-line file-import pipeline) with a new `ImportJobKind::WebMedia` variant + two head states (`FetchingMeta`, `Downloading`). Existing pipeline runs unchanged from `Preparing` onward.
+- yt-dlp is shipped as an **optional plugin** — not bundled in the installer. Three install entry points: Import-page banner, Settings → Extensions, optional Onboarding step. Installed to `<app_data>/handy/extensions/yt-dlp/`. Weekly auto-check + manual update button. SHA256 integrity verification against published checksums.
+- New `OnboardingStep::Extensions` slot between `vault` and `done` (legacy `vault` rows self-heal).
+- Storage layout: `<vault>/.handy-media/web/<node-id>/{audio.mp3, thumbnail.jpg, segments.json}`. Per-node subfolder = atomic cleanup on delete. Source-type namespace (`web/`, `voice/`, `images/`, `files/`) reserves slots for future phases.
+- One textarea input auto-detects 1-vs-N URLs (preview card vs silent bulk enqueue). Playlist URLs open a virtualized multi-select modal.
+- One unified queue surface — file imports and URL imports interleave in the existing Processing/Completed panels.
+- Concurrency: 4 metadata fetches, 2 downloads, 1 transcription (single ORT lane, yields to mic per Rule 16a).
+
+**Forward-compat hooks for W2 / W6 / W8:**
+- `segments.json` sidecar (always written) → W2 click-to-seek without re-transcription.
+- `::web_clip{...}` directive → W2 CM6 decoration as rich card.
+- Frontmatter has reserved space for `summary:` / `chapters:[]` (W6).
+- `OnboardingStep::Extensions` is the slot for W6 (LLM runtime), W8 (OCR engine).
+- `ImportJobKind` and `.handy-media/<source-type>/` are extensible patterns W8 will reuse.
+
+**Explicitly deferred:**
+- Inline timestamps in markdown body (sidecar JSON instead — keeps body clean).
+- Auto-summary / chapter detection / tag suggestions (W6 dependency).
+- Authentication-required content (private / members-only / age-restricted) — deliberately out of scope.
+- Live-stream capture, region-availability workarounds, mid-download pause/resume.
+- Caption fallback (use yt-dlp captions when available instead of running whisper) — defer until v1 ships and we have platform-coverage data.
+
+### W8 — Visual Import (OCR for images, receipts, screenshots) 📋 STUB
+
+**Status:** Stub only. Awaits **W4 (Databases)** because the high-value use case (receipts → bookkeeping) wants Database-row output, not free-form markdown. Design proper after W4 lands.
+
+**Pattern mirrors W7 exactly** — new `ImportJobKind::Image` variant, new `import/image_ocr.rs` sibling module, same state machine, same queue, same UI surface (ImportView dropzone already accepts any file type). The Onboarding `Extensions` step slot reserved for the OCR engine plugin.
+
+**Storage**: `.handy-media/images/<node-id>/{original.jpg, ocr.txt}`.
+
+**OCR engine — to research before designing W8:**
+
+| Candidate | Notes | Fits Handy? |
+|---|---|---|
+| **Tesseract** (via `leptess` or `tesseract-rs` crate) | Mature, CPU-only, offline. Decent on printed receipts; weak on handwritten / stylized. | ✅ Easy; minimal deps. Fits Rule 17 (per-platform binaries). |
+| **docTR** (Mindee, ONNX-exportable) | Detection + recognition pair, transformer-based. Better than Tesseract on real-world receipts. | ✅ Fits existing ORT infrastructure under Rule 16/16a. Need to evaluate model size and latency. |
+| **Surya** (transformer OCR) | Modern, multilingual, ONNX-exportable. | ✅ Same fit as docTR. |
+| **TrOCR** (Microsoft) | Transformer OCR via ORT. Strong on printed text. | ✅ Fits ORT pattern. |
+| **PaddleOCR** | Good on Chinese / multilingual. | ⚠ Heavier deps, harder cross-platform. |
+| **Apple Vision** (macOS) / **Windows OCR API** | Platform-native, zero install, very good for English. | ⚠ Linux has no equivalent → fallback engine still needed. |
+| **Multimodal LLM** (Qwen2-VL / MiniCPM-V via llama.cpp/Ollama) | Best for unstructured receipts; outputs structured JSON directly. | ⚠ Heavy (4-8GB model); rides on W6 LLM infra. Gates on W6. |
+
+**Decision matrix to fill in when W8 design starts:**
+- Is W6 LLM infra already shipped? If yes, multimodal LLM becomes the primary engine, classical OCR (Tesseract / docTR) the fallback.
+- Are receipts the dominant use case, or general OCR (handwritten notes, whiteboards)? Affects engine choice.
+- Latency budget: receipts can tolerate seconds, real-time feedback can't.
+- Cross-platform consistency vs platform-native quality: dual-engine design (native + fallback) is realistic.
+
+**Gates W8 on:**
+- W4 (Databases) — receipts need a `Receipts` database with structured columns (vendor, date, total, category) for the bookkeeping use case to be useful, not lossy text.
+- W6 (LLM, optional) — for structured-extraction quality. Pure-OCR MVP without W6 is feasible but would only produce text notes, not structured rows.
+
+### W9 — Cleanup (renamed from W7)
 
 - Delete eBay-specific files that no Handy surface uses
   (`ebay-*.ts`, `crypto-vault.ts`, `vault-migration.ts`,
@@ -460,7 +519,7 @@ Deferred until W1-W5 land and the base app is fully usable.
 
 Phase A (sqlite-vec migration) shipped as documented below and is
 live in `src-tauri/`. Phases B-I were written against the pre-swap
-frontend and are now **superseded by W0-W7 above**. They're kept
+frontend and are now **superseded by W0-W9 above**. They're kept
 here for historical context — do not execute them.
 
 ---
