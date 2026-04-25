@@ -1,13 +1,22 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Upload } from 'lucide-react';
+import { commands } from '../bindings';
 import { useImportQueue } from '../hooks/useImportQueue';
 import { useYtDlpPlugin } from '../hooks/useYtDlpPlugin';
-import type { ImportJobDto } from '../bindings';
+import type {
+  ImportJobDto,
+  UrlMetadataResult,
+  AlreadyImportedHit,
+  PlaylistEnvelope,
+  WebMediaImportOpts,
+} from '../bindings';
 import '../styles/import.css';
 
 const TERMINAL_STATES = new Set<ImportJobDto['state']>(['done', 'error', 'cancelled']);
 
-// ── URL detection ──────────────────────────────────────────────
+const PLAYLIST_RE = /[?&]list=|playlist\?list=/;
+
+// ── Helpers ────────────────────────────────────────────────────
 export function detectUrls(text: string): string[] {
   return Array.from(new Set(
     text.split(/[\s\n]+/)
@@ -16,11 +25,83 @@ export function detectUrls(text: string): string[] {
   ));
 }
 
+function formatDuration(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  if (h > 0) {
+    return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  }
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+function defaultOpts(): WebMediaImportOpts {
+  return {
+    keep_media: false,
+    format: { kind: 'mp_3_audio' },
+    parent_folder_node_id: null,
+    playlist_source: null,
+  };
+}
+
+// ── Preview state machine ──────────────────────────────────────
+type PreviewState =
+  | { kind: 'idle' }
+  | { kind: 'loading' }
+  | { kind: 'ready'; meta: UrlMetadataResult; alreadyImported: AlreadyImportedHit | null }
+  | { kind: 'playlist'; envelope: PlaylistEnvelope }
+  | { kind: 'live' }
+  | { kind: 'error'; message: string };
+
 // ── Top-level view ─────────────────────────────────────────────
 export function ImportView() {
   const { jobs, paused, cancel, pause, resume } = useImportQueue();
   const plugin = useYtDlpPlugin();
   const [selectedUrl, setSelectedUrl] = useState<string | null>(null);
+  const [preview, setPreview] = useState<PreviewState>({ kind: 'idle' });
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Debounced fetch when selectedUrl changes
+  useEffect(() => {
+    if (!selectedUrl) {
+      setPreview({ kind: 'idle' });
+      return;
+    }
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    setPreview({ kind: 'loading' });
+    debounceRef.current = setTimeout(async () => {
+      // Playlist detection by URL shape before fetching
+      if (PLAYLIST_RE.test(selectedUrl)) {
+        const res = await commands.fetchPlaylistEntries(selectedUrl);
+        if (res.status === 'ok') {
+          setPreview({ kind: 'playlist', envelope: res.data });
+        } else {
+          setPreview({ kind: 'error', message: res.error });
+        }
+        return;
+      }
+      const res = await commands.fetchUrlMetadata(selectedUrl);
+      if (res.status === 'error') {
+        setPreview({ kind: 'error', message: res.error });
+        return;
+      }
+      const meta = res.data;
+      if (meta.is_live) {
+        setPreview({ kind: 'live' });
+        return;
+      }
+      setPreview({ kind: 'ready', meta, alreadyImported: meta.already_imported });
+    }, 400);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [selectedUrl]);
+
+  async function commitSingle(opts: WebMediaImportOpts) {
+    if (!selectedUrl) return;
+    const urls = [selectedUrl];
+    await commands.enqueueImportUrls(urls, opts);
+    setSelectedUrl(null);
+    setPreview({ kind: 'idle' });
+  }
 
   const processing = jobs.filter(j => !TERMINAL_STATES.has(j.state));
   const completed = jobs.filter(j => TERMINAL_STATES.has(j.state));
@@ -42,6 +123,7 @@ export function ImportView() {
               console.log('[ImportView] bulk enqueue', urls);
             }}
           />
+          <PreviewSection preview={preview} onCommit={commitSingle} />
         </section>
         <div className="import-view__right">
           <ProcessingPanel
@@ -106,7 +188,121 @@ function UrlInputSection({
   );
 }
 
-// ── Plugin missing banner (Task 27 placeholder; full impl in T29) ──
+// ── Preview section (dispatches on PreviewState) ───────────────
+function PreviewSection({
+  preview,
+  onCommit,
+}: {
+  preview: PreviewState;
+  onCommit: (opts: WebMediaImportOpts) => void;
+}) {
+  if (preview.kind === 'idle') return null;
+  if (preview.kind === 'loading') return <div className="preview-skeleton" />;
+  if (preview.kind === 'live') return <PreviewLive />;
+  if (preview.kind === 'error') return (
+    <p className="import-view__empty" style={{ color: 'var(--error)' }}>
+      {preview.message.includes('403') || preview.message.toLowerCase().includes('sign in')
+        ? 'Authentication required — content is restricted.'
+        : preview.message.includes('geo') || preview.message.toLowerCase().includes('region')
+          ? 'Content regionally unavailable.'
+          : `Could not fetch metadata: ${preview.message}`}
+    </p>
+  );
+  if (preview.kind === 'playlist') return <PreviewPlaylist envelope={preview.envelope} onCommit={onCommit} />;
+  // ready
+  return (
+    <PreviewCard
+      meta={preview.meta}
+      alreadyImported={preview.alreadyImported}
+      onCommit={() => onCommit(defaultOpts())}
+    />
+  );
+}
+
+// ── PreviewCard ────────────────────────────────────────────────
+function PreviewCard({
+  meta,
+  alreadyImported,
+  onCommit,
+}: {
+  meta: UrlMetadataResult;
+  alreadyImported: AlreadyImportedHit | null | undefined;
+  onCommit: () => void;
+}) {
+  return (
+    <div className={`preview-card${alreadyImported ? ' preview-card--already' : ''}`}>
+      {meta.thumbnail_url && (
+        <img
+          className="preview-card__thumb"
+          src={meta.thumbnail_url}
+          alt={meta.title}
+          loading="lazy"
+        />
+      )}
+      <div className="preview-card__body">
+        <strong style={{ fontSize: 'var(--text-sm)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {meta.title}
+        </strong>
+        <span className="preview-card__meta">
+          {[meta.channel, meta.platform, meta.duration_seconds != null ? formatDuration(meta.duration_seconds) : null]
+            .filter(Boolean).join(' · ')}
+        </span>
+        {alreadyImported ? (
+          <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+            <span className="import-view__empty" style={{ padding: 0, textAlign: 'left' }}>
+              Already imported
+            </span>
+            <button className="heros-btn" onClick={onCommit} style={{ fontSize: 'var(--text-xs)' }}>
+              Import anyway
+            </button>
+          </div>
+        ) : (
+          <button className="heros-btn heros-btn-brand" onClick={onCommit}>
+            Import →
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── PreviewPlaylist ────────────────────────────────────────────
+function PreviewPlaylist({
+  envelope,
+  onCommit,
+}: {
+  envelope: PlaylistEnvelope;
+  onCommit: (opts: WebMediaImportOpts) => void;
+}) {
+  return (
+    <div className="preview-card">
+      <div className="preview-card__body">
+        <strong style={{ fontSize: 'var(--text-sm)' }}>{envelope.playlist_title}</strong>
+        <span className="preview-card__meta">
+          {envelope.entries.length} items{envelope.channel ? ` · ${envelope.channel}` : ''}
+        </span>
+        <p className="import-view__empty" style={{ padding: 0, textAlign: 'left', fontSize: 'var(--text-xs)' }}>
+          Playlist selector (Task 30) — import all or pick tracks.
+        </p>
+        <button
+          className="heros-btn heros-btn-brand"
+          onClick={() => onCommit(defaultOpts())}
+        >
+          Import all ({envelope.entries.length})
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── PreviewLive ────────────────────────────────────────────────
+function PreviewLive() {
+  return (
+    <p className="import-view__empty">Live streams are not supported yet.</p>
+  );
+}
+
+// ── Plugin missing banner ──────────────────────────────────────
 function PluginMissingBanner({ plugin }: { plugin: ReturnType<typeof useYtDlpPlugin> }) {
   if (plugin.installing) {
     const p = plugin.installProgress;
