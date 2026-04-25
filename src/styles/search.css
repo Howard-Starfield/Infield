@@ -173,3 +173,73 @@
 .search-filters__radio input {
   cursor: pointer;
 }
+
+/* ── spotlight — Cmd+K modal (W3 Task 15) ───────────────────────── */
+/* SELF-REVIEW: max-width: 600px has no matching token in :root;
+   --account-sidebar-width is 240px (too narrow). Left as literal pending
+   a future --spotlight-width token.
+   z-index: 1000 — no --z-modal token exists in :root. Left as literal. */
+.spotlight-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: color-mix(in srgb, black 40%, transparent);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 20vh;
+}
+.spotlight {
+  width: 100%;
+  max-width: 600px;
+  background: var(--heros-glass-black);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-container);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  max-height: 70vh;
+}
+.spotlight__input-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.spotlight__input-icon {
+  color: var(--heros-text-dim);
+  flex-shrink: 0;
+}
+.spotlight__input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: var(--text-base);
+  color: var(--heros-text-premium);
+  padding: 0;
+}
+.spotlight__hint-kbd {
+  background: var(--surface-2);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  font-family: 'JetBrains Mono', 'Menlo', 'Consolas', monospace;
+  font-size: var(--text-xs);
+  color: var(--heros-text-muted);
+}
+.spotlight__results {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-2);
+}
+.spotlight__footer {
+  display: flex;
+  gap: var(--space-4);
+  padding: var(--space-2) var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+  font-size: var(--text-xs);
+  color: var(--heros-text-faint);
+  flex-shrink: 0;
+}

@@ -1,162 +1,265 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { Search, Command, Zap, Shield, Activity, Package, X, ArrowRight, FileText, Database } from 'lucide-react';
-import { HerOSInput } from './HerOS';
+import { useCallback, useEffect, useReducer, useRef } from 'react'
+import { createPortal } from 'react-dom'
+import { Search } from 'lucide-react'
+import { commands, type WorkspaceSearchResult, type RerankResult } from '../bindings'
+import { SearchResultRow } from './SearchResultRow'
+import { RecentQueriesChips, NoResultsEmpty, DidYouMean } from './SearchEmptyStates'
+import { parseSearchTokens } from '../editor/searchTokens'
+import { recordQuery } from '../editor/recentQueries'
 
-/**
- * HerOS Spotlight Overlay
- * A high-fidelity command palette for rapid vault operations.
- * Triggered via Ctrl + Space.
- */
+const DEBOUNCE_MS = 200
+const RERANK_TIMEOUT_MS = 100
 
-interface SpotlightProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onAction: (action: string) => void;
+type State = {
+  query: string
+  results: WorkspaceSearchResult[]
+  active: number
+  loading: boolean
+  showDebug: boolean
+  didYouMean: string | null
 }
 
-export function SpotlightOverlay({ isOpen, onClose, onAction }: SpotlightProps) {
-  const [query, setQuery] = useState('');
-  const [selectedIndex, setSelectedIndex] = useState(0);
-  const inputRef = useRef<HTMLInputElement>(null);
+type Action =
+  | { type: 'SET_QUERY'; q: string }
+  | { type: 'SET_RESULTS'; results: WorkspaceSearchResult[] }
+  | { type: 'SET_LOADING'; loading: boolean }
+  | { type: 'MOVE'; delta: number }
+  | { type: 'TOGGLE_DEBUG' }
+  | { type: 'SET_SUGGESTION'; suggestion: string | null }
 
-  const suggestions = [
-    { id: 'search', label: 'Neural Search', icon: <Search size={16} />, detail: 'Global semantic reach across assets' },
-    { id: 'notes', label: 'Create Note', icon: <FileText size={16} />, detail: 'Draft new intelligence in vault' },
-    { id: 'databases', label: 'Database View', icon: <Database size={16} />, detail: 'Analyze structured ops data' },
-    { id: 'security', label: 'Security Center', icon: <Shield size={16} />, detail: 'Manage encryption & keys' },
-    { id: 'activity', label: 'View Activity', icon: <Activity size={16} />, detail: 'Recent tamper-proof logs' },
-    { id: 'capture', label: 'Capture Evidence', icon: <Zap size={16} />, detail: 'Secure new package photos' },
-    { id: 'orders', label: 'Track Orders', icon: <Package size={16} />, detail: 'Open eBay marketplace dashboard' },
-    { id: 'resume', label: 'Resume Site', icon: <FileText size={16} />, detail: 'Open Unseen-style kinetic site' },
-    { id: 'synthesis', label: 'AI Synthesis', icon: <Activity size={16} />, detail: 'Generate insights from vault data' }
-  ].filter(s => s.label.toLowerCase().includes(query.toLowerCase()));
+const initial: State = {
+  query: '',
+  results: [],
+  active: 0,
+  loading: false,
+  showDebug: false,
+  didYouMean: null,
+}
 
-  useEffect(() => {
-    if (isOpen) {
-      setQuery('');
-      setSelectedIndex(0);
-      setTimeout(() => inputRef.current?.focus(), 50);
+function reducer(state: State, a: Action): State {
+  switch (a.type) {
+    case 'SET_QUERY':
+      return { ...state, query: a.q, active: 0 }
+    case 'SET_RESULTS':
+      return { ...state, results: a.results, active: 0, loading: false, didYouMean: null }
+    case 'SET_LOADING':
+      return { ...state, loading: a.loading }
+    case 'MOVE': {
+      const next = Math.max(0, Math.min(state.results.length - 1, state.active + a.delta))
+      return { ...state, active: next }
     }
-  }, [isOpen]);
+    case 'TOGGLE_DEBUG':
+      return { ...state, showDebug: !state.showDebug }
+    case 'SET_SUGGESTION':
+      return { ...state, didYouMean: a.suggestion }
+    default:
+      return state
+  }
+}
+
+export interface SpotlightOverlayProps {
+  onDismiss: () => void
+  onOpenPreview: (nodeId: string) => void
+  onOpenInNewTab: (nodeId: string) => void
+}
+
+export function SpotlightOverlay({
+  onDismiss,
+  onOpenPreview,
+  onOpenInNewTab,
+}: SpotlightOverlayProps) {
+  const [state, dispatch] = useReducer(reducer, initial)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const debounceRef = useRef<number | null>(null)
+  const reqIdRef = useRef(0)
+
+  // Focus input on mount.
+  useEffect(() => {
+    inputRef.current?.focus()
+  }, [])
+
+  // Debounced search.
+  const runSearch = useCallback(async (raw: string) => {
+    const myReq = ++reqIdRef.current
+    const trimmed = raw.trim()
+    if (!trimmed) {
+      dispatch({ type: 'SET_RESULTS', results: [] })
+      return
+    }
+    dispatch({ type: 'SET_LOADING', loading: true })
+
+    const { query: stripped } = parseSearchTokens(raw)
+    const queryForSearch = stripped || raw  // if token-strip empties the query, keep raw
+
+    try {
+      const res = await commands.searchWorkspaceHybrid(
+        queryForSearch,
+        30,
+        0,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+      )
+      if (myReq !== reqIdRef.current) return  // newer request superseded
+      if (res.status !== 'ok') {
+        dispatch({ type: 'SET_RESULTS', results: [] })
+        return
+      }
+      let candidates = res.data
+
+      // Stage 4: rerank top-30 → top-10.
+      if (candidates.length >= 2 && !shortCircuit(candidates)) {
+        const rerankRes = await commands.rerankCandidates(
+          queryForSearch,
+          candidates.map((c) => ({
+            node_id: c.node_id,
+            title: c.title,
+            excerpt: c.excerpt ?? '',
+          })),
+          10,
+          RERANK_TIMEOUT_MS,
+        )
+        if (myReq !== reqIdRef.current) return
+        if (rerankRes.status === 'ok' && rerankRes.data) {
+          candidates = applyRerank(candidates, rerankRes.data)
+        }
+      }
+
+      candidates = candidates.slice(0, 10)
+      dispatch({ type: 'SET_RESULTS', results: candidates })
+
+      if (candidates.length > 0) {
+        recordQuery(trimmed)
+      }
+    } catch {
+      dispatch({ type: 'SET_RESULTS', results: [] })
+    }
+  }, [])
 
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (!isOpen) return;
-      if (e.key === 'Escape') onClose();
-      if (e.key === 'ArrowDown') setSelectedIndex(prev => (prev + 1) % suggestions.length);
-      if (e.key === 'ArrowUp') setSelectedIndex(prev => (prev - 1 + suggestions.length) % suggestions.length);
-      if (e.key === 'Enter' && suggestions[selectedIndex]) {
-        onAction(suggestions[selectedIndex].id);
-        onClose();
+    if (debounceRef.current !== null) {
+      window.clearTimeout(debounceRef.current)
+    }
+    debounceRef.current = window.setTimeout(() => {
+      void runSearch(state.query)
+    }, DEBOUNCE_MS)
+    return () => {
+      if (debounceRef.current !== null) {
+        window.clearTimeout(debounceRef.current)
       }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, selectedIndex, suggestions]);
+    }
+  }, [state.query, runSearch])
 
-  return (
-    <AnimatePresence>
-      {isOpen && (
-        <div style={{
-          position: 'fixed', inset: 0, zIndex: 20000,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: 'rgba(0, 0, 0, 0.7)', backdropFilter: 'blur(20px)',
-          padding: '24px'
-        }}>
-          {/* Click outside to close */}
-          <div style={{ position: 'absolute', inset: 0 }} onClick={onClose} />
+  // Keyboard handling.
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      onDismiss()
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      dispatch({ type: 'MOVE', delta: 1 })
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      dispatch({ type: 'MOVE', delta: -1 })
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      const r = state.results[state.active]
+      if (!r) return
+      const meta = e.metaKey || e.ctrlKey
+      if (meta) onOpenInNewTab(r.node_id)
+      else onOpenPreview(r.node_id)
+      onDismiss()
+    } else if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'd') {
+      e.preventDefault()
+      dispatch({ type: 'TOGGLE_DEBUG' })
+    }
+  }
 
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: -20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.98, y: -10, transition: { duration: 0.2, ease: "easeIn" } }}
-            transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-            className="heros-glass-card"
-            style={{
-              width: '100%', maxWidth: '640px', padding: 0, overflow: 'hidden',
-              boxShadow: '0 32px 64px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05)',
-              borderRadius: '24px', position: 'relative'
-            }}
-          >
-            {/* Search Header */}
-            <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                <Command size={20} color="var(--heros-brand)" />
-                <div style={{ flex: 1 }}>
-                  <HerOSInput 
-                    ref={inputRef}
-                    placeholder="Type a command or search..." 
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    icon={<ArrowRight size={18} />}
-                  />
-                </div>
-                <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.2)', cursor: 'pointer' }}>
-                  <X size={20} />
-                </button>
-              </div>
-            </div>
-
-            {/* Results Area */}
-            <div style={{ maxHeight: '400px', overflowY: 'auto', padding: '12px' }} className="custom-scrollbar">
-              {suggestions.length === 0 ? (
-                <div style={{ padding: '40px', textAlign: 'center', color: 'rgba(255,255,255,0.2)' }}>
-                  <p style={{ fontSize: '14px' }}>No commands found matching "{query}"</p>
-                </div>
-              ) : (
-                suggestions.map((item, i) => (
-                  <div
-                    key={item.id}
-                    onClick={() => { onAction(item.id); onClose(); }}
-                    onMouseEnter={() => setSelectedIndex(i)}
-                    style={{
-                      padding: '12px 16px', borderRadius: '14px', cursor: 'pointer',
-                      background: i === selectedIndex ? 'rgba(255,255,255,0.05)' : 'transparent',
-                      border: `1px solid ${i === selectedIndex ? 'rgba(255,255,255,0.05)' : 'transparent'}`,
-                      display: 'flex', alignItems: 'center', gap: 16, transition: 'all 0.2s ease'
-                    }}
-                  >
-                    <div style={{ 
-                      width: '36px', height: '36px', borderRadius: '10px', 
-                      background: i === selectedIndex ? 'var(--heros-brand)' : 'rgba(255,255,255,0.05)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      color: i === selectedIndex ? '#fff' : 'rgba(255,255,255,0.4)',
-                      transition: 'all 0.2s ease'
-                    }}>
-                      {item.icon}
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: '14px', fontWeight: 600, color: i === selectedIndex ? '#fff' : 'rgba(255,255,255,0.8)' }}>
-                        {item.label}
-                      </div>
-                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>
-                        {item.detail}
-                      </div>
-                    </div>
-                    {i === selectedIndex && (
-                      <div style={{ display: 'flex', gap: 4, alignItems: 'center', color: 'rgba(255,255,255,0.2)', fontSize: '10px', fontWeight: 800 }}>
-                        <span style={{ padding: '2px 6px', background: 'rgba(255,255,255,0.05)', borderRadius: '4px' }}>ENTER</span>
-                      </div>
-                    )}
-                  </div>
-                ))
-              )}
-            </div>
-
-            {/* Footer */}
-            <div style={{ padding: '12px 24px', background: 'rgba(0,0,0,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ display: 'flex', gap: 16, alignItems: 'center', color: 'rgba(255,255,255,0.2)', fontSize: '11px', fontWeight: 600 }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ padding: '2px 4px', background: 'rgba(255,255,255,0.05)', borderRadius: '4px' }}>↑↓</span> Select</span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ padding: '2px 4px', background: 'rgba(255,255,255,0.05)', borderRadius: '4px' }}>ESC</span> Close</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--heros-brand)', fontSize: '11px', fontWeight: 800, letterSpacing: '0.05em' }}>
-                <Zap size={12} /> SPOTLIGHT OS¹
-              </div>
-            </div>
-          </motion.div>
+  return createPortal(
+    <div
+      className="spotlight-backdrop"
+      onClick={onDismiss}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Search"
+    >
+      <div
+        className="spotlight"
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={onKeyDown}
+      >
+        <div className="spotlight__input-row">
+          <Search size={16} className="spotlight__input-icon" />
+          <input
+            ref={inputRef}
+            type="text"
+            className="spotlight__input"
+            value={state.query}
+            onChange={(e) => dispatch({ type: 'SET_QUERY', q: e.currentTarget.value })}
+            placeholder="Search notes…"
+          />
+          <kbd className="spotlight__hint-kbd">⌘K</kbd>
         </div>
-      )}
-    </AnimatePresence>
-  );
+
+        {state.query.trim() === '' ? (
+          <RecentQueriesChips onPick={(q) => dispatch({ type: 'SET_QUERY', q })} />
+        ) : state.results.length === 0 && !state.loading ? (
+          state.didYouMean ? (
+            <DidYouMean suggestion={state.didYouMean} onPick={(q) => dispatch({ type: 'SET_QUERY', q })} />
+          ) : (
+            <NoResultsEmpty query={state.query} />
+          )
+        ) : (
+          <div className="spotlight__results" role="listbox">
+            {state.results.map((r, i) => (
+              <SearchResultRow
+                key={r.node_id}
+                result={r}
+                isActive={i === state.active}
+                showDebug={state.showDebug}
+                onClick={(e) => {
+                  const meta = e.metaKey || e.ctrlKey
+                  if (meta) onOpenInNewTab(r.node_id)
+                  else onOpenPreview(r.node_id)
+                  onDismiss()
+                }}
+                onMouseEnter={() => {
+                  // Update active index on hover for parity with keyboard nav.
+                  if (i !== state.active) {
+                    dispatch({ type: 'MOVE', delta: i - state.active })
+                  }
+                }}
+              />
+            ))}
+          </div>
+        )}
+
+        <div className="spotlight__footer">
+          <span>↑↓ navigate</span>
+          <span>↵ open</span>
+          <span>⌘↵ new tab</span>
+          <span>esc close</span>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  )
+}
+
+function shortCircuit(results: WorkspaceSearchResult[]): boolean {
+  if (results.length < 2) return false
+  const top = results[0].score
+  const second = results[1].score
+  return second > 0 && top >= 2 * second
+}
+
+function applyRerank(
+  candidates: WorkspaceSearchResult[],
+  reranked: RerankResult[],
+): WorkspaceSearchResult[] {
+  const byId = new Map(candidates.map((c) => [c.node_id, c]))
+  return reranked
+    .map((r) => byId.get(r.node_id))
+    .filter((c): c is WorkspaceSearchResult => !!c)
 }
