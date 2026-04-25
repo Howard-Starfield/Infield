@@ -21,6 +21,7 @@ mod signal_handle;
 mod transcription_coordinator;
 mod transcription_workspace;
 mod import;
+mod plugin;
 mod tray;
 mod tray_i18n;
 mod utils;
