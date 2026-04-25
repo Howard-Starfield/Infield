@@ -46,6 +46,7 @@ pub enum ImportJobKind {
     Pdf,
     Audio,
     Video,
+    WebMedia,   // NEW — W7
     Unknown,
 }
 
@@ -53,6 +54,8 @@ pub enum ImportJobKind {
 #[serde(rename_all = "snake_case")]
 pub enum ImportJobState {
     Queued,
+    FetchingMeta,    // NEW — W7
+    Downloading,     // NEW — W7
     Preparing,
     Segmenting,
     DraftCreated,
@@ -935,5 +938,31 @@ impl ImportQueueService {
         emit_snapshot(inner).await;
         emit_workspace_import_synced(inner, &note.id).await;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod web_media_enum_tests {
+    use super::*;
+
+    #[test]
+    fn web_media_kind_serializes_snake_case() {
+        let kind = ImportJobKind::WebMedia;
+        let json = serde_json::to_string(&kind).unwrap();
+        assert_eq!(json, "\"web_media\"");
+    }
+
+    #[test]
+    fn fetching_meta_state_serializes_snake_case() {
+        let state = ImportJobState::FetchingMeta;
+        let json = serde_json::to_string(&state).unwrap();
+        assert_eq!(json, "\"fetching_meta\"");
+    }
+
+    #[test]
+    fn downloading_state_serializes_snake_case() {
+        let state = ImportJobState::Downloading;
+        let json = serde_json::to_string(&state).unwrap();
+        assert_eq!(json, "\"downloading\"");
     }
 }
