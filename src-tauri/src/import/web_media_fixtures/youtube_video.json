@@ -1,0 +1,27 @@
+{
+  "id": "dQw4w9WgXcQ",
+  "title": "Test Video",
+  "description": "A test video description.",
+  "duration": 213.0,
+  "channel": "Test Channel",
+  "channel_id": "UCtest1234567",
+  "uploader": "Test Channel",
+  "uploader_id": "UCtest1234567",
+  "thumbnail": "https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg",
+  "extractor": "youtube",
+  "extractor_key": "Youtube",
+  "is_live": false,
+  "was_live": false,
+  "upload_date": "20251015",
+  "view_count": 1234567,
+  "like_count": 98765,
+  "webpage_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+  "formats": [
+    { "format_id": "137", "ext": "mp4", "height": 1080, "width": 1920, "fps": 30.0 },
+    { "format_id": "136", "ext": "mp4", "height": 720,  "width": 1280, "fps": 30.0 },
+    { "format_id": "135", "ext": "mp4", "height": 480,  "width": 854,  "fps": 30.0 },
+    { "format_id": "134", "ext": "mp4", "height": 360,  "width": 640,  "fps": 30.0 },
+    { "format_id": "140", "ext": "m4a", "height": null, "width": null,  "fps": null },
+    { "format_id": "251", "ext": "webm","height": null, "width": null,  "fps": null }
+  ]
+}
