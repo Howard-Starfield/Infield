@@ -882,6 +882,10 @@ pub fn run(cli_args: CliArgs) {
             commands::vault_sync::export_all_databases_to_vault,
             commands::vault_sync::import_database_from_vault,
             commands::ui::set_app_zoom,
+            commands::yt_dlp_plugin::yt_dlp_plugin_status,
+            commands::yt_dlp_plugin::install_yt_dlp_plugin,
+            commands::yt_dlp_plugin::check_yt_dlp_update,
+            commands::yt_dlp_plugin::uninstall_yt_dlp_plugin,
         ])
         .events(collect_events![
             managers::history::HistoryUpdatePayload,

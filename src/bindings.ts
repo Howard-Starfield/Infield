@@ -1978,6 +1978,38 @@ async setAppZoom(scale: number) : Promise<Result<null, string>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+async ytDlpPluginStatus(app: AppHandle) : Promise<Result<PluginStatus, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("yt_dlp_plugin_status") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async installYtDlpPlugin() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("install_yt_dlp_plugin") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async checkYtDlpUpdate() : Promise<Result<UpdateCheckResult, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("check_yt_dlp_update") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async uninstallYtDlpPlugin() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("uninstall_yt_dlp_plugin") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -2243,6 +2275,7 @@ export type OverlayPosition = "none" | "top" | "bottom"
 export type PaginatedHistory = { entries: HistoryEntry[]; has_more: boolean }
 export type PasteMethod = "ctrl_v" | "direct" | "none" | "shift_insert" | "ctrl_shift_v" | "external_script"
 export type PermissionAccess = "allowed" | "denied" | "unknown"
+export type PluginStatus = { installed: boolean; version: string | null; installed_at: string | null; last_checked_at: string | null; latest_available: string | null; size_bytes: number | null }
 /**
  * Permission outcomes for mic and accessibility steps.
  * 
@@ -2330,6 +2363,7 @@ date_format: string;
  */
 time_format: string; include_time: boolean } } | { type: "single_select"; config: { options: SelectOption[] } } | { type: "multi_select"; config: { options: SelectOption[] } } | { type: "checkbox" } | { type: "url" } | { type: "checklist" } | { type: "last_edited_time" } | { type: "created_time" } | { type: "time" } | { type: "date"; config: { date_format: string; time_format: string; include_time: boolean } } | { type: "media" } | { type: "protected" }
 export type TypingTool = "auto" | "wtype" | "kwtype" | "dotool" | "ydotool" | "xdotool"
+export type UpdateCheckResult = { current: string | null; latest: string; update_available: boolean }
 export type VaultSyncStatus = { total_documents: number; synced_documents: number; pending_documents: number }
 /**
  * Extended status that includes the on-disk index file size.

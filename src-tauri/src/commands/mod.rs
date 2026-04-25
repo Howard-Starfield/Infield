@@ -15,6 +15,7 @@ pub mod transcription;
 pub mod ui;
 pub mod vault_sync;
 pub mod workspace_nodes;
+pub mod yt_dlp_plugin;
 
 use crate::settings::{get_settings, write_settings, AppSettings, LogLevel};
 use crate::utils::cancel_current_operation;
