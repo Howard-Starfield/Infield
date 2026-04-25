@@ -103,6 +103,10 @@ export function ImportView() {
     setPreview({ kind: 'idle' });
   }
 
+  async function commitBulk(urls: string[], opts: WebMediaImportOpts) {
+    await commands.enqueueImportUrls(urls, opts);
+  }
+
   const processing = jobs.filter(j => !TERMINAL_STATES.has(j.state));
   const completed = jobs.filter(j => TERMINAL_STATES.has(j.state));
 
@@ -118,10 +122,7 @@ export function ImportView() {
           {!plugin.status?.installed && <PluginMissingBanner plugin={plugin} />}
           <UrlInputSection
             onSingle={url => setSelectedUrl(url)}
-            onBulk={urls => {
-              // Task 29 wires bulk handler; placeholder for now
-              console.log('[ImportView] bulk enqueue', urls);
-            }}
+            onBulk={urls => commitBulk(urls, defaultOpts())}
           />
           <PreviewSection preview={preview} onCommit={commitSingle} />
         </section>
