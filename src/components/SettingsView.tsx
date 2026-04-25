@@ -21,6 +21,7 @@ import {
   Volume2,
   Zap,
 } from 'lucide-react';
+import { SettingsExtensionsView } from './SettingsExtensionsView';
 import { toast } from 'sonner';
 import { ask } from '@tauri-apps/plugin-dialog';
 import { useSettings } from '../hooks/useSettings';
@@ -437,6 +438,7 @@ export function SettingsView({ onNavigate: _onNavigate }: SettingsViewProps) {
     { id: 'advanced', label: 'Advanced', icon: <Shield size={16} /> },
     { id: 'history', label: 'History', icon: <History size={16} /> },
     { id: 'appearance', label: 'Appearance', icon: <Palette size={16} /> },
+    { id: 'extensions', label: 'Extensions', icon: <Download size={16} /> },
     { id: 'about', label: 'About', icon: <Info size={16} /> },
   ];
 
@@ -937,6 +939,10 @@ export function SettingsView({ onNavigate: _onNavigate }: SettingsViewProps) {
                   </div>
                 </div>
               </div>
+            </section>
+
+            <section id="extensions" className="heros-glass-card" style={{ padding: 0, overflow: 'hidden' }}>
+              <SettingsExtensionsView />
             </section>
 
             <section id="about" className="heros-glass-card" style={{ padding: 32 }}>
