@@ -319,8 +319,10 @@
 .heros-menu {
   position: fixed;
   z-index: 1000;
-  background: var(--heros-glass-black);
-  border: 1px solid var(--border-subtle);
+  background: var(--card-overlay-fill);
+  backdrop-filter: blur(var(--card-overlay-blur)) saturate(var(--card-overlay-saturate));
+  -webkit-backdrop-filter: blur(var(--card-overlay-blur)) saturate(var(--card-overlay-saturate));
+  border: 1px solid var(--card-overlay-rim);
   border-radius: var(--radius-container);
   box-shadow: var(--shadow-lg);
   padding: var(--space-1);
@@ -393,8 +395,10 @@
   grid-template-columns: repeat(10, auto);
   gap: var(--space-1);
   padding: var(--space-2);
-  background: var(--heros-glass-black);
-  border: 1px solid var(--border-subtle);
+  background: var(--card-overlay-fill);
+  backdrop-filter: blur(var(--card-overlay-blur)) saturate(var(--card-overlay-saturate));
+  -webkit-backdrop-filter: blur(var(--card-overlay-blur)) saturate(var(--card-overlay-saturate));
+  border: 1px solid var(--card-overlay-rim);
   border-radius: var(--radius-container);
   box-shadow: var(--shadow-lg);
 }
@@ -579,8 +583,10 @@
   grid-template-columns: repeat(10, auto);
   gap: var(--space-1);
   padding: var(--space-2);
-  background: var(--heros-glass-black);
-  border: 1px solid var(--border-subtle);
+  background: var(--card-overlay-fill);
+  backdrop-filter: blur(var(--card-overlay-blur)) saturate(var(--card-overlay-saturate));
+  -webkit-backdrop-filter: blur(var(--card-overlay-blur)) saturate(var(--card-overlay-saturate));
+  border: 1px solid var(--card-overlay-rim);
   border-radius: var(--radius-container);
   box-shadow: var(--shadow-lg);
 }

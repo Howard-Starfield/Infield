@@ -52,8 +52,10 @@ export const herosEditorTheme = EditorView.theme({
     marginBottom: '2px',
   },
   '.cm-tooltip-autocomplete': {
-    background: 'var(--heros-glass-black)',
-    border: '1px solid var(--border-subtle)',
+    background: 'var(--card-overlay-fill)',
+    backdropFilter: 'blur(var(--card-overlay-blur)) saturate(var(--card-overlay-saturate))',
+    WebkitBackdropFilter: 'blur(var(--card-overlay-blur)) saturate(var(--card-overlay-saturate))',
+    border: '1px solid var(--card-overlay-rim)',
     borderRadius: 'var(--radius-container)',
     boxShadow: 'var(--shadow-lg)',
     fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif",

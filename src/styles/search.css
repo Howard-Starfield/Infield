@@ -192,8 +192,10 @@
 .spotlight {
   width: 100%;
   max-width: 600px;
-  background: var(--heros-glass-black);
-  border: 1px solid var(--border-subtle);
+  background: var(--card-overlay-fill);
+  backdrop-filter: blur(var(--card-overlay-blur)) saturate(var(--card-overlay-saturate));
+  -webkit-backdrop-filter: blur(var(--card-overlay-blur)) saturate(var(--card-overlay-saturate));
+  border: 1px solid var(--card-overlay-rim);
   border-radius: var(--radius-container);
   box-shadow: var(--shadow-lg);
   display: flex;
