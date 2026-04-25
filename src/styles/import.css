@@ -1,0 +1,109 @@
+.import-view {
+  padding: var(--space-8);
+  max-width: 1200px;
+  margin: 0 auto;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.import-view__header {
+  text-align: center;
+  margin-bottom: var(--space-8);
+}
+.import-view__icon {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-lg);
+  background: var(--heros-brand);
+  margin: 0 auto var(--space-4) auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.import-view__grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1.6fr;
+  gap: var(--space-5);
+  min-height: 0;
+}
+.import-view__left {
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  height: fit-content;
+}
+.import-view__right {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-height: 0;
+}
+.import-view__panel {
+  padding: var(--space-5);
+}
+.import-view__panel-title {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  margin-bottom: var(--space-3);
+  color: var(--heros-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.import-view__empty {
+  color: var(--heros-text-muted);
+  font-size: var(--text-sm);
+  text-align: center;
+  padding: var(--space-6);
+}
+
+/* URL input — Task 27 */
+.url-input { display: flex; flex-direction: column; gap: var(--space-3); }
+.url-input__textarea {
+  background: var(--surface-container);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-container);
+  padding: var(--space-3);
+  color: var(--heros-text-premium);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  resize: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+.url-input__controls { display: flex; gap: var(--space-2); align-items: center; }
+.url-input__count { color: var(--heros-text-muted); font-size: var(--text-sm); }
+
+/* Preview card — Task 28 */
+.preview-card {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-container);
+  background: var(--surface-container);
+}
+.preview-card__thumb { width: 120px; height: 68px; object-fit: cover; border-radius: var(--radius-sm); }
+.preview-card__body { display: flex; flex-direction: column; gap: var(--space-2); flex: 1; min-width: 0; }
+.preview-card__meta { color: var(--heros-text-muted); font-size: var(--text-sm); }
+/* --warning = #f59e0b, used for already-imported highlight border */
+.preview-card--already { border: 1px solid var(--warning); }
+.preview-skeleton { height: 80px; background: var(--surface-container); border-radius: var(--radius-container); animation: pulse 1.4s infinite; }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* Plugin missing banner — Task 29 */
+.plugin-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--surface-container);
+  border-radius: var(--radius-container);
+}
+.plugin-banner > div { flex: 1; }
+.plugin-banner strong { display: block; }
+.plugin-banner p { color: var(--heros-text-muted); font-size: var(--text-sm); margin: var(--space-1) 0 0 0; }
