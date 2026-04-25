@@ -1,0 +1,40 @@
+{
+  "title": "Test Playlist",
+  "uploader": "Test Channel",
+  "channel": "Test Channel",
+  "channel_id": "UCtest1234567",
+  "extractor": "youtube:playlist",
+  "extractor_key": "YoutubeTab",
+  "entries": [
+    {
+      "id": "vid1",
+      "title": "Video 1",
+      "url": "https://www.youtube.com/watch?v=vid1",
+      "webpage_url": "https://www.youtube.com/watch?v=vid1",
+      "duration": 180.0,
+      "thumbnail": "https://i.ytimg.com/vi/vid1/maxresdefault.jpg",
+      "channel": "Test Channel",
+      "uploader": "Test Channel"
+    },
+    {
+      "id": "vid2",
+      "title": "Video 2",
+      "url": "https://www.youtube.com/watch?v=vid2",
+      "webpage_url": "https://www.youtube.com/watch?v=vid2",
+      "duration": 240.0,
+      "thumbnail": "https://i.ytimg.com/vi/vid2/maxresdefault.jpg",
+      "channel": "Test Channel",
+      "uploader": "Test Channel"
+    },
+    {
+      "id": "vid3",
+      "title": "Video 3",
+      "url": "https://www.youtube.com/watch?v=vid3",
+      "webpage_url": "https://www.youtube.com/watch?v=vid3",
+      "duration": 300.0,
+      "thumbnail": "https://i.ytimg.com/vi/vid3/maxresdefault.jpg",
+      "channel": "Test Channel",
+      "uploader": "Test Channel"
+    }
+  ]
+}

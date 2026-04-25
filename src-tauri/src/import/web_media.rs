@@ -123,6 +123,60 @@ impl YtDlpHandle {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct PlaylistEntry {
+    pub url: String,
+    pub source_id: String,
+    pub title: String,
+    pub duration_seconds: Option<f64>,
+    pub thumbnail_url: Option<String>,
+    pub channel: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct PlaylistEnvelope {
+    pub playlist_url: String,
+    pub playlist_title: String,
+    pub channel: Option<String>,
+    pub entries: Vec<PlaylistEntry>,
+}
+
+pub fn parse_playlist(json: &str, url: &str) -> Result<PlaylistEnvelope, WebMediaError> {
+    let v: serde_json::Value = serde_json::from_str(json)
+        .map_err(|e| WebMediaError::YtDlpCrashed { exit_code: 0, stderr_tail: e.to_string() })?;
+    let playlist_title = v["title"].as_str().unwrap_or("Untitled playlist").to_string();
+    let channel = v["uploader"].as_str().or_else(|| v["channel"].as_str()).map(|s| s.to_string());
+    let entries = v["entries"].as_array().map(|arr| {
+        arr.iter().filter_map(|e| {
+            let id = e["id"].as_str()?.to_string();
+            let title = e["title"].as_str().unwrap_or("Untitled").to_string();
+            let entry_url = e["url"].as_str().or_else(|| e["webpage_url"].as_str())
+                .unwrap_or(&id).to_string();
+            Some(PlaylistEntry {
+                url: entry_url, source_id: id, title,
+                duration_seconds: e["duration"].as_f64(),
+                thumbnail_url: e["thumbnail"].as_str().map(|s| s.to_string()),
+                channel: e["channel"].as_str().or_else(|| e["uploader"].as_str()).map(|s| s.to_string()),
+            })
+        }).collect()
+    }).unwrap_or_default();
+    Ok(PlaylistEnvelope { playlist_url: url.to_string(), playlist_title, channel, entries })
+}
+
+impl YtDlpHandle {
+    pub async fn fetch_playlist_entries(&self, url: &str) -> Result<PlaylistEnvelope, WebMediaError> {
+        if !self.is_available() { return Err(WebMediaError::YtDlpNotFound); }
+        let out = tokio::process::Command::new(&self.binary)
+            .args(["--flat-playlist", "--dump-single-json", "--no-warnings", url])
+            .output().await
+            .map_err(|e| WebMediaError::NetworkError(e.to_string()))?;
+        if !out.status.success() {
+            return Err(classify_stderr(&String::from_utf8_lossy(&out.stderr), out.status.code().unwrap_or(-1)));
+        }
+        parse_playlist(&String::from_utf8_lossy(&out.stdout), url)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -171,5 +225,13 @@ mod parse_tests {
     fn classifies_deleted() {
         let e = classify_stderr("ERROR: Video unavailable. This video is not available.", 1);
         assert!(matches!(e, WebMediaError::DeletedOrNotFound));
+    }
+
+    #[test]
+    fn parses_youtube_playlist_fixture() {
+        let json = include_str!("web_media_fixtures/youtube_playlist.json");
+        let p = parse_playlist(json, "https://www.youtube.com/playlist?list=PLxyz").unwrap();
+        assert!(!p.playlist_title.is_empty());
+        assert!(!p.entries.is_empty());
     }
 }
