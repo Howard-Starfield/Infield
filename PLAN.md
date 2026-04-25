@@ -5,8 +5,8 @@
 > rules and invariants; this file carries the roadmap, per-phase
 > blueprint, and open decisions.
 >
-> **Last updated:** 2026-04-24 (W7 designed, slotted between W6 and Cleanup)
-> **Current phase:** Backend Wiring Phase (W) — W0/W1/W2/W2.5 ✅, **W3 next**. W7 (URL Media Import) designed and ready to plan; W8 (Visual Import) stub awaiting W4. Cleanup renumbered W7→W9.
+> **Last updated:** 2026-04-25 (W3 ✅ SHIPPED)
+> **Current phase:** Backend Wiring Phase (W) — W0/W1/W2/W2.5/W3 ✅, **W4 next** (Database views). W7 (URL Media Import) shipping in parallel; W8 (Visual Import) stub awaiting W4. Cleanup renumbered W7→W9.
 > **Rust backend (Phase A):** ✅ complete 2026-04-22
 > **Frontend port (H1-H6):** ✅ superseded by wholesale swap on
 >   2026-04-23 (commit `49f0386`). Frontend is now 100% verbatim
@@ -408,12 +408,58 @@ If any scenario fails, see plan §3.19 step 3 for typical regression sites.
 - [ ] **Local-date helper** shared between `Cmd+Shift+J` and `/today`
   to avoid UTC-vs-local off-by-one day at timezone boundaries.
 
-### W3 — Hybrid search
+### W3 — Hybrid search ✅ SHIPPED (2026-04-25)
 
-`commands::search::search_workspace_hybrid` is already in the
-Rust backend (single SQL CTE joining `workspace_fts` +
-`vec_embeddings`). Wire to `SearchView`. Also wire `SpotlightOverlay`
-(Cmd/Ctrl+K) to the same command for quick-open results.
+**Spec:** [docs/superpowers/specs/2026-04-25-w3-hybrid-search-design.md](docs/superpowers/specs/2026-04-25-w3-hybrid-search-design.md).
+**Plan:** [docs/superpowers/plans/2026-04-25-w3-hybrid-search.md](docs/superpowers/plans/2026-04-25-w3-hybrid-search.md).
+
+**Shipped (21 tasks, first commit `ff19c1b`, last `ada5f78`):**
+- Stage 4 cross-encoder reranker (`bge-reranker-v2-m3`) with new ORT session under Rules 16/16a/17/19, lazy-downloaded.
+- LRU 128 rerank cache; 100 ms hard timeout; short-circuit when RRF top-1 dominates.
+- Hybrid search filters: node_type, tags, date range, pagination (date filter is a v1 no-op — wired to SQL CTE deferred).
+- `SpotlightOverlay` (Cmd+K) — debounced 200 ms, top-10, keyboard-driven, stale-response guard via `reqIdRef`, safe FTS5 `<mark>`-aware snippet renderer (returns React nodes only — no HTML-injection prop, satisfying W2.5 review M4).
+- `SearchView` rewrite — sidebar filters (node-type checkboxes + tag chips + date radio) + paginated results + recent-query chips.
+- Pure modules: `searchTokens` (date + tag parser, 7 tests), `searchSnippet` (safe `<mark>` React-node renderer, 6 tests), `recentQueries` (localStorage LRU, 7 tests), `SearchResultRow` (7 tests).
+- New CSS concern file `src/styles/search.css` — 9-class group, fully tokenized except 4 deliberate literals (`max-width: 600px`, `max-height: 70vh`, `padding-top: 20vh`, `z-index: 1000`, `width: 200px` filter sidebar — flagged for a future `--spotlight-*` / `--filter-sidebar-width` token if it becomes friction).
+- Result routing: Enter → preview tab; Cmd+Enter → permanent tab via existing W2.5 reducer actions (custom events `notes:open` / `notes:open-new-tab`).
+- Score-debug overlay (Cmd+Shift+D).
+
+**Done criteria met:**
+- `bun run build`: green.
+- `bunx vitest run`: 19 files, 118 tests passing (W2.5 baseline 81 + W3 27 + concurrent W7 additions).
+- `cargo test --lib`: 186 passing / 2 pre-existing `portable::tests` failures (no W3 regressions; baseline matched).
+- §11.3 E2E scenarios 1–12: deferred to user manual walk-through (browser automation unavailable in shipping session).
+
+**E2E manual walk-through (12 scenarios — to be confirmed by user):**
+1. Cmd+K opens Spotlight; Esc closes it.
+2. Empty Spotlight shows recent queries chips.
+3. Search "react" with mixed-type matches; both 🟢 (FTS) and 🟣 (vector) badges visible.
+4. Cmd+Enter from Spotlight opens permanent tab in NotesView.
+5. Plain Enter from Spotlight opens preview tab.
+6. Spelling typo → "did you mean" suggestion (UI hooks shipped — backend Levenshtein lookup deferred).
+7. Date token `today` filters to today's docs (UI parses it; SQL date filter is v1 no-op — visible only as the stripped query passed to FTS+vector).
+8. Tag short-circuit `#research` returns matching tag results (Spotlight short-circuits when token is the entire query).
+9. First search downloads the reranker model (~568 MB; Tauri command `download_reranker_model` triggered lazily).
+10. Reranker timeout fallback: stage 4 returns null after 100 ms → caller falls back to RRF order silently.
+11. SearchView filter sidebar refilters immediately on chip toggle (no debounce on filter clicks; debounce only on text input).
+12. Score-debug overlay (Cmd+Shift+D) reveals `[fts:r=… · vec:r=… · score:0.500]` per row.
+
+**Closed backlog items:**
+- W2.5 backlog: "Local-date helper for Cmd+Shift+J / `/today`" → `src/editor/searchTokens.ts` provides it; future refactor of those callers will use it.
+- W2 final-review M4: "no HTML injection in snippet rendering" → `searchSnippet.ts` returns React nodes only, never raw HTML.
+- W2.5 final-review: "Rule 12 token sweep for new CSS" — `search.css` shipped fully tokenised (literal carve-outs flagged above).
+
+**Carried into Search v2 / W6:**
+- HyDE / generative query expansion (needs LLM infra).
+- Personalised boosting (recency, click-through learning).
+- Saved searches / smart folders.
+- Reranker model toggle (v2-m3 ↔ v2-base) in Settings.
+- Faceted search beyond type/tags/date.
+- Tag-list backed by SQL aggregate view (currently scans live nodes per render via `getRootNodes`).
+- Real `did-you-mean` Levenshtein lookup against `workspace_fts_v` vocab (UI hooks shipped, lookup backend deferred).
+- Date-filter wired through to SQL CTE (Rust-side post-filter is a no-op in v1 — params underscored in `commands/search.rs`).
+- Pinning real sha256 hashes for `bge-reranker-v2-m3` artefacts after first end-to-end download in dev (placeholder hashes in `reranker_download.rs`).
+- ORT output tensor name assumed `"logits"` for the reranker — verify on first download.
 
 ### W4 — Databases views
 
@@ -1254,10 +1300,10 @@ preserved from current pipeline).
 
 | Field | Value |
 |---|---|
-| Current phase | W3 — Hybrid search (kickoff next) |
-| In flight | W2.5 Notes polish + tab system shipped 2026-04-24 (23 commits across 20 tasks; 31 new Vitest tests; 81 total). Manual E2E walk-through (10 §11.3 scenarios) pending — browser automation unavailable in shipping session. Howard's two runtime smokes from Phase A still open — non-blocking. |
-| Blockers | None. Audio Intelligence + System Audio Capture pages are user-tested and shipping. |
-| Last phase completed | W2.5 — Notes polish + tab system: tabsReducer, editor chrome (titlebar/breadcrumb/properties), CM6 placeholder, HerOSMenu primitive, Cmd+T/W/1..9 shortcuts (2026-04-24). |
+| Current phase | W4 — Database views (kickoff next) |
+| In flight | W3 Hybrid search shipped 2026-04-25 (21 tasks; 27 new Vitest tests; 118 total; 23 new cargo lib tests; 186 total). Manual E2E walk-through (12 §11.3 scenarios) pending — browser automation unavailable in shipping session. Reranker first-download verification (logit tensor name + sha256 pinning) pending real-world boot. W7 (URL Media Import) shipping in parallel on the same branch. |
+| Blockers | None. W3 surfaces (Cmd+K Spotlight + paginated SearchView) build and test green. |
+| Last phase completed | W3 — Hybrid search: bge-reranker-v2-m3 stage-4 cross-encoder, LRU rerank cache, hybrid filters, SpotlightOverlay (Cmd+K), SearchView rewrite, safe `<mark>` snippet renderer (2026-04-25). |
 | Reusable from pre-rebuild work | Sovereign Glass DNA port (complete), `AppShell` / `Titlebar` / `IconRail` / `AtmosphericStage` / `LoadingScreen` / `LemniscateOrb`, theme preset v2 schema migration |
 | Review gate passed | 2026-04-22 critical review addressed; see REBUILD_RATIONALE.md §16 |
 
