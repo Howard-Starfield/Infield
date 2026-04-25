@@ -1,9 +1,13 @@
-import { useState, useEffect, useRef } from 'react';
-import { Upload } from 'lucide-react';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import {
+  Upload, Link2, Clock, CheckCircle2, FileText, Globe, ChevronDown, ChevronUp,
+} from 'lucide-react';
 import { commands } from '../bindings';
 import { useImportQueue } from '../hooks/useImportQueue';
 import { useYtDlpPlugin } from '../hooks/useYtDlpPlugin';
 import { PlaylistSelectorModal } from './PlaylistSelectorModal';
+import { ScrollShadow } from './ScrollShadow';
 import type {
   ImportJobDto,
   UrlMetadataResult,
@@ -15,7 +19,6 @@ import type {
 import '../styles/import.css';
 
 const TERMINAL_STATES = new Set<ImportJobDto['state']>(['done', 'error', 'cancelled']);
-
 const PLAYLIST_RE = /[?&]list=|playlist\?list=/;
 
 // ── Helpers ────────────────────────────────────────────────────
@@ -31,9 +34,7 @@ function formatDuration(seconds: number): string {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   const s = Math.floor(seconds % 60);
-  if (h > 0) {
-    return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-  }
+  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
@@ -46,6 +47,61 @@ function defaultOpts(): WebMediaImportOpts {
   };
 }
 
+function jobProgress(job: ImportJobDto): number {
+  // Map state to a coarse progress estimate for the bar; refine when bytes available.
+  if (job.state === 'done') return 100;
+  if (job.state === 'fetching_meta') return 5;
+  if (job.state === 'downloading') {
+    const t = job.download_total_bytes ?? 0;
+    const b = job.download_bytes ?? 0;
+    if (t > 0) return Math.min(50, 10 + Math.round((b / t) * 40));
+    return 20;
+  }
+  if (job.state === 'preparing' || job.state === 'segmenting') return 55;
+  if (job.state === 'transcribing') {
+    if (job.segment_count > 0) {
+      return 60 + Math.round((job.segment_index / job.segment_count) * 30);
+    }
+    return 65;
+  }
+  if (job.state === 'post_processing' || job.state === 'finalizing') return 95;
+  return 0;
+}
+
+function jobStatusLine(job: ImportJobDto): string {
+  switch (job.state) {
+    case 'queued': return 'Queued';
+    case 'fetching_meta': return 'Fetching metadata…';
+    case 'downloading': {
+      const b = job.download_bytes ?? 0;
+      const t = job.download_total_bytes;
+      const sizeStr = t ? `${formatBytes(b)} / ${formatBytes(t)}` : formatBytes(b);
+      return `Downloading · ${sizeStr}${job.download_speed_human ? ` · ${job.download_speed_human}` : ''}`;
+    }
+    case 'preparing': case 'segmenting': return 'Preparing audio…';
+    case 'transcribing':
+      return job.segment_count > 0
+        ? `Transcribing · ${job.segment_index} / ${job.segment_count}`
+        : 'Transcribing…';
+    case 'post_processing': case 'finalizing': return 'Finalizing…';
+    case 'done': return 'Saved';
+    case 'error': return job.message ?? 'Error';
+    case 'cancelled': return 'Cancelled';
+    default: return job.state;
+  }
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
+function jobTitle(job: ImportJobDto): string {
+  return job.web_meta?.title ?? job.file_name;
+}
+
 // ── Preview state machine ──────────────────────────────────────
 type PreviewState =
   | { kind: 'idle' }
@@ -55,15 +111,15 @@ type PreviewState =
   | { kind: 'live' }
   | { kind: 'error'; message: string };
 
-// ── URL import tab (W7) ────────────────────────────────────────
+// ── Tab root ───────────────────────────────────────────────────
 export function ImportUrlTab() {
-  const { jobs, paused, cancel, pause, resume } = useImportQueue();
+  const { jobs } = useImportQueue();
   const plugin = useYtDlpPlugin();
   const [selectedUrl, setSelectedUrl] = useState<string | null>(null);
   const [preview, setPreview] = useState<PreviewState>({ kind: 'idle' });
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Debounced fetch when selectedUrl changes
+  // Debounced metadata fetch on URL select.
   useEffect(() => {
     if (!selectedUrl) {
       setPreview({ kind: 'idle' });
@@ -72,14 +128,10 @@ export function ImportUrlTab() {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     setPreview({ kind: 'loading' });
     debounceRef.current = setTimeout(async () => {
-      // Playlist detection by URL shape before fetching
       if (PLAYLIST_RE.test(selectedUrl)) {
         const res = await commands.fetchPlaylistEntries(selectedUrl);
-        if (res.status === 'ok') {
-          setPreview({ kind: 'playlist', envelope: res.data });
-        } else {
-          setPreview({ kind: 'error', message: res.error });
-        }
+        if (res.status === 'ok') setPreview({ kind: 'playlist', envelope: res.data });
+        else setPreview({ kind: 'error', message: res.error });
         return;
       }
       const res = await commands.fetchUrlMetadata(selectedUrl);
@@ -88,10 +140,7 @@ export function ImportUrlTab() {
         return;
       }
       const meta = res.data;
-      if (meta.is_live) {
-        setPreview({ kind: 'live' });
-        return;
-      }
+      if (meta.is_live) { setPreview({ kind: 'live' }); return; }
       setPreview({ kind: 'ready', meta, alreadyImported: meta.already_imported });
     }, 400);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
@@ -99,8 +148,7 @@ export function ImportUrlTab() {
 
   async function commitSingle(opts: WebMediaImportOpts) {
     if (!selectedUrl) return;
-    const urls = [selectedUrl];
-    const result = await commands.enqueueImportUrls(urls, opts);
+    const result = await commands.enqueueImportUrls([selectedUrl], opts);
     if (result.status === 'error') {
       console.error('enqueueImportUrls failed:', result.error);
       return;
@@ -111,23 +159,17 @@ export function ImportUrlTab() {
 
   async function commitBulk(urls: string[], opts: WebMediaImportOpts) {
     const result = await commands.enqueueImportUrls(urls, opts);
-    if (result.status === 'error') {
-      console.error('enqueueImportUrls failed:', result.error);
-    }
+    if (result.status === 'error') console.error('enqueueImportUrls failed:', result.error);
   }
 
-  async function commitPlaylist(
-    envelope: PlaylistEnvelope,
-    sel: PlaylistEntry[],
-    opts: WebMediaImportOpts,
-  ) {
-    for (let index = 0; index < sel.length; index++) {
-      const e = sel[index];
-      const result = await commands.enqueueImportUrls([e.url], {
+  async function commitPlaylist(envelope: PlaylistEnvelope, sel: PlaylistEntry[], opts: WebMediaImportOpts) {
+    for (let i = 0; i < sel.length; i++) {
+      const e = sel[i];
+      const res = await commands.enqueueImportUrls([e.url], {
         ...opts,
-        playlist_source: { title: envelope.playlist_title, url: envelope.playlist_url, index },
+        playlist_source: { title: envelope.playlist_title, url: envelope.playlist_url, index: i },
       });
-      if (result.status === 'error') console.error('enqueue failed:', result.error);
+      if (res.status === 'error') console.error('enqueue failed:', res.error);
     }
     setSelectedUrl(null);
     setPreview({ kind: 'idle' });
@@ -137,32 +179,42 @@ export function ImportUrlTab() {
   const completed = jobs.filter(j => TERMINAL_STATES.has(j.state));
 
   return (
-    <div className="heros-page-container import-view">
-      <header className="import-view__header">
-        <div className="import-view__icon"><Upload size={32} /></div>
-        <h1>Intelligence Ingestion</h1>
-        <p>Bring external knowledge in. Indexed and embedded locally.</p>
+    <div className="heros-page-container" style={{ position: 'relative', zIndex: 5, height: '100%', display: 'flex', flexDirection: 'column', maxWidth: '1200px', margin: '0 auto', padding: '40px' }}>
+      {/* Cinematic Centered Header */}
+      <header style={{ marginBottom: '48px', textAlign: 'center', flexShrink: 0 }}>
+        <div style={{
+          width: 64, height: 64, borderRadius: 20,
+          background: 'linear-gradient(135deg, var(--heros-brand) 0%, #ff8566 100%)',
+          margin: '0 auto 24px auto', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: '0 12px 32px rgba(var(--heros-brand-rgb, 204, 76, 43), 0.2)',
+        }}>
+          <Link2 size={32} color="#fff" />
+        </div>
+        <h1 style={{ fontSize: '32px', fontWeight: 800, color: 'var(--heros-text-premium)', marginBottom: '8px' }}>
+          URL Downloader
+        </h1>
+        <p style={{ color: 'var(--heros-text-muted)', fontSize: '16px' }}>
+          Paste a video, podcast, or playlist URL. Audio is downloaded, transcribed, and indexed locally.
+        </p>
       </header>
-      <div className="import-view__grid">
-        <section className="import-view__left heros-glass-card">
-          {!plugin.status?.installed && <PluginMissingBanner plugin={plugin} />}
-          <UrlInputSection
-            onSingle={url => setSelectedUrl(url)}
-            onBulk={urls => commitBulk(urls, defaultOpts())}
-          />
-          <PreviewSection preview={preview} onCommit={commitSingle} />
+
+      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1.6fr', gap: 20, minHeight: 0 }}>
+        {/* Left Column: URL Input + Preview */}
+        <section className="heros-glass-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: 16, height: 'fit-content' }}>
+          {!plugin.status?.installed
+            ? <PluginMissingBanner plugin={plugin} />
+            : <UrlInputBlock onSingle={url => setSelectedUrl(url)} onBulk={urls => commitBulk(urls, defaultOpts())} />
+          }
+          <PreviewBlock preview={preview} onCommit={commitSingle} />
         </section>
-        <div className="import-view__right">
-          <ProcessingPanel
-            jobs={processing}
-            paused={paused}
-            pause={pause}
-            resume={resume}
-            cancel={cancel}
-          />
+
+        {/* Right Column: Processing + Completed */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 5, minHeight: 0 }}>
+          <ProcessingPanel jobs={processing} />
           <CompletedPanel jobs={completed} />
         </div>
       </div>
+
       {preview.kind === 'playlist' && (
         <PlaylistSelectorModal
           envelope={preview.envelope}
@@ -174,141 +226,74 @@ export function ImportUrlTab() {
   );
 }
 
-// ── URL input section ──────────────────────────────────────────
-function UrlInputSection({
-  onSingle,
-  onBulk,
-}: {
-  onSingle: (url: string) => void;
-  onBulk: (urls: string[]) => void;
-}) {
+// ── URL input block (drop-zone-styled paste area) ──────────────
+function UrlInputBlock({ onSingle, onBulk }: { onSingle: (url: string) => void; onBulk: (urls: string[]) => void }) {
   const [text, setText] = useState('');
   const urls = detectUrls(text);
   const isBulk = urls.length > 1;
   const isSingle = urls.length === 1;
+  const isFocused = text.length > 0;
 
   function handleSubmit() {
-    if (isSingle) {
-      onSingle(urls[0]);
-    } else if (isBulk) {
-      onBulk(urls);
-    }
+    if (isSingle) onSingle(urls[0]);
+    else if (isBulk) { onBulk(urls); setText(''); }
   }
 
   return (
-    <div className="url-input">
-      <textarea
-        className="url-input__textarea"
-        rows={5}
-        placeholder={"Paste a URL or multiple URLs (one per line)\nhttps://youtube.com/watch?v=…"}
-        value={text}
-        onChange={e => setText(e.target.value)}
-      />
-      <div className="url-input__controls">
+    <>
+      <div style={{
+        flex: 1, minHeight: 180, borderRadius: 18, background: 'rgba(0,0,0,0.18)',
+        border: `2px dashed ${isFocused ? 'var(--heros-brand)' : 'rgba(253,249,243,0.2)'}`,
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10,
+        padding: 32, transition: 'all 0.25s',
+      }}>
+        <motion.div
+          animate={{ y: isFocused ? -6 : 0 }}
+          style={{ color: isFocused ? 'var(--heros-brand)' : 'rgba(253,249,243,0.3)' }}
+        >
+          <Link2 size={42} strokeWidth={1.2} />
+        </motion.div>
+        <h3 style={{ fontSize: '16px', fontWeight: 500, margin: '8px 0 0' }}>Paste a URL</h3>
+        <p style={{ fontSize: '12px', color: 'var(--heros-text-dim)', margin: 0, textAlign: 'center' }}>
+          YouTube, podcasts, social platforms — or paste many URLs (one per line) for bulk import
+        </p>
+        <textarea
+          value={text}
+          onChange={e => setText(e.target.value)}
+          rows={Math.min(8, Math.max(1, text.split('\n').length))}
+          placeholder="https://…"
+          style={{
+            width: '100%',
+            background: 'rgba(0,0,0,0.28)',
+            border: '1px solid rgba(255,255,255,0.06)',
+            borderRadius: 12,
+            padding: '10px 12px',
+            color: '#fff',
+            fontFamily: 'inherit',
+            fontSize: '12.5px',
+            resize: 'none',
+            marginTop: 8,
+          }}
+        />
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{ fontSize: '11px', color: 'var(--heros-text-dim)', fontFamily: 'monospace' }}>
+          {urls.length === 0 ? '—' : `${urls.length} URL${urls.length !== 1 ? 's' : ''} detected`}
+        </span>
         <button
           className="heros-btn heros-btn-brand"
           disabled={urls.length === 0}
           onClick={handleSubmit}
+          style={{ padding: '8px 16px', borderRadius: 12, fontSize: '12px' }}
         >
-          {isBulk ? `Import ${urls.length} URLs` : 'Preview'}
+          {isBulk ? `Import ${urls.length} URLs` : isSingle ? 'Preview' : 'Paste a URL'}
         </button>
-        {urls.length > 0 && (
-          <span className="url-input__count">
-            {urls.length} URL{urls.length !== 1 ? 's' : ''} detected
-          </span>
-        )}
       </div>
-    </div>
+    </>
   );
 }
 
-// ── Preview section (dispatches on PreviewState) ───────────────
-function PreviewSection({
-  preview,
-  onCommit,
-}: {
-  preview: PreviewState;
-  onCommit: (opts: WebMediaImportOpts) => void;
-}) {
-  if (preview.kind === 'idle') return null;
-  if (preview.kind === 'loading') return <div className="preview-skeleton" />;
-  if (preview.kind === 'live') return <PreviewLive />;
-  if (preview.kind === 'error') return (
-    <p className="import-view__empty" style={{ color: 'var(--error)' }}>
-      {preview.message.includes('403') || preview.message.toLowerCase().includes('sign in')
-        ? 'Authentication required — content is restricted.'
-        : preview.message.includes('geo') || preview.message.toLowerCase().includes('region')
-          ? 'Content regionally unavailable.'
-          : `Could not fetch metadata: ${preview.message}`}
-    </p>
-  );
-  // playlist is handled as a full-screen modal overlay at ImportView level
-  if (preview.kind === 'playlist') return null;
-  // ready
-  return (
-    <PreviewCard
-      meta={preview.meta}
-      alreadyImported={preview.alreadyImported}
-      onCommit={() => onCommit(defaultOpts())}
-    />
-  );
-}
-
-// ── PreviewCard ────────────────────────────────────────────────
-function PreviewCard({
-  meta,
-  alreadyImported,
-  onCommit,
-}: {
-  meta: UrlMetadataResult;
-  alreadyImported: AlreadyImportedHit | null | undefined;
-  onCommit: () => void;
-}) {
-  return (
-    <div className={`preview-card${alreadyImported ? ' preview-card--already' : ''}`}>
-      {meta.thumbnail_url && (
-        <img
-          className="preview-card__thumb"
-          src={meta.thumbnail_url}
-          alt={meta.title}
-          loading="lazy"
-        />
-      )}
-      <div className="preview-card__body">
-        <strong style={{ fontSize: 'var(--text-sm)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {meta.title}
-        </strong>
-        <span className="preview-card__meta">
-          {[meta.channel, meta.platform, meta.duration_seconds != null ? formatDuration(meta.duration_seconds) : null]
-            .filter(Boolean).join(' · ')}
-        </span>
-        {alreadyImported ? (
-          <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
-            <span className="import-view__empty" style={{ padding: 0, textAlign: 'left' }}>
-              Already imported
-            </span>
-            <button className="heros-btn" onClick={onCommit} style={{ fontSize: 'var(--text-xs)' }}>
-              Import anyway
-            </button>
-          </div>
-        ) : (
-          <button className="heros-btn heros-btn-brand" onClick={onCommit}>
-            Import →
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ── PreviewLive ────────────────────────────────────────────────
-function PreviewLive() {
-  return (
-    <p className="import-view__empty">Live streams are not supported yet.</p>
-  );
-}
-
-// ── Plugin missing banner ──────────────────────────────────────
 function PluginMissingBanner({ plugin }: { plugin: ReturnType<typeof useYtDlpPlugin> }) {
   if (plugin.installing) {
     const p = plugin.installProgress;
@@ -331,179 +316,282 @@ function PluginMissingBanner({ plugin }: { plugin: ReturnType<typeof useYtDlpPlu
   );
 }
 
-// ── Queue row helpers ──────────────────────────────────────────
-const TERMINAL = new Set<ImportJobDto['state']>(['done', 'error', 'cancelled']);
-function isTerminal(state: ImportJobDto['state']) { return TERMINAL.has(state); }
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
-}
-
-function renderSubtitle(job: ImportJobDto): string {
-  switch (job.state) {
-    case 'queued': return 'Queued';
-    case 'fetching_meta': return 'Fetching metadata…';
-    case 'downloading': {
-      const b = job.download_bytes ?? 0;
-      const t = job.download_total_bytes;
-      return `${formatBytes(b)}${t ? ` / ${formatBytes(t)}` : ''}${job.download_speed_human ? ` · ${job.download_speed_human}` : ''}`;
-    }
-    case 'preparing':
-    case 'segmenting': return 'Preparing audio…';
-    case 'transcribing': return job.message ?? `Transcribing · ${job.segment_index} / ${job.segment_count}`;
-    case 'post_processing':
-    case 'finalizing': return 'Finalizing…';
-    case 'extracting_text': return 'Extracting text…';
-    case 'creating_note': return 'Creating note…';
-    case 'draft_created': return 'Preparing transcription…';
-    case 'done': return job.note_id ? 'Saved' : 'Done';
-    case 'error': return job.message ?? 'Error';
-    case 'cancelled': return 'Cancelled';
-    default: return job.state;
-  }
-}
-
-function PlatformGlyph({ platform, kind }: { platform?: string | null; kind: string }) {
-  return (
-    <span className="queue-row__glyph">
-      {platform?.[0]?.toUpperCase() ?? kind[0].toUpperCase()}
-    </span>
-  );
-}
-
-function QueueRowActions({
-  job,
-  onCancel,
-  onRetry,
-  onOpen,
-}: {
-  job: ImportJobDto;
-  onCancel: () => void;
-  onRetry?: () => void;
-  onOpen?: () => void;
-}) {
-  if (job.state === 'error' || job.state === 'cancelled') {
+// ── Preview block ──────────────────────────────────────────────
+function PreviewBlock({ preview, onCommit }: { preview: PreviewState; onCommit: (opts: WebMediaImportOpts) => void }) {
+  if (preview.kind === 'idle') return null;
+  if (preview.kind === 'loading') return <div className="preview-skeleton" />;
+  if (preview.kind === 'live') return <p className="import-view__empty">Live streams are not supported yet.</p>;
+  if (preview.kind === 'error') {
     return (
-      <>
-        {onRetry && <button className="heros-btn" onClick={onRetry}>Retry</button>}
-        <button className="heros-btn" onClick={onCancel}>Dismiss</button>
-      </>
+      <p className="import-view__empty" style={{ color: 'var(--error)' }}>
+        {preview.message.toLowerCase().includes('sign in') || preview.message.includes('403')
+          ? 'Authentication required — content is restricted.'
+          : preview.message.toLowerCase().includes('region') || preview.message.toLowerCase().includes('country')
+            ? 'Content regionally unavailable.'
+            : `Could not fetch metadata: ${preview.message}`}
+      </p>
     );
   }
-  if (job.state === 'done') {
-    return onOpen ? <button className="heros-btn" onClick={onOpen}>Open</button> : null;
-  }
-  return <button className="heros-btn" onClick={onCancel}>Cancel</button>;
-}
-
-function QueueRow({
-  job,
-  onCancel,
-  onRetry,
-  onOpen,
-}: {
-  job: ImportJobDto;
-  onCancel: () => void;
-  onRetry?: () => void;
-  onOpen?: () => void;
-}) {
-  const thumb = job.web_meta?.thumbnail_url;
+  if (preview.kind === 'playlist') return null; // shown as modal
+  // ready
+  const meta = preview.meta;
+  const already = preview.alreadyImported;
   return (
-    <div className="queue-row">
-      <div className="queue-row__icon">
-        {thumb
-          ? <img src={thumb} alt="" />
-          : <PlatformGlyph platform={job.web_meta?.platform} kind={job.kind} />}
-      </div>
-      <div className="queue-row__body">
-        <div className="queue-row__title">{job.web_meta?.title ?? job.file_name}</div>
-        <small className="queue-row__sub">{renderSubtitle(job)}</small>
-        {!isTerminal(job.state) && (
-          <div className="queue-row__bar">
-            <div
-              className="queue-row__bar-fill"
-              style={{ width: `${Math.round(job.progress * 100)}%` }}
-            />
+    <div className={`preview-card${already ? ' preview-card--already' : ''}`}>
+      {meta.thumbnail_url && (
+        <img className="preview-card__thumb" src={meta.thumbnail_url} alt={meta.title} loading="lazy" />
+      )}
+      <div className="preview-card__body">
+        <strong style={{ fontSize: 'var(--text-sm)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {meta.title}
+        </strong>
+        <span className="preview-card__meta">
+          {[meta.channel, meta.platform, meta.duration_seconds != null ? formatDuration(meta.duration_seconds) : null]
+            .filter(Boolean).join(' · ')}
+        </span>
+        {already ? (
+          <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+            <span className="import-view__empty" style={{ padding: 0, textAlign: 'left' }}>Already imported</span>
+            <button className="heros-btn" onClick={() => onCommit(defaultOpts())} style={{ fontSize: 'var(--text-xs)' }}>
+              Import anyway
+            </button>
           </div>
+        ) : (
+          <button className="heros-btn heros-btn-brand" onClick={() => onCommit(defaultOpts())}>
+            Import →
+          </button>
         )}
-      </div>
-      <div className="queue-row__right">
-        <QueueRowActions job={job} onCancel={onCancel} onRetry={onRetry} onOpen={onOpen} />
       </div>
     </div>
   );
 }
 
-// ── Job list panels ────────────────────────────────────────────
-type Job = ImportJobDto;
-
-function ProcessingPanel({ jobs, paused, pause, resume, cancel }: {
-  jobs: Job[];
-  paused: boolean;
-  pause: () => Promise<void>;
-  resume: () => Promise<void>;
-  cancel: (id: string) => Promise<void>;
-}) {
-  const active = jobs.filter(j => j.state !== 'queued').length;
-  const queued = jobs.filter(j => j.state === 'queued').length;
-
+// ── Processing panel ───────────────────────────────────────────
+function ProcessingPanel({ jobs }: { jobs: ImportJobDto[] }) {
   return (
-    <section className="import-view__panel heros-glass-panel">
-      <div className="import-view__panel-title">
-        <span>
+    <section className="heros-glass-card" style={{ flex: 1, padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 10, minHeight: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 8, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '13px', fontWeight: 600 }}>
+          <Clock size={15} color="rgba(255,255,255,0.4)" />
           Processing
-          {jobs.length > 0 && (
-            <span className="queue-count-summary">
-              {active > 0 && ` · active ${active}`}
-              {queued > 0 && ` · queued ${queued}`}
-            </span>
-          )}
-        </span>
-        {jobs.length > 0 && (
-          <button
-            className="heros-btn"
-            onClick={() => (paused ? resume() : pause())}
-            style={{ marginLeft: 'var(--space-3)' }}
-          >
-            {paused ? 'Resume' : 'Pause'}
-          </button>
-        )}
-      </div>
-      {jobs.length === 0 ? (
-        <p className="import-view__empty">Nothing in flight.</p>
-      ) : (
-        <div className="queue-list">
-          {jobs.map(j => (
-            <QueueRow
-              key={j.id}
-              job={j}
-              onCancel={() => cancel(j.id)}
-            />
-          ))}
+          <span style={{ padding: '3px 9px', fontSize: '10px', background: 'rgba(255,255,255,0.06)', borderRadius: 14, color: 'var(--heros-text-dim)' }}>
+            {jobs.length} active
+          </span>
         </div>
-      )}
+      </div>
+
+      <ScrollShadow style={{ flex: 1 }}>
+        {jobs.length === 0 ? (
+          <p className="import-view__empty">Nothing in flight.</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <AnimatePresence initial={false}>
+              {jobs.map((job, i) => (
+                <motion.div
+                  key={job.id}
+                  layout
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ delay: i * 0.05 }}
+                  className="import-row-hover"
+                  style={{
+                    display: 'grid', gridTemplateColumns: '32px 1fr auto', gap: 12, alignItems: 'center',
+                    padding: '10px 12px', borderRadius: 12, background: 'rgba(0,0,0,0.14)',
+                    border: '1px solid rgba(255,255,255,0.04)', transition: 'all 0.2s',
+                  }}
+                >
+                  <JobThumb job={job} />
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: '12.5px', color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {jobTitle(job)}
+                    </div>
+                    <div style={{ fontSize: '10.5px', color: 'var(--heros-text-dim)', marginTop: 1, fontFamily: 'monospace' }}>
+                      {jobStatusLine(job)}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ width: 80, height: 4, background: 'rgba(0,0,0,0.28)', borderRadius: 2, overflow: 'hidden', position: 'relative' }}>
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${jobProgress(job)}%` }}
+                        className="shimmer-bar"
+                        style={{ height: '100%', background: 'linear-gradient(90deg, #f0d8d0, #fff)', borderRadius: 2, boxShadow: '0 0 8px rgba(253,249,243,0.5)' }}
+                      />
+                    </div>
+                    <div style={{ fontSize: '10px', fontWeight: 700, padding: '4px 8px', borderRadius: 8, background: 'rgba(255,255,255,0.08)', color: 'var(--heros-text-dim)', fontFamily: 'monospace' }}>
+                      {jobProgress(job)}%
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
+        )}
+      </ScrollShadow>
     </section>
   );
 }
 
-function CompletedPanel({ jobs }: { jobs: Job[] }) {
-  // No "clear completed" command exists in v1; the queue auto-rotates on the backend.
-  // Showing all terminal jobs as-is.
+// ── Completed panel — auto-expands on new arrival, hides 1s later ──
+function CompletedPanel({ jobs }: { jobs: ImportJobDto[] }) {
+  const [autoExpanded, setAutoExpanded] = useState(false);
+  const [manualExpanded, setManualExpanded] = useState(false);
+  const seenIdsRef = useRef<Set<string>>(new Set());
+  const initializedRef = useRef(false);
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const expanded = autoExpanded || manualExpanded;
+
+  // Track which jobs are "new" since last cycle so the panel can flash a highlight.
+  const [recentIds, setRecentIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    // First mount: seed seenIds with everything currently present so existing
+    // history doesn't trigger a fake notification on app boot.
+    if (!initializedRef.current) {
+      jobs.forEach(j => seenIdsRef.current.add(j.id));
+      initializedRef.current = true;
+      return;
+    }
+    // Find brand-new completions.
+    const newOnes = jobs.filter(j => !seenIdsRef.current.has(j.id));
+    if (newOnes.length === 0) return;
+
+    newOnes.forEach(j => seenIdsRef.current.add(j.id));
+    setRecentIds(prev => {
+      const next = new Set(prev);
+      newOnes.forEach(j => next.add(j.id));
+      return next;
+    });
+    setAutoExpanded(true);
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    hideTimerRef.current = setTimeout(() => {
+      setAutoExpanded(false);
+      setRecentIds(new Set());
+    }, 1000);
+  }, [jobs]);
+
+  useEffect(() => () => { if (hideTimerRef.current) clearTimeout(hideTimerRef.current); }, []);
+
+  // When auto-expanding, only show the most recent arrivals. When the user
+  // manually expands, show the full completed list.
+  const visibleJobs = useMemo(() => {
+    if (manualExpanded) return jobs;
+    if (autoExpanded) return jobs.filter(j => recentIds.has(j.id));
+    return [];
+  }, [jobs, manualExpanded, autoExpanded, recentIds]);
+
   return (
-    <section className="import-view__panel heros-glass-panel">
-      <div className="import-view__panel-title">Recent ({jobs.length})</div>
-      {jobs.length === 0 ? (
-        <p className="import-view__empty">Nothing yet.</p>
-      ) : (
-        <div className="queue-list">
-          {jobs.map(j => (
-            <QueueRow key={j.id} job={j} onCancel={() => {}} />
-          ))}
+    <motion.section
+      layout
+      className="heros-glass-card"
+      style={{
+        padding: '16px 18px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 10,
+        flex: expanded ? 1 : 'none',
+        minHeight: 0,
+      }}
+    >
+      <button
+        type="button"
+        onClick={() => setManualExpanded(v => !v)}
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          paddingBottom: 8, borderBottom: '1px solid rgba(255,255,255,0.05)',
+          background: 'transparent', border: 'none', borderRadius: 0,
+          color: 'inherit', cursor: 'pointer', font: 'inherit', textAlign: 'left', width: '100%',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '13px', fontWeight: 600 }}>
+          <CheckCircle2 size={15} color="#9cf0c9" />
+          Completed
+          <span style={{ padding: '3px 9px', fontSize: '10px', background: 'rgba(255,255,255,0.06)', borderRadius: 14, color: 'var(--heros-text-dim)' }}>
+            {jobs.length}
+          </span>
         </div>
-      )}
-    </section>
+        {manualExpanded ? <ChevronUp size={14} color="rgba(255,255,255,0.4)" /> : <ChevronDown size={14} color="rgba(255,255,255,0.4)" />}
+      </button>
+
+      <AnimatePresence initial={false}>
+        {expanded && (
+          <motion.div
+            key="completed-body"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.25 }}
+            style={{ overflow: 'hidden' }}
+          >
+            <ScrollShadow style={{ maxHeight: 320 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                <AnimatePresence initial={false}>
+                  {visibleJobs.map(job => {
+                    const isRecent = recentIds.has(job.id);
+                    return (
+                      <motion.div
+                        key={job.id}
+                        layout
+                        initial={{ opacity: 0, scale: 0.96 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.96 }}
+                        className="import-row-hover"
+                        style={{
+                          display: 'grid', gridTemplateColumns: '32px 1fr auto', gap: 12, alignItems: 'center',
+                          padding: '10px 12px', borderRadius: 12,
+                          background: isRecent ? 'rgba(16,185,129,0.10)' : 'rgba(0,0,0,0.14)',
+                          border: `1px solid ${isRecent ? 'rgba(16,185,129,0.3)' : 'rgba(255,255,255,0.04)'}`,
+                          opacity: isRecent ? 1 : 0.72,
+                          transition: 'background 200ms ease, border 200ms ease',
+                        }}
+                      >
+                        <JobThumb job={job} />
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: '12.5px', color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {jobTitle(job)}
+                          </div>
+                          <div style={{ fontSize: '10.5px', color: 'var(--heros-text-dim)', marginTop: 1, fontFamily: 'monospace' }}>
+                            {jobStatusLine(job)}
+                          </div>
+                        </div>
+                        <div style={{
+                          fontSize: '10px', fontWeight: 700, padding: '4px 8px', borderRadius: 8,
+                          background: job.state === 'done' ? 'rgba(16,185,129,0.18)' : 'rgba(239,68,68,0.18)',
+                          color: job.state === 'done' ? '#9cf0c9' : '#ffb4b4',
+                          textTransform: 'uppercase', letterSpacing: '0.1em',
+                        }}>
+                          {job.state}
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </AnimatePresence>
+              </div>
+            </ScrollShadow>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.section>
+  );
+}
+
+// ── Job thumbnail ──────────────────────────────────────────────
+function JobThumb({ job }: { job: ImportJobDto }) {
+  const thumb = job.web_meta?.thumbnail_url;
+  if (thumb) {
+    return (
+      <div style={{ width: 32, height: 32, borderRadius: 9, overflow: 'hidden', background: 'rgba(255,255,255,0.08)' }}>
+        <img src={thumb} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+      </div>
+    );
+  }
+  const platform = job.web_meta?.platform ?? '';
+  const Icon = platform.toLowerCase().includes('youtube') ? Globe : FileText;
+  return (
+    <div style={{ width: 32, height: 32, borderRadius: 9, background: 'rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <Icon size={14} />
+    </div>
   );
 }

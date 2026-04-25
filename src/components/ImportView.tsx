@@ -52,7 +52,7 @@ export function ImportView() {
                   transition: 'background 180ms ease, color 180ms ease',
                 }}
               >
-                {t === 'files' ? 'Files' : 'URL Downloader'}
+                {t === 'files' ? 'Files' : 'Downloader'}
               </button>
             );
           })}
