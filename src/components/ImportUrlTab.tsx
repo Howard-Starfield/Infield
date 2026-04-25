@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  Upload, Link2, Clock, CheckCircle2, FileText, Globe, ChevronDown, ChevronUp,
+  Link2, Clock, CheckCircle2, FileText, Globe, ChevronDown, ChevronUp, Download,
 } from 'lucide-react';
 import { commands } from '../bindings';
 import { useImportQueue } from '../hooks/useImportQueue';
@@ -24,7 +24,7 @@ const PLAYLIST_RE = /[?&]list=|playlist\?list=/;
 // ── Helpers ────────────────────────────────────────────────────
 export function detectUrls(text: string): string[] {
   return Array.from(new Set(
-    text.split(/[\s\n]+/)
+    text.split(/[\s\n,]+/)
       .map(s => s.trim())
       .filter(s => /^https?:\/\/\S+\.\S+/.test(s))
   ));
@@ -48,7 +48,6 @@ function makeOpts(keepMedia: boolean): WebMediaImportOpts {
 }
 
 function jobProgress(job: ImportJobDto): number {
-  // Map state to a coarse progress estimate for the bar; refine when bytes available.
   if (job.state === 'done') return 100;
   if (job.state === 'fetching_meta') return 5;
   if (job.state === 'downloading') {
@@ -102,230 +101,479 @@ function jobTitle(job: ImportJobDto): string {
   return job.web_meta?.title ?? job.file_name;
 }
 
-// ── Preview state machine ──────────────────────────────────────
+// ── Per-URL preview state ──────────────────────────────────────
 type PreviewState =
-  | { kind: 'idle' }
   | { kind: 'loading' }
   | { kind: 'ready'; meta: UrlMetadataResult; alreadyImported: AlreadyImportedHit | null }
   | { kind: 'playlist'; envelope: PlaylistEnvelope }
   | { kind: 'live' }
   | { kind: 'error'; message: string };
 
-// ── Tab root ───────────────────────────────────────────────────
+type Format = 'mp3' | 'mp4';
+
+// ── Tab root (ReClip-style single-column layout) ───────────────
 export function ImportUrlTab() {
   const { jobs } = useImportQueue();
   const plugin = useYtDlpPlugin();
-  const [selectedUrl, setSelectedUrl] = useState<string | null>(null);
-  const [preview, setPreview] = useState<PreviewState>({ kind: 'idle' });
+  const [text, setText] = useState('');
+  const [format, setFormat] = useState<Format>('mp3');
   const [keepMedia, setKeepMedia] = useState(true);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [previews, setPreviews] = useState<Record<string, PreviewState>>({});
+  const [fetching, setFetching] = useState(false);
+  const [activePlaylistUrl, setActivePlaylistUrl] = useState<string | null>(null);
 
-  // Debounced metadata fetch on URL select.
-  useEffect(() => {
-    if (!selectedUrl) {
-      setPreview({ kind: 'idle' });
-      return;
-    }
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    setPreview({ kind: 'loading' });
-    debounceRef.current = setTimeout(async () => {
-      if (PLAYLIST_RE.test(selectedUrl)) {
-        const res = await commands.fetchPlaylistEntries(selectedUrl);
-        if (res.status === 'ok') setPreview({ kind: 'playlist', envelope: res.data });
-        else setPreview({ kind: 'error', message: res.error });
-        return;
-      }
-      const res = await commands.fetchUrlMetadata(selectedUrl);
-      if (res.status === 'error') {
-        setPreview({ kind: 'error', message: res.error });
-        return;
-      }
-      const meta = res.data;
-      if (meta.is_live) { setPreview({ kind: 'live' }); return; }
-      setPreview({ kind: 'ready', meta, alreadyImported: meta.already_imported });
-    }, 400);
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [selectedUrl]);
+  const urls = detectUrls(text);
 
-  async function commitSingle(opts: WebMediaImportOpts) {
-    if (!selectedUrl) return;
-    const result = await commands.enqueueImportUrls([selectedUrl], opts);
-    if (result.status === 'error') {
-      console.error('enqueueImportUrls failed:', result.error);
-      return;
-    }
-    setSelectedUrl(null);
-    setPreview({ kind: 'idle' });
+  async function fetchAll() {
+    if (urls.length === 0) return;
+    setFetching(true);
+    const initial: Record<string, PreviewState> = {};
+    urls.forEach(u => { initial[u] = { kind: 'loading' }; });
+    setPreviews(initial);
+
+    await Promise.all(urls.map(async (url) => {
+      try {
+        if (PLAYLIST_RE.test(url)) {
+          const res = await commands.fetchPlaylistEntries(url);
+          if (res.status === 'ok') {
+            setPreviews(prev => ({ ...prev, [url]: { kind: 'playlist', envelope: res.data } }));
+          } else {
+            setPreviews(prev => ({ ...prev, [url]: { kind: 'error', message: res.error } }));
+          }
+          return;
+        }
+        const res = await commands.fetchUrlMetadata(url);
+        if (res.status === 'error') {
+          setPreviews(prev => ({ ...prev, [url]: { kind: 'error', message: res.error } }));
+          return;
+        }
+        const meta = res.data;
+        if (meta.is_live) {
+          setPreviews(prev => ({ ...prev, [url]: { kind: 'live' } }));
+        } else {
+          setPreviews(prev => ({ ...prev, [url]: { kind: 'ready', meta, alreadyImported: meta.already_imported } }));
+        }
+      } catch (e) {
+        setPreviews(prev => ({ ...prev, [url]: { kind: 'error', message: String(e) } }));
+      }
+    }));
+    setFetching(false);
   }
 
-  async function commitBulk(urls: string[], opts: WebMediaImportOpts) {
-    const result = await commands.enqueueImportUrls(urls, opts);
-    if (result.status === 'error') console.error('enqueueImportUrls failed:', result.error);
+  async function downloadOne(url: string) {
+    const res = await commands.enqueueImportUrls([url], makeOpts(keepMedia));
+    if (res.status === 'error') {
+      console.error('enqueueImportUrls failed:', res.error);
+      return;
+    }
+    setPreviews(prev => {
+      const next = { ...prev };
+      delete next[url];
+      return next;
+    });
   }
 
-  async function commitPlaylist(envelope: PlaylistEnvelope, sel: PlaylistEntry[], opts: WebMediaImportOpts) {
+  async function downloadAll() {
+    const readyUrls = Object.entries(previews)
+      .filter(([_, p]) => p.kind === 'ready' && !(p as { alreadyImported: unknown }).alreadyImported)
+      .map(([url]) => url);
+    if (readyUrls.length === 0) return;
+    const res = await commands.enqueueImportUrls(readyUrls, makeOpts(keepMedia));
+    if (res.status === 'error') {
+      console.error('enqueueImportUrls failed:', res.error);
+      return;
+    }
+    setPreviews(prev => {
+      const next = { ...prev };
+      readyUrls.forEach(u => { delete next[u]; });
+      return next;
+    });
+    if (Object.keys(previews).length === readyUrls.length) setText('');
+  }
+
+  async function commitPlaylist(envelope: PlaylistEnvelope, sel: PlaylistEntry[]) {
     for (let i = 0; i < sel.length; i++) {
       const e = sel[i];
       const res = await commands.enqueueImportUrls([e.url], {
-        ...opts,
+        ...makeOpts(keepMedia),
         playlist_source: { title: envelope.playlist_title, url: envelope.playlist_url, index: i },
       });
       if (res.status === 'error') console.error('enqueue failed:', res.error);
     }
-    setSelectedUrl(null);
-    setPreview({ kind: 'idle' });
+    setPreviews(prev => {
+      const next = { ...prev };
+      if (activePlaylistUrl) delete next[activePlaylistUrl];
+      return next;
+    });
+    setActivePlaylistUrl(null);
   }
 
   const processing = jobs.filter(j => !TERMINAL_STATES.has(j.state));
   const completed = jobs.filter(j => TERMINAL_STATES.has(j.state));
 
+  const previewEntries = Object.entries(previews);
+  const readyCount = previewEntries.filter(([_, p]) =>
+    p.kind === 'ready' && !(p as { alreadyImported: unknown }).alreadyImported
+  ).length;
+
   return (
-    <div className="heros-page-container" style={{ position: 'relative', zIndex: 5, height: '100%', display: 'flex', flexDirection: 'column', maxWidth: '1200px', margin: '0 auto', padding: '40px' }}>
-      {/* Cinematic Centered Header */}
-      <header style={{ marginBottom: '48px', textAlign: 'center', flexShrink: 0 }}>
-        <div style={{
-          width: 64, height: 64, borderRadius: 20,
-          background: 'linear-gradient(135deg, var(--heros-brand) 0%, #ff8566 100%)',
-          margin: '0 auto 24px auto', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: '0 12px 32px rgba(var(--heros-brand-rgb, 204, 76, 43), 0.2)',
-        }}>
-          <Link2 size={32} color="#fff" />
-        </div>
-        <h1 style={{ fontSize: '32px', fontWeight: 800, color: 'var(--heros-text-premium)', marginBottom: '8px' }}>
-          URL Downloader
-        </h1>
-        <p style={{ color: 'var(--heros-text-muted)', fontSize: '16px' }}>
-          Paste a video, podcast, or playlist URL. Audio is downloaded, transcribed, and indexed locally.
-        </p>
-      </header>
+    <div className="heros-page-container" style={{ position: 'relative', zIndex: 5, height: '100%', overflowY: 'auto' }}>
+      <div style={{ maxWidth: 720, margin: '0 auto', padding: '40px 24px 80px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1.6fr', gap: 20, minHeight: 0 }}>
-        {/* Left Column: URL Input + Preview */}
-        <section className="heros-glass-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: 16, height: 'fit-content' }}>
-          {!plugin.status?.installed
-            ? <PluginMissingBanner plugin={plugin} />
-            : (
-              <UrlInputBlock
-                onSingle={url => setSelectedUrl(url)}
-                onBulk={urls => commitBulk(urls, makeOpts(keepMedia))}
-                keepMedia={keepMedia}
-                onKeepMediaChange={setKeepMedia}
-              />
-            )
-          }
-          <PreviewBlock preview={preview} onCommit={() => commitSingle(makeOpts(keepMedia))} />
-        </section>
+        {/* Hero */}
+        <header style={{ textAlign: 'center', marginBottom: 8 }}>
+          <div style={{
+            width: 64, height: 64, borderRadius: 20,
+            background: 'linear-gradient(135deg, var(--heros-brand) 0%, #ff8566 100%)',
+            margin: '0 auto 20px auto', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 12px 32px rgba(var(--heros-brand-rgb, 204, 76, 43), 0.2)',
+          }}>
+            <Link2 size={32} color="#fff" />
+          </div>
+          <h1 style={{ fontSize: '28px', fontWeight: 800, color: 'var(--heros-text-premium)', marginBottom: '8px', margin: 0 }}>
+            URL Downloader
+          </h1>
+          <p style={{ color: 'var(--heros-text-muted)', fontSize: '14px', margin: '8px 0 0 0' }}>
+            Paste a video, podcast, or playlist URL — audio is downloaded, transcribed, and indexed locally.
+          </p>
+        </header>
 
-        {/* Right Column: Processing + Completed */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 5, minHeight: 0 }}>
-          <ProcessingPanel jobs={processing} />
-          <CompletedPanel jobs={completed} />
+        {/* Format toggle (below hero) */}
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
+          <FormatToggle value={format} onChange={setFormat} />
         </div>
+
+        {!plugin.status?.installed
+          ? <PluginMissingBanner plugin={plugin} />
+          : (
+            <>
+              {/* URL textarea */}
+              <div className="heros-glass-card" style={{ padding: 18 }}>
+                <textarea
+                  value={text}
+                  onChange={e => setText(e.target.value)}
+                  rows={Math.min(8, Math.max(2, text.split('\n').length))}
+                  placeholder={`https://www.tiktok.com/@user/video/123\nhttps://www.youtube.com/watch?v=abcdef`}
+                  style={{
+                    width: '100%',
+                    background: 'rgba(0,0,0,0.28)',
+                    border: '1px solid rgba(255,255,255,0.06)',
+                    borderRadius: 10,
+                    padding: '12px 14px',
+                    color: '#fff',
+                    fontFamily: 'inherit',
+                    fontSize: '13px',
+                    resize: 'none',
+                    outline: 'none',
+                  }}
+                />
+                <p style={{ fontSize: '11px', color: 'var(--heros-text-dim)', margin: '10px 0 0 2px' }}>
+                  Multiple links? Separate with spaces, commas, or newlines.
+                </p>
+              </div>
+
+              {/* FETCH button (full-width, brand-orange) */}
+              <button
+                className="heros-btn heros-btn-brand"
+                onClick={fetchAll}
+                disabled={urls.length === 0 || fetching}
+                style={{
+                  padding: '14px 24px',
+                  fontSize: '13px',
+                  fontWeight: 800,
+                  letterSpacing: '0.18em',
+                  textTransform: 'uppercase',
+                  borderRadius: 12,
+                  width: '100%',
+                  justifyContent: 'center',
+                }}
+              >
+                {fetching ? 'Fetching…' : urls.length > 1 ? `Fetch ${urls.length} URLs` : 'Fetch'}
+              </button>
+
+              {/* Keep-media toggle */}
+              <label
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer',
+                  fontSize: '12px', color: 'var(--heros-text-muted)',
+                  alignSelf: 'center',
+                }}
+                title="When on, the downloaded audio file is kept on disk after transcription."
+              >
+                <input
+                  type="checkbox"
+                  checked={keepMedia}
+                  onChange={e => setKeepMedia(e.target.checked)}
+                  style={{ accentColor: 'var(--heros-brand)' }}
+                />
+                <span>Keep media file after transcription</span>
+              </label>
+
+              {/* Preview cards (one per URL after fetch) */}
+              <AnimatePresence>
+                {previewEntries.length > 0 && (
+                  <motion.div
+                    key="preview-stack"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    style={{ display: 'flex', flexDirection: 'column', gap: 10 }}
+                  >
+                    {previewEntries.map(([url, state]) => (
+                      <UrlPreviewCard
+                        key={url}
+                        url={url}
+                        state={state}
+                        onDownload={() => downloadOne(url)}
+                        onOpenPlaylist={() => setActivePlaylistUrl(url)}
+                      />
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* DOWNLOAD ALL */}
+              <AnimatePresence>
+                {readyCount > 1 && (
+                  <motion.button
+                    key="download-all"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 10 }}
+                    onClick={downloadAll}
+                    className="heros-btn"
+                    style={{
+                      padding: '14px 24px',
+                      fontSize: '13px',
+                      fontWeight: 800,
+                      letterSpacing: '0.18em',
+                      textTransform: 'uppercase',
+                      borderRadius: 12,
+                      background: 'rgba(0,0,0,0.5)',
+                      border: '1px solid rgba(255,255,255,0.12)',
+                      width: '100%',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    Download all ({readyCount})
+                  </motion.button>
+                )}
+              </AnimatePresence>
+            </>
+          )
+        }
+
+        {/* Live progress + recent imports */}
+        <ProcessingPanel jobs={processing} />
+        <CompletedPanel jobs={completed} />
       </div>
 
-      {preview.kind === 'playlist' && (
+      {activePlaylistUrl && previews[activePlaylistUrl]?.kind === 'playlist' && (
         <PlaylistSelectorModal
-          envelope={preview.envelope}
-          onCancel={() => setPreview({ kind: 'idle' })}
-          onCommit={sel => commitPlaylist(preview.envelope, sel, makeOpts(keepMedia))}
+          envelope={(previews[activePlaylistUrl] as { kind: 'playlist'; envelope: PlaylistEnvelope }).envelope}
+          onCancel={() => setActivePlaylistUrl(null)}
+          onCommit={sel => commitPlaylist(
+            (previews[activePlaylistUrl] as { kind: 'playlist'; envelope: PlaylistEnvelope }).envelope,
+            sel,
+          )}
         />
       )}
     </div>
   );
 }
 
-// ── URL input block (drop-zone-styled paste area) ──────────────
-function UrlInputBlock({ onSingle, onBulk, keepMedia, onKeepMediaChange }: {
-  onSingle: (url: string) => void;
-  onBulk: (urls: string[]) => void;
-  keepMedia: boolean;
-  onKeepMediaChange: (next: boolean) => void;
-}) {
-  const [text, setText] = useState('');
-  const urls = detectUrls(text);
-  const isBulk = urls.length > 1;
-  const isSingle = urls.length === 1;
-  const isFocused = text.length > 0;
-
-  function handleSubmit() {
-    if (isSingle) onSingle(urls[0]);
-    else if (isBulk) { onBulk(urls); setText(''); }
-  }
-
+// ── Format toggle (MP4 / MP3) ──────────────────────────────────
+function FormatToggle({ value, onChange }: { value: Format; onChange: (next: Format) => void }) {
   return (
-    <>
-      <div style={{
-        flex: 1, minHeight: 180, borderRadius: 18, background: 'rgba(0,0,0,0.18)',
-        border: `2px dashed ${isFocused ? 'var(--heros-brand)' : 'rgba(253,249,243,0.2)'}`,
-        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10,
-        padding: 32, transition: 'all 0.25s',
-      }}>
-        <motion.div
-          animate={{ y: isFocused ? -6 : 0 }}
-          style={{ color: isFocused ? 'var(--heros-brand)' : 'rgba(253,249,243,0.3)' }}
-        >
-          <Link2 size={42} strokeWidth={1.2} />
-        </motion.div>
-        <h3 style={{ fontSize: '16px', fontWeight: 500, margin: '8px 0 0' }}>Paste a URL</h3>
-        <p style={{ fontSize: '12px', color: 'var(--heros-text-dim)', margin: 0, textAlign: 'center' }}>
-          YouTube, podcasts, social platforms — or paste many URLs (one per line) for bulk import
-        </p>
-        <textarea
-          value={text}
-          onChange={e => setText(e.target.value)}
-          rows={Math.min(8, Math.max(1, text.split('\n').length))}
-          placeholder="https://…"
-          style={{
-            width: '100%',
-            background: 'rgba(0,0,0,0.28)',
-            border: '1px solid rgba(255,255,255,0.06)',
-            borderRadius: 12,
-            padding: '10px 12px',
-            color: '#fff',
-            fontFamily: 'inherit',
-            fontSize: '12.5px',
-            resize: 'none',
-            marginTop: 8,
-          }}
-        />
-      </div>
-
-      <label
-        style={{
-          display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer',
-          fontSize: '12px', color: 'var(--heros-text-muted)',
-          padding: '6px 10px', borderRadius: 10,
-          background: 'rgba(255,255,255,0.03)',
-          border: '1px solid rgba(255,255,255,0.06)',
-        }}
-        title="When on, the downloaded audio file is kept on disk after transcription. When off, only the transcript and thumbnail are kept."
-      >
-        <input
-          type="checkbox"
-          checked={keepMedia}
-          onChange={e => onKeepMediaChange(e.target.checked)}
-          style={{ accentColor: 'var(--heros-brand)' }}
-        />
-        <span>Keep media file after transcription</span>
-      </label>
-
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{ fontSize: '11px', color: 'var(--heros-text-dim)', fontFamily: 'monospace' }}>
-          {urls.length === 0 ? '—' : `${urls.length} URL${urls.length !== 1 ? 's' : ''} detected`}
-        </span>
-        <button
-          className="heros-btn heros-btn-brand"
-          disabled={urls.length === 0}
-          onClick={handleSubmit}
-          style={{ padding: '8px 16px', borderRadius: 12, fontSize: '12px' }}
-        >
-          {isBulk ? `Import ${urls.length} URLs` : isSingle ? 'Preview' : 'Paste a URL'}
-        </button>
-      </div>
-    </>
+    <div
+      role="tablist"
+      aria-label="Download format"
+      style={{
+        display: 'inline-flex',
+        padding: 4,
+        gap: 4,
+        background: 'rgba(255,255,255,0.03)',
+        border: '1px solid rgba(255,255,255,0.08)',
+        borderRadius: 'var(--segmented-radius, 999px)',
+      }}
+    >
+      {(['mp4', 'mp3'] as const).map(f => {
+        const active = value === f;
+        const disabled = f === 'mp4'; // MP4 video downloads not yet implemented
+        return (
+          <button
+            key={f}
+            role="tab"
+            aria-selected={active}
+            aria-disabled={disabled}
+            disabled={disabled}
+            onClick={() => !disabled && onChange(f)}
+            title={disabled ? 'Video downloads coming soon — MP3 audio only for now' : undefined}
+            style={{
+              padding: '7px 18px',
+              fontSize: 11,
+              fontWeight: 800,
+              letterSpacing: '0.2em',
+              textTransform: 'uppercase',
+              background: active ? 'var(--heros-brand)' : 'transparent',
+              color: active ? '#fff' : disabled ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.55)',
+              border: 'none',
+              borderRadius: 'var(--segmented-radius, 999px)',
+              cursor: disabled ? 'not-allowed' : 'pointer',
+              fontFamily: 'inherit',
+              transition: 'background 180ms ease, color 180ms ease',
+            }}
+          >
+            {f.toUpperCase()}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
+// ── Single-URL preview card (shown after Fetch) ────────────────
+function UrlPreviewCard({
+  url, state, onDownload, onOpenPlaylist,
+}: {
+  url: string;
+  state: PreviewState;
+  onDownload: () => void;
+  onOpenPlaylist: () => void;
+}) {
+  if (state.kind === 'loading') {
+    return (
+      <div className="heros-glass-card" style={{ padding: 14, opacity: 0.6 }}>
+        <div style={{ fontSize: 12, color: 'var(--heros-text-dim)' }}>Fetching {shorten(url)}…</div>
+      </div>
+    );
+  }
+  if (state.kind === 'live') {
+    return (
+      <div className="heros-glass-card" style={{ padding: 14 }}>
+        <div style={{ fontSize: 12, color: 'var(--heros-text-muted)' }}>
+          Live streams aren't supported yet — {shorten(url)}
+        </div>
+      </div>
+    );
+  }
+  if (state.kind === 'error') {
+    const msg = state.message.toLowerCase().includes('sign in') || state.message.includes('403')
+      ? 'Authentication required.'
+      : state.message.toLowerCase().includes('region') || state.message.toLowerCase().includes('country')
+        ? 'Content regionally unavailable.'
+        : state.message;
+    return (
+      <div className="heros-glass-card" style={{ padding: 14, borderColor: 'rgba(239,68,68,0.3)' }}>
+        <div style={{ fontSize: 12, color: '#ffb4b4' }}>{shorten(url)}</div>
+        <div style={{ fontSize: 11, color: 'var(--heros-text-dim)', marginTop: 4 }}>{msg}</div>
+      </div>
+    );
+  }
+  if (state.kind === 'playlist') {
+    const env = state.envelope;
+    return (
+      <div className="heros-glass-card" style={{ padding: 14 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {env.playlist_title}
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--heros-text-dim)', marginTop: 2 }}>
+              Playlist · {env.entries.length} videos · {env.channel ?? '—'}
+            </div>
+          </div>
+          <button className="heros-btn heros-btn-brand" onClick={onOpenPlaylist}>
+            Choose videos…
+          </button>
+        </div>
+      </div>
+    );
+  }
+  // ready
+  const meta = state.meta;
+  const already = state.alreadyImported;
+  const heights = meta.available_video_heights ?? [];
+  return (
+    <div className={`heros-glass-card${already ? ' preview-card--already' : ''}`} style={{ padding: 14 }}>
+      <div style={{ display: 'flex', gap: 14 }}>
+        {meta.thumbnail_url && (
+          <img
+            src={meta.thumbnail_url}
+            alt={meta.title}
+            loading="lazy"
+            style={{ width: 110, height: 62, objectFit: 'cover', borderRadius: 8, flexShrink: 0 }}
+          />
+        )}
+        <div style={{ minWidth: 0, flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {meta.title}
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--heros-text-dim)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+            {[meta.channel, meta.duration_seconds != null ? formatDuration(meta.duration_seconds) : null]
+              .filter(Boolean).join(' · ')}
+          </div>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', marginTop: 6 }}>
+            {already ? (
+              <>
+                <span style={{
+                  fontSize: 10, fontWeight: 700, padding: '4px 10px', borderRadius: 6,
+                  background: 'rgba(245,158,11,0.18)', color: '#ffd58a',
+                  textTransform: 'uppercase', letterSpacing: '0.1em',
+                }}>
+                  Already imported
+                </span>
+                <button
+                  onClick={onDownload}
+                  className="heros-btn"
+                  style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6 }}
+                >
+                  Download anyway
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={onDownload}
+                  className="heros-btn heros-btn-brand"
+                  style={{
+                    fontSize: 11, fontWeight: 700, padding: '6px 14px', borderRadius: 6,
+                    letterSpacing: '0.12em', textTransform: 'uppercase',
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                  }}
+                >
+                  <Download size={12} /> Download
+                </button>
+                {heights.length > 0 && heights.slice().reverse().slice(0, 6).map(h => (
+                  <span
+                    key={h}
+                    title="Video heights detected — only audio (MP3) is downloaded for now"
+                    style={{
+                      fontSize: 10, fontWeight: 700, padding: '4px 10px', borderRadius: 6,
+                      background: 'rgba(255,255,255,0.06)',
+                      color: 'rgba(255,255,255,0.45)',
+                      textTransform: 'uppercase', letterSpacing: '0.08em',
+                      cursor: 'help',
+                    }}
+                  >
+                    {h}p
+                  </span>
+                ))}
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function shorten(url: string): string {
+  if (url.length <= 60) return url;
+  return url.slice(0, 28) + '…' + url.slice(-28);
+}
+
+// ── Plugin missing banner ──────────────────────────────────────
 function PluginMissingBanner({ plugin }: { plugin: ReturnType<typeof useYtDlpPlugin> }) {
   if (plugin.installing) {
     const p = plugin.installProgress;
@@ -348,60 +596,11 @@ function PluginMissingBanner({ plugin }: { plugin: ReturnType<typeof useYtDlpPlu
   );
 }
 
-// ── Preview block ──────────────────────────────────────────────
-function PreviewBlock({ preview, onCommit }: { preview: PreviewState; onCommit: () => void }) {
-  if (preview.kind === 'idle') return null;
-  if (preview.kind === 'loading') return <div className="preview-skeleton" />;
-  if (preview.kind === 'live') return <p className="import-view__empty">Live streams are not supported yet.</p>;
-  if (preview.kind === 'error') {
-    return (
-      <p className="import-view__empty" style={{ color: 'var(--error)' }}>
-        {preview.message.toLowerCase().includes('sign in') || preview.message.includes('403')
-          ? 'Authentication required — content is restricted.'
-          : preview.message.toLowerCase().includes('region') || preview.message.toLowerCase().includes('country')
-            ? 'Content regionally unavailable.'
-            : `Could not fetch metadata: ${preview.message}`}
-      </p>
-    );
-  }
-  if (preview.kind === 'playlist') return null; // shown as modal
-  // ready
-  const meta = preview.meta;
-  const already = preview.alreadyImported;
-  return (
-    <div className={`preview-card${already ? ' preview-card--already' : ''}`}>
-      {meta.thumbnail_url && (
-        <img className="preview-card__thumb" src={meta.thumbnail_url} alt={meta.title} loading="lazy" />
-      )}
-      <div className="preview-card__body">
-        <strong style={{ fontSize: 'var(--text-sm)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {meta.title}
-        </strong>
-        <span className="preview-card__meta">
-          {[meta.channel, meta.platform, meta.duration_seconds != null ? formatDuration(meta.duration_seconds) : null]
-            .filter(Boolean).join(' · ')}
-        </span>
-        {already ? (
-          <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
-            <span className="import-view__empty" style={{ padding: 0, textAlign: 'left' }}>Already imported</span>
-            <button className="heros-btn" onClick={onCommit} style={{ fontSize: 'var(--text-xs)' }}>
-              Import anyway
-            </button>
-          </div>
-        ) : (
-          <button className="heros-btn heros-btn-brand" onClick={onCommit}>
-            Import →
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
-
 // ── Processing panel ───────────────────────────────────────────
 function ProcessingPanel({ jobs }: { jobs: ImportJobDto[] }) {
+  if (jobs.length === 0) return null;
   return (
-    <section className="heros-glass-card" style={{ flex: 1, padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 10, minHeight: 0 }}>
+    <section className="heros-glass-card" style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 8, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '13px', fontWeight: 600 }}>
           <Clock size={15} color="rgba(255,255,255,0.4)" />
@@ -412,54 +611,50 @@ function ProcessingPanel({ jobs }: { jobs: ImportJobDto[] }) {
         </div>
       </div>
 
-      <ScrollShadow style={{ flex: 1 }}>
-        {jobs.length === 0 ? (
-          <p className="import-view__empty">Nothing in flight.</p>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <AnimatePresence initial={false}>
-              {jobs.map((job, i) => (
-                <motion.div
-                  key={job.id}
-                  layout
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  transition={{ delay: i * 0.05 }}
-                  className="import-row-hover"
-                  style={{
-                    display: 'grid', gridTemplateColumns: '32px 1fr auto', gap: 12, alignItems: 'center',
-                    padding: '10px 12px', borderRadius: 12, background: 'rgba(0,0,0,0.14)',
-                    border: '1px solid rgba(255,255,255,0.04)', transition: 'all 0.2s',
-                  }}
-                >
-                  <JobThumb job={job} />
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: '12.5px', color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {jobTitle(job)}
-                    </div>
-                    <div style={{ fontSize: '10.5px', color: 'var(--heros-text-dim)', marginTop: 1, fontFamily: 'monospace' }}>
-                      {jobStatusLine(job)}
-                    </div>
+      <ScrollShadow style={{ maxHeight: 280 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <AnimatePresence initial={false}>
+            {jobs.map((job, i) => (
+              <motion.div
+                key={job.id}
+                layout
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ delay: i * 0.05 }}
+                className="import-row-hover"
+                style={{
+                  display: 'grid', gridTemplateColumns: '32px 1fr auto', gap: 12, alignItems: 'center',
+                  padding: '10px 12px', borderRadius: 12, background: 'rgba(0,0,0,0.14)',
+                  border: '1px solid rgba(255,255,255,0.04)', transition: 'all 0.2s',
+                }}
+              >
+                <JobThumb job={job} />
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: '12.5px', color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {jobTitle(job)}
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{ width: 80, height: 4, background: 'rgba(0,0,0,0.28)', borderRadius: 2, overflow: 'hidden', position: 'relative' }}>
-                      <motion.div
-                        initial={{ width: 0 }}
-                        animate={{ width: `${jobProgress(job)}%` }}
-                        className="shimmer-bar"
-                        style={{ height: '100%', background: 'linear-gradient(90deg, #f0d8d0, #fff)', borderRadius: 2, boxShadow: '0 0 8px rgba(253,249,243,0.5)' }}
-                      />
-                    </div>
-                    <div style={{ fontSize: '10px', fontWeight: 700, padding: '4px 8px', borderRadius: 8, background: 'rgba(255,255,255,0.08)', color: 'var(--heros-text-dim)', fontFamily: 'monospace' }}>
-                      {jobProgress(job)}%
-                    </div>
+                  <div style={{ fontSize: '10.5px', color: 'var(--heros-text-dim)', marginTop: 1, fontFamily: 'monospace' }}>
+                    {jobStatusLine(job)}
                   </div>
-                </motion.div>
-              ))}
-            </AnimatePresence>
-          </div>
-        )}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 80, height: 4, background: 'rgba(0,0,0,0.28)', borderRadius: 2, overflow: 'hidden', position: 'relative' }}>
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${jobProgress(job)}%` }}
+                      className="shimmer-bar"
+                      style={{ height: '100%', background: 'linear-gradient(90deg, #f0d8d0, #fff)', borderRadius: 2, boxShadow: '0 0 8px rgba(253,249,243,0.5)' }}
+                    />
+                  </div>
+                  <div style={{ fontSize: '10px', fontWeight: 700, padding: '4px 8px', borderRadius: 8, background: 'rgba(255,255,255,0.08)', color: 'var(--heros-text-dim)', fontFamily: 'monospace' }}>
+                    {jobProgress(job)}%
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </div>
       </ScrollShadow>
     </section>
   );
@@ -475,18 +670,14 @@ function CompletedPanel({ jobs }: { jobs: ImportJobDto[] }) {
 
   const expanded = autoExpanded || manualExpanded;
 
-  // Track which jobs are "new" since last cycle so the panel can flash a highlight.
   const [recentIds, setRecentIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    // First mount: seed seenIds with everything currently present so existing
-    // history doesn't trigger a fake notification on app boot.
     if (!initializedRef.current) {
       jobs.forEach(j => seenIdsRef.current.add(j.id));
       initializedRef.current = true;
       return;
     }
-    // Find brand-new completions.
     const newOnes = jobs.filter(j => !seenIdsRef.current.has(j.id));
     if (newOnes.length === 0) return;
 
@@ -506,26 +697,19 @@ function CompletedPanel({ jobs }: { jobs: ImportJobDto[] }) {
 
   useEffect(() => () => { if (hideTimerRef.current) clearTimeout(hideTimerRef.current); }, []);
 
-  // When auto-expanding, only show the most recent arrivals. When the user
-  // manually expands, show the full completed list.
   const visibleJobs = useMemo(() => {
     if (manualExpanded) return jobs;
     if (autoExpanded) return jobs.filter(j => recentIds.has(j.id));
     return [];
   }, [jobs, manualExpanded, autoExpanded, recentIds]);
 
+  if (jobs.length === 0) return null;
+
   return (
     <motion.section
       layout
       className="heros-glass-card"
-      style={{
-        padding: '16px 18px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 10,
-        flex: expanded ? 1 : 'none',
-        minHeight: 0,
-      }}
+      style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}
     >
       <button
         type="button"
