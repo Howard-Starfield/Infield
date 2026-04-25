@@ -73,9 +73,6 @@ html, body {
   --heros-brand:            #cc4c2b;
   --heros-brand-rgb:        204, 76, 43;
   --heros-bg-foundation:     #14151a; /* Deep purple-charcoal foundation */
-  --heros-glass-fill:       rgba(10, 14, 26, 0.99);
-  --heros-glass-blur:       0px;
-  --heros-glass-saturate:   100%;
   --heros-grain-opacity:    1;
   --heros-btn-hover:        rgba(255, 255, 255, 0.1);
   --heros-card-hover:       rgba(255, 255, 255, 0.02);
@@ -83,12 +80,6 @@ html, body {
   --heros-panel-shadow:     0 18px 44px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.028);
   --heros-rim-light:        inset 0 1px 0 rgba(255, 255, 255, 0.04);
   --heros-text-shadow:      0 1px 4px rgba(0, 0, 0, 0.8), 0 2px 10px rgba(0, 0, 0, 0.4);
-
-  /* DEPRECATED — --heros-glass-fill alias retained until commit F retires the
-     token and updates the .login-mode override. Forward-reference is safe:
-     CSS custom properties in :root resolve at computed-value time, not parse
-     order, so --panel-fill being defined later in this :root is OK. */
-  --heros-glass-fill: var(--panel-fill);
 
   /* === CARD GLASS TIERS ===================================================
      Three depth tiers for every dark content surface in the app. Edit the

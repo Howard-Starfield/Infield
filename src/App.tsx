@@ -89,89 +89,13 @@ function AppContent() {
     };
   }, []);
 
-  // Sync HerOS Design Tokens with Vault Preferences
+  // Sync celebration service preferences with vault prefs.
+  // Note: design-token mutation (theme color, glass intensity, etc.) was
+  // removed per CLAUDE.md Rule 12 (no runtime theme switching). Tokens are
+  // statically declared in App.css :root.
   React.useEffect(() => {
     if (vaultData?.uiPreferences) {
-      const prefs = vaultData.uiPreferences;
-      const root = document.documentElement;
-      
-      if (prefs.themeColor) {
-        root.style.setProperty('--heros-brand', prefs.themeColor);
-        
-        // Dynamic RGB for glows/halos
-        const hex = prefs.themeColor.replace('#', '');
-        const r = parseInt(hex.substring(0, 2), 16);
-        const g = parseInt(hex.substring(2, 4), 16);
-        const b = parseInt(hex.substring(4, 6), 16);
-        root.style.setProperty('--heros-brand-rgb', `${r}, ${g}, ${b}`);
-
-        // Calculate a deep background foundation based on theme if not explicitly provided
-        // We want a very dark version of the brand or a deep neutral
-        const foundationColor = prefs.themeColor === '#cc4c2b' ? '#14151a' : 
-                                prefs.themeColor === '#00d2ff' ? '#0a0c10' :
-                                prefs.themeColor === '#10b981' ? '#08100e' :
-                                prefs.themeColor === '#8b5cf6' ? '#0f0a1a' : 
-                                prefs.themeColor === '#9c36b5' ? '#0a0a0f' : 
-                                prefs.themeColor === '#ffffff' ? '#171717' : 
-                                prefs.themeColor === '#d35a36' ? '#f1ebe4' : 
-                                prefs.themeColor === '#2c3e50' ? '#f5f2ed' : 
-                                prefs.themeColor === '#f0d8d0' ? '#1a1b23' : '#14151a';
-        
-        root.style.setProperty('--heros-bg-foundation', foundationColor);
-        root.style.setProperty('--heros-selection', `${prefs.themeColor}99`); 
-
-        // ── Light Mode Logic ───────────────────────────────────────
-        const isLight = foundationColor === '#f1ebe4' || foundationColor === '#f5f2ed';
-        if (isLight) {
-          root.style.setProperty('--heros-text-premium', '#1a1b23');
-          root.style.setProperty('--heros-text-muted', 'rgba(0, 0, 0, 0.5)');
-          root.style.setProperty('--on-surface', '#1a1b23');
-          root.style.setProperty('--on-surface-variant', 'rgba(0, 0, 0, 0.7)');
-          root.style.setProperty('--heros-glass-black', 'rgba(255, 255, 255, 0.65)');
-          root.style.setProperty('--heros-glass-black-deep', 'rgba(255, 255, 255, 0.9)');
-          
-          // Adaptive Hover & Interaction Tokens for Zen Mode
-          root.style.setProperty('--heros-btn-hover', 'rgba(0, 0, 0, 0.06)');
-          root.style.setProperty('--heros-card-hover', 'rgba(0, 0, 0, 0.02)');
-          root.style.setProperty('--heros-selection', 'rgba(44, 62, 80, 0.15)'); // Soft Navy selection
-          root.style.setProperty('--heros-glass-fill', 'rgba(255, 255, 255, 0.45)');
-          root.style.setProperty('--heros-text-shadow', 'none');
-          root.style.setProperty('--heros-panel-shadow', '0 10px 40px rgba(0, 0, 0, 0.06)');
-        } else {
-          root.style.setProperty('--heros-text-premium', '#ffffff');
-          root.style.setProperty('--heros-text-muted', 'rgba(255, 255, 255, 0.4)');
-          root.style.setProperty('--on-surface', '#e3e1e9');
-          root.style.setProperty('--on-surface-variant', '#c7c4d7');
-          root.style.setProperty('--heros-glass-black', 'rgba(10, 11, 15, 0.82)');
-          root.style.setProperty('--heros-glass-black-deep', 'rgba(5, 5, 8, 0.95)');
-          
-          // Adaptive Dark Mode Hover Tokens
-          root.style.setProperty('--heros-btn-hover', 'rgba(255, 255, 255, 0.1)');
-          root.style.setProperty('--heros-card-hover', 'rgba(255, 255, 255, 0.02)');
-          root.style.setProperty('--heros-selection', `${prefs.themeColor}99`);
-          
-          // Restore Obsidian Glass
-          const opacityValue = 0.40 + (prefs.glassIntensity / 100) * 0.45;
-          root.style.setProperty('--heros-glass-fill', `rgba(10, 11, 15, ${opacityValue.toFixed(2)})`);
-          root.style.setProperty('--heros-text-shadow', '0 1px 4px rgba(0, 0, 0, 0.8), 0 2px 10px rgba(0, 0, 0, 0.4)');
-          root.style.setProperty('--heros-panel-shadow', '0 16px 48px 0 rgba(0, 0, 0, 0.35)');
-        }
-      }
-      
-      if (prefs.glassIntensity !== undefined) {
-        // Base alpha is 0.40, goes up to 0.85 for deep obsidian feel
-        const opacityValue = 0.40 + (prefs.glassIntensity / 100) * 0.45;
-        root.style.setProperty('--heros-glass-fill', `rgba(10, 11, 15, ${opacityValue.toFixed(2)})`);
-        // Keep blur consistent for high-fidelity look
-        root.style.setProperty('--heros-glass-blur', '40px');
-      }
-      
-      if (prefs.grainIntensity !== undefined) {
-        root.style.setProperty('--heros-grain-opacity', (prefs.grainIntensity / 100).toFixed(2));
-      }
-      
-      // Also sync celebration service
-      celebrationService.setPreferences(prefs);
+      celebrationService.setPreferences(vaultData.uiPreferences);
     }
   }, [vaultData?.uiPreferences]);
 
