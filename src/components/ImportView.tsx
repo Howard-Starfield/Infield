@@ -324,6 +324,112 @@ function PluginMissingBanner({ plugin }: { plugin: ReturnType<typeof useYtDlpPlu
   );
 }
 
+// ── Queue row helpers ──────────────────────────────────────────
+const TERMINAL = new Set<ImportJobDto['state']>(['done', 'error', 'cancelled']);
+function isTerminal(state: ImportJobDto['state']) { return TERMINAL.has(state); }
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
+function renderSubtitle(job: ImportJobDto): string {
+  switch (job.state) {
+    case 'queued': return 'Queued';
+    case 'fetching_meta': return 'Fetching metadata…';
+    case 'downloading': {
+      const b = job.download_bytes ?? 0;
+      const t = job.download_total_bytes;
+      return `${formatBytes(b)}${t ? ` / ${formatBytes(t)}` : ''}${job.download_speed_human ? ` · ${job.download_speed_human}` : ''}`;
+    }
+    case 'preparing':
+    case 'segmenting': return 'Preparing audio…';
+    case 'transcribing': return job.message ?? `Transcribing · ${job.segment_index} / ${job.segment_count}`;
+    case 'post_processing':
+    case 'finalizing': return 'Finalizing…';
+    case 'extracting_text': return 'Extracting text…';
+    case 'creating_note': return 'Creating note…';
+    case 'draft_created': return 'Preparing transcription…';
+    case 'done': return job.note_id ? 'Saved' : 'Done';
+    case 'error': return job.message ?? 'Error';
+    case 'cancelled': return 'Cancelled';
+    default: return job.state;
+  }
+}
+
+function PlatformGlyph({ platform, kind }: { platform?: string | null; kind: string }) {
+  return (
+    <span className="queue-row__glyph">
+      {platform?.[0]?.toUpperCase() ?? kind[0].toUpperCase()}
+    </span>
+  );
+}
+
+function QueueRowActions({
+  job,
+  onCancel,
+  onRetry,
+  onOpen,
+}: {
+  job: ImportJobDto;
+  onCancel: () => void;
+  onRetry?: () => void;
+  onOpen?: () => void;
+}) {
+  if (job.state === 'error' || job.state === 'cancelled') {
+    return (
+      <>
+        {onRetry && <button className="heros-btn" onClick={onRetry}>Retry</button>}
+        <button className="heros-btn" onClick={onCancel}>Dismiss</button>
+      </>
+    );
+  }
+  if (job.state === 'done') {
+    return onOpen ? <button className="heros-btn" onClick={onOpen}>Open</button> : null;
+  }
+  return <button className="heros-btn" onClick={onCancel}>Cancel</button>;
+}
+
+function QueueRow({
+  job,
+  onCancel,
+  onRetry,
+  onOpen,
+}: {
+  job: ImportJobDto;
+  onCancel: () => void;
+  onRetry?: () => void;
+  onOpen?: () => void;
+}) {
+  const thumb = job.web_meta?.thumbnail_url;
+  return (
+    <div className="queue-row">
+      <div className="queue-row__icon">
+        {thumb
+          ? <img src={thumb} alt="" />
+          : <PlatformGlyph platform={job.web_meta?.platform} kind={job.kind} />}
+      </div>
+      <div className="queue-row__body">
+        <div className="queue-row__title">{job.web_meta?.title ?? job.file_name}</div>
+        <small className="queue-row__sub">{renderSubtitle(job)}</small>
+        {!isTerminal(job.state) && (
+          <div className="queue-row__bar">
+            <div
+              className="queue-row__bar-fill"
+              style={{ width: `${Math.round(job.progress * 100)}%` }}
+            />
+          </div>
+        )}
+      </div>
+      <div className="queue-row__right">
+        <QueueRowActions job={job} onCancel={onCancel} onRetry={onRetry} onOpen={onOpen} />
+      </div>
+    </div>
+  );
+}
+
 // ── Job list panels ────────────────────────────────────────────
 type Job = ImportJobDto;
 
@@ -334,10 +440,21 @@ function ProcessingPanel({ jobs, paused, pause, resume, cancel }: {
   resume: () => Promise<void>;
   cancel: (id: string) => Promise<void>;
 }) {
+  const active = jobs.filter(j => j.state !== 'queued').length;
+  const queued = jobs.filter(j => j.state === 'queued').length;
+
   return (
     <section className="import-view__panel heros-glass-panel">
       <div className="import-view__panel-title">
-        Processing ({jobs.length})
+        <span>
+          Processing
+          {jobs.length > 0 && (
+            <span className="queue-count-summary">
+              {active > 0 && ` · active ${active}`}
+              {queued > 0 && ` · queued ${queued}`}
+            </span>
+          )}
+        </span>
         {jobs.length > 0 && (
           <button
             className="heros-btn"
@@ -351,33 +468,34 @@ function ProcessingPanel({ jobs, paused, pause, resume, cancel }: {
       {jobs.length === 0 ? (
         <p className="import-view__empty">Nothing in flight.</p>
       ) : (
-        <ul>
+        <div className="queue-list">
           {jobs.map(j => (
-            <li key={j.id}>
-              {j.file_name} — {j.state}
-              <button className="heros-btn" onClick={() => cancel(j.id)} style={{ marginLeft: 'var(--space-2)' }}>
-                Cancel
-              </button>
-            </li>
+            <QueueRow
+              key={j.id}
+              job={j}
+              onCancel={() => cancel(j.id)}
+            />
           ))}
-        </ul>
+        </div>
       )}
     </section>
   );
 }
 
 function CompletedPanel({ jobs }: { jobs: Job[] }) {
+  // No "clear completed" command exists in v1; the queue auto-rotates on the backend.
+  // Showing all terminal jobs as-is.
   return (
     <section className="import-view__panel heros-glass-panel">
       <div className="import-view__panel-title">Recent ({jobs.length})</div>
       {jobs.length === 0 ? (
         <p className="import-view__empty">Nothing yet.</p>
       ) : (
-        <ul>
+        <div className="queue-list">
           {jobs.map(j => (
-            <li key={j.id}>{j.file_name} — {j.state}</li>
+            <QueueRow key={j.id} job={j} onCancel={() => {}} />
           ))}
-        </ul>
+        </div>
       )}
     </section>
   );
