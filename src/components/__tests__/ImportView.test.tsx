@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { detectUrls } from '../ImportView';
+import { detectUrls } from '../ImportUrlTab';
 
 describe('detectUrls', () => {
   test('detects single URL', () => {
