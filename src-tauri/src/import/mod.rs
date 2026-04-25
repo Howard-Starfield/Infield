@@ -697,6 +697,119 @@ async fn run_import_media(
     Ok(())
 }
 
+// ── W7: WebMedia worker helpers ──────────────────────────────────────────────
+
+/// Transition a job's state and message, then emit a snapshot.
+async fn transition_web_job(
+    inner: &ImportQueueInner,
+    job_id: &str,
+    state: ImportJobState,
+    message: Option<String>,
+) {
+    let mut jobs = inner.jobs.lock().await;
+    if let Some(j) = jobs.iter_mut().find(|j| j.id == job_id) {
+        j.state = state;
+        j.message = message;
+    }
+    drop(jobs);
+    emit_snapshot(inner).await;
+}
+
+/// Map a WebMediaError to a user-facing message and transition the job to Error.
+async fn fail_web_job(inner: &ImportQueueInner, job_id: &str, e: web_media::WebMediaError) {
+    transition_web_job(inner, job_id, ImportJobState::Error, Some(e.to_string())).await;
+}
+
+/// Worker entry-point for WebMedia jobs. Transitions Queued → FetchingMeta then runs the handler.
+async fn run_web_media_job(inner: &ImportQueueInner, job_id: &str) -> Result<(), String> {
+    // Confirm the job is still Queued; bail if it was already processed or removed.
+    {
+        let mut jobs = inner.jobs.lock().await;
+        let Some(job) = jobs.iter_mut().find(|j| j.id == job_id) else {
+            return Ok(());
+        };
+        if job.state != ImportJobState::Queued {
+            return Ok(());
+        }
+        job.state = ImportJobState::FetchingMeta;
+        job.message = None;
+    }
+    emit_snapshot(inner).await;
+    handle_fetching_meta(inner, job_id).await
+}
+
+/// Fetch yt-dlp metadata for a WebMedia job, enforce duration limit, then advance
+/// to Downloading (Task 18) or transition to Error/Done.
+///
+/// Hardcoded 14 400 s (4 h) duration limit. Task 23 will route this through Settings.
+const WEB_MEDIA_MAX_DURATION_SECONDS: f64 = 14_400.0;
+
+async fn handle_fetching_meta(inner: &ImportQueueInner, job_id: &str) -> Result<(), String> {
+    let url = {
+        let jobs = inner.jobs.lock().await;
+        jobs.iter()
+            .find(|j| j.id == job_id)
+            .map(|j| j.source_path.to_string_lossy().to_string())
+    };
+    let Some(url) = url else {
+        return Ok(());
+    };
+
+    let bin = match crate::plugin::yt_dlp::binary_path(&inner.app) {
+        Ok(p) => p,
+        Err(e) => {
+            let msg = format!("yt-dlp plugin path error: {e}");
+            transition_web_job(inner, job_id, ImportJobState::Error, Some(msg)).await;
+            return Ok(());
+        }
+    };
+    let handle = web_media::YtDlpHandle::new(bin);
+    if !handle.is_available() {
+        fail_web_job(inner, job_id, web_media::WebMediaError::YtDlpNotFound).await;
+        return Ok(());
+    }
+
+    match handle.fetch_metadata(&url).await {
+        Ok(meta) => {
+            // Store metadata on the job so the DTO can surface it to the frontend.
+            {
+                let mut jobs = inner.jobs.lock().await;
+                if let Some(j) = jobs.iter_mut().find(|j| j.id == job_id) {
+                    j.web_meta = Some(meta.clone());
+                }
+            }
+
+            if meta.is_live {
+                fail_web_job(inner, job_id, web_media::WebMediaError::LiveStream).await;
+                return Ok(());
+            }
+
+            if let Some(d) = meta.duration_seconds {
+                if d > WEB_MEDIA_MAX_DURATION_SECONDS {
+                    fail_web_job(
+                        inner,
+                        job_id,
+                        web_media::WebMediaError::DurationExceedsLimit {
+                            duration_seconds: d,
+                            limit_seconds: WEB_MEDIA_MAX_DURATION_SECONDS,
+                        },
+                    )
+                    .await;
+                    return Ok(());
+                }
+            }
+
+            // Advance to Downloading (Task 18 implements the handler for that state).
+            transition_web_job(inner, job_id, ImportJobState::Downloading, None).await;
+            Ok(())
+        }
+        Err(e) => {
+            fail_web_job(inner, job_id, e).await;
+            Ok(())
+        }
+    }
+}
+
 impl ImportQueueService {
     pub fn spawn(
         app: AppHandle,
@@ -867,6 +980,17 @@ impl ImportQueueService {
     }
 
     async fn run_one_job(inner: &ImportQueueInner, job_id: &str) -> Result<(), String> {
+        // Route WebMedia jobs to their own handler before the file-import path
+        // (which creates temp dirs and transitions to Preparing — neither applies
+        // to URL-based imports that use yt-dlp).
+        let kind = {
+            let jobs = inner.jobs.lock().await;
+            jobs.iter().find(|j| j.id == job_id).map(|j| j.kind)
+        };
+        if kind == Some(ImportJobKind::WebMedia) {
+            return run_web_media_job(inner, job_id).await;
+        }
+
         let (kind, source_path, title_base, cancel_flag) = {
             let mut jobs = inner.jobs.lock().await;
             let Some(job) = jobs.iter_mut().find(|j| j.id == job_id) else {
