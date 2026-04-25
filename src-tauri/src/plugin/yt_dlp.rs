@@ -4,6 +4,10 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use tauri::{AppHandle, Manager};
+use tauri::Emitter;
+use sha2::{Digest, Sha256};
+use std::io::Write;
+use chrono::Utc;
 
 pub fn binary_name() -> &'static str {
     if cfg!(target_os = "windows") { "yt-dlp.exe" }
@@ -54,6 +58,41 @@ pub fn read_status(app: &AppHandle) -> Result<PluginStatus, String> {
     Ok(read_status_at(&extension_dir(app)?))
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReleaseMetadata {
+    pub tag_name: String,
+    pub asset_url: String,
+    pub checksums_url: String,
+}
+
+const GITHUB_RELEASES_API: &str = "https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest";
+
+pub async fn fetch_latest_release_metadata() -> Result<ReleaseMetadata, String> {
+    let client = reqwest::Client::builder()
+        .user_agent("Handy/1.0 (yt-dlp plugin updater)")
+        .build()
+        .map_err(|e| e.to_string())?;
+    let resp: serde_json::Value = client
+        .get(GITHUB_RELEASES_API)
+        .send().await.map_err(|e| e.to_string())?
+        .error_for_status().map_err(|e| e.to_string())?
+        .json().await.map_err(|e| e.to_string())?;
+    let tag_name = resp["tag_name"].as_str().ok_or("missing tag_name")?.to_string();
+    let assets = resp["assets"].as_array().ok_or("missing assets")?;
+    let target_name = binary_name();
+    let asset_url = assets.iter()
+        .find(|a| a["name"].as_str() == Some(target_name))
+        .and_then(|a| a["browser_download_url"].as_str())
+        .ok_or_else(|| format!("no asset named {}", target_name))?
+        .to_string();
+    let checksums_url = assets.iter()
+        .find(|a| a["name"].as_str() == Some("SHA2-256SUMS"))
+        .and_then(|a| a["browser_download_url"].as_str())
+        .ok_or("no SHA2-256SUMS asset")?
+        .to_string();
+    Ok(ReleaseMetadata { tag_name, asset_url, checksums_url })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -92,5 +131,19 @@ mod status_tests {
         assert_eq!(s.version.as_deref(), Some("2026.04.15"));
         assert_eq!(s.installed_at.as_deref(), Some("2026-04-24T10:00:00Z"));
         assert_eq!(s.size_bytes, Some(11));
+    }
+}
+
+#[cfg(test)]
+mod release_tests {
+    use super::*;
+
+    #[tokio::test]
+    #[ignore]
+    async fn fetches_real_release_metadata() {
+        let r = fetch_latest_release_metadata().await.unwrap();
+        assert!(!r.tag_name.is_empty());
+        assert!(r.asset_url.starts_with("https://github.com/"));
+        assert!(r.checksums_url.contains("SHA2-256SUMS"));
     }
 }
