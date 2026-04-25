@@ -194,8 +194,6 @@ export interface UiPreferences {
   autoSyncEnabled: boolean;
   syncInterval: number; // in minutes
   themeColor?: string; // Hex color for brand identity
-  glassIntensity?: number; // 0-100 scale for blur/opacity
-  grainIntensity?: number; // 0-100 scale for noise visibility
   spotlightTrigger?: string; // e.g. "Space" or "KeyF"
   bgSpeed?: number; // 0-100 scale for animation speed
   bgColorA?: string;
