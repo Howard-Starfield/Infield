@@ -84,14 +84,10 @@ html, body {
   --heros-rim-light:        inset 0 1px 0 rgba(255, 255, 255, 0.04);
   --heros-text-shadow:      0 1px 4px rgba(0, 0, 0, 0.8), 0 2px 10px rgba(0, 0, 0, 0.4);
 
-  /* DEPRECATED — retained as aliases during migration. The forward-references
-     below are safe: CSS custom properties in :root resolve at computed-value
-     time, not parse order, so it doesn't matter that --row-hover-fill /
-     --panel-fill are defined later in this same :root block.
-       --heros-glass-black*  removed in commit E (row-hover rename)
-       --heros-glass-fill    removed in commit F (panel split + login-mode update) */
-  --heros-glass-black: var(--row-hover-fill);
-  --heros-glass-black-deep: var(--row-hover-fill-deep);
+  /* DEPRECATED — --heros-glass-fill alias retained until commit F retires the
+     token and updates the .login-mode override. Forward-reference is safe:
+     CSS custom properties in :root resolve at computed-value time, not parse
+     order, so --panel-fill being defined later in this :root is OK. */
   --heros-glass-fill: var(--panel-fill);
 
   /* === CARD GLASS TIERS ===================================================
@@ -1553,7 +1549,7 @@ button:active:not(.win-btn),
 .conversation-row:last-child { border-bottom: none; }
 
 .conversation-row:hover {
-  background: var(--heros-glass-black);
+  background: var(--row-hover-fill);
   border-color: transparent;
   transform: translateX(4px);
 }
@@ -2899,7 +2895,7 @@ body.is-resizing {
 }
 
 .db-view svg { width: 13px; height: 13px; }
-.db-view:hover { color: #fff; background: var(--heros-glass-black); }
+.db-view:hover { color: #fff; background: var(--row-hover-fill); }
 .db-view.active {
   color: #fff;
   background: rgba(255, 255, 255, 0.08);
@@ -2923,7 +2919,7 @@ body.is-resizing {
   background: rgba(0, 0, 0, 0.22); border: 1px solid rgba(255, 255, 255, 0.06);
   cursor: pointer; transition: color .12s, background .12s;
 }
-.db-pill:hover { color: #fff; background: var(--heros-glass-black); }
+.db-pill:hover { color: #fff; background: var(--row-hover-fill); }
 .db-pill.active { color: #fff; background: rgba(253, 249, 243, 0.12); border-color: rgba(253, 249, 243, 0.22); }
 
 .db-body {
@@ -2953,7 +2949,7 @@ body.is-resizing {
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   vertical-align: middle;
 }
-.db-table tr:hover td { background: var(--heros-glass-black); }
+.db-table tr:hover td { background: var(--row-hover-fill); }
 
 .status-tag {
   display: inline-flex; align-items: center; gap: 5px;
@@ -3013,7 +3009,7 @@ body.is-resizing {
   display: flex; flex-direction: column; gap: 10px;
   cursor: pointer; transition: transform .2s, background .2s;
 }
-.kan-card:hover { background: var(--heros-glass-black-deep); transform: translateY(-2px); border-color: rgba(255,255,255,0.12); }
+.kan-card:hover { background: var(--row-hover-fill-deep); transform: translateY(-2px); border-color: rgba(255,255,255,0.12); }
 .kc-title { font-size: 13px; font-weight: 500; line-height: 1.4; color: #fff; }
 .kc-meta { display: flex; align-items: center; justify-content: space-between; }
 .kc-due { font-size: 10px; font-family: 'JetBrains Mono', monospace; color: rgba(255,255,255,0.3); }
@@ -3094,7 +3090,7 @@ textarea:focus-visible,
   border-bottom: 1px solid rgba(255,255,255,0.05);
   cursor: pointer; transition: transform .2s;
 }
-.list-row:hover { transform: translateX(4px); background: var(--heros-glass-black); border-radius: 8px; }
+.list-row:hover { transform: translateX(4px); background: var(--row-hover-fill); border-radius: 8px; }
 .list-row .icon {
   width: 32px; height: 32px; border-radius: 8px;
   background: rgba(255,255,255,0.04); display: flex; align-items: center; justify-content: center;
@@ -3120,6 +3116,6 @@ textarea:focus-visible,
 }
 
 .import-row-hover:hover {
-  background: var(--heros-glass-black) !important;
+  background: var(--row-hover-fill) !important;
   transform: translateX(4px);
 }

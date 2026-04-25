@@ -101,7 +101,7 @@ export function VaultSidebar({
           placeholder="Search notes..." 
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          style={{ width: '100%', background: 'var(--heros-glass-black)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 8, padding: '8px 10px 8px 32px', fontSize: '12px', color: '#fff', outline: 'none' }}
+          style={{ width: '100%', background: 'var(--surface-2)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 8, padding: '8px 10px 8px 32px', fontSize: '12px', color: '#fff', outline: 'none' }}
         />
         <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.2)' }} />
       </div>
