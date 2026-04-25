@@ -926,6 +926,12 @@ pub fn run(cli_args: CliArgs) {
             commands::yt_dlp_plugin::install_yt_dlp_plugin,
             commands::yt_dlp_plugin::check_yt_dlp_update,
             commands::yt_dlp_plugin::uninstall_yt_dlp_plugin,
+            commands::url_import::fetch_url_metadata,
+            commands::url_import::fetch_playlist_entries,
+            commands::url_import::enqueue_import_urls,
+            commands::url_import::pause_import_queue,
+            commands::url_import::resume_import_queue,
+            commands::url_import::import_queue_pause_state,
         ])
         .events(collect_events![
             managers::history::HistoryUpdatePayload,

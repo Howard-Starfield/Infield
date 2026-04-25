@@ -2010,6 +2010,54 @@ async uninstallYtDlpPlugin() : Promise<Result<null, string>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+async fetchUrlMetadata(url: string) : Promise<Result<UrlMetadataResult, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("fetch_url_metadata", { url }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async fetchPlaylistEntries(url: string) : Promise<Result<PlaylistEnvelope, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("fetch_playlist_entries", { url }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async enqueueImportUrls(urls: string[], opts: WebMediaImportOpts) : Promise<Result<string[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("enqueue_import_urls", { urls, opts }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async pauseImportQueue() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("pause_import_queue") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async resumeImportQueue() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("resume_import_queue") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async importQueuePauseState() : Promise<Result<boolean, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("import_queue_pause_state") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -2226,6 +2274,13 @@ export type ImportJobDto = { id: string; file_name: string; source_path: string;
 export type ImportJobKind = "markdown" | "plain_text" | "pdf" | "audio" | "video" | "web_media" | "unknown"
 export type ImportJobState = "queued" | "fetching_meta" | "downloading" | "preparing" | "segmenting" | "draft_created" | "transcribing" | "post_processing" | "finalizing" | "extracting_text" | "creating_note" | "done" | "error" | "cancelled"
 export type WebMediaMetadata = { url: string; source_id: string; title: string; thumbnail_url?: string; duration_seconds?: number; channel?: string; platform: string; published_at?: string; available_video_heights: number[]; is_live: boolean }
+export type AlreadyImportedHit = { node_id: string; imported_at: string; vault_path: string }
+export type PlaylistSource = { title: string; url: string; index: number }
+export type WebMediaFormat = { kind: "mp3_audio" } | { kind: "mp4_video"; max_height: number }
+export type WebMediaImportOpts = { keep_media: boolean; format: WebMediaFormat; parent_folder_node_id: string | null; playlist_source: PlaylistSource | null }
+export type PlaylistEntry = { url: string; source_id: string; title: string; duration_seconds: number | null; thumbnail_url: string | null; channel: string | null }
+export type PlaylistEnvelope = { playlist_url: string; playlist_title: string; channel: string | null; entries: PlaylistEntry[] }
+export type UrlMetadataResult = WebMediaMetadata & { already_imported: AlreadyImportedHit | null }
 export type ImportQueueSnapshot = { jobs: ImportJobDto[] }
 export type InterviewStartResult = { workspace_doc_id: string; started_at_ms: number }
 export type KeyboardImplementation = "tauri" | "handy_keys"

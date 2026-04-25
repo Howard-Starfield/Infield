@@ -157,6 +157,9 @@ struct ImportQueueInner {
     wake: Arc<tokio::sync::Notify>,
     workspace: Arc<WorkspaceManager>,
     tm: Arc<TranscriptionManager>,
+    /// When `true` the worker loop idles (100 ms sleep) instead of picking
+    /// the next Queued job. Resume stores `false` and notifies the wake handle.
+    paused: Arc<AtomicBool>,
 }
 
 #[derive(Clone)]
@@ -1043,18 +1046,27 @@ impl ImportQueueService {
         tm: Arc<TranscriptionManager>,
     ) -> Self {
         let wake = Arc::new(tokio::sync::Notify::new());
+        let paused = Arc::new(AtomicBool::new(false));
         let inner = Arc::new(ImportQueueInner {
             app: app.clone(),
             jobs: TokioMutex::new(Vec::new()),
             wake: wake.clone(),
             workspace,
             tm,
+            paused: paused.clone(),
         });
 
         let worker = inner.clone();
         tauri::async_runtime::spawn(async move {
             loop {
                 loop {
+                    // While paused, idle in place so the worker loop doesn't
+                    // block the tokio executor. A resume() call will notify
+                    // wake, causing the outer loop to re-enter the inner loop.
+                    if worker.paused.load(Ordering::Relaxed) {
+                        tokio::time::sleep(Duration::from_millis(100)).await;
+                        continue;
+                    }
                     let next_id = {
                         let jobs = worker.jobs.lock().await;
                         jobs
@@ -1237,6 +1249,23 @@ impl ImportQueueService {
     /// separate `tauri::State<Arc<WorkspaceManager>>` parameter.
     pub fn workspace_manager(&self) -> Arc<WorkspaceManager> {
         self.inner.workspace.clone()
+    }
+
+    /// Pause the worker loop. In-flight jobs finish; new Queued jobs are not
+    /// started until `resume` is called.
+    pub fn pause(&self) {
+        self.inner.paused.store(true, Ordering::Relaxed);
+    }
+
+    /// Resume the worker loop and notify the worker to re-check the queue.
+    pub fn resume(&self) {
+        self.inner.paused.store(false, Ordering::Relaxed);
+        self.inner.wake.notify_one();
+    }
+
+    /// Return whether the queue is currently paused.
+    pub fn is_paused(&self) -> bool {
+        self.inner.paused.load(Ordering::Relaxed)
     }
 
     async fn run_one_job(inner: &ImportQueueInner, job_id: &str) -> Result<(), String> {
