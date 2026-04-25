@@ -2774,6 +2774,7 @@ dependencies = [
  "handy-keys",
  "hound",
  "keyring",
+ "libc",
  "llama-cpp-2",
  "log",
  "lru",

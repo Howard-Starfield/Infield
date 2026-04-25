@@ -1,8 +1,11 @@
 //! yt-dlp wrapper. URL-specific concerns isolated here.
 use serde::{Deserialize, Serialize};
 use specta::Type;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use thiserror::Error;
+use tokio::io::{AsyncBufReadExt, BufReader};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct WebMediaMetadata {
@@ -234,4 +237,209 @@ mod parse_tests {
         assert!(!p.playlist_title.is_empty());
         assert!(!p.entries.is_empty());
     }
+}
+
+// ── Task 13: Download with progress + cancellation ──────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum WebMediaFormat {
+    Mp3Audio,
+    Mp4Video { max_height: u32 },
+}
+
+impl Default for WebMediaFormat {
+    fn default() -> Self { WebMediaFormat::Mp3Audio }
+}
+
+#[derive(Debug, Clone)]
+pub struct MediaArtefacts {
+    pub audio_path: Option<PathBuf>,
+    pub video_path: Option<PathBuf>,
+    pub thumbnail_path: Option<PathBuf>,
+}
+
+#[derive(Debug, Clone)]
+pub struct DownloadProgress {
+    pub bytes: u64,
+    pub total_bytes: Option<u64>,
+    pub speed_human: Option<String>,
+    pub eta_human: Option<String>,
+}
+
+/// Parse yt-dlp progress lines, e.g.
+/// `[download]   12.3% of   40.00MiB at  2.10MiB/s ETA 00:14`
+pub fn parse_progress_line(line: &str) -> Option<DownloadProgress> {
+    if !line.contains("[download]") { return None; }
+    let mut total_bytes: Option<u64> = None;
+    let mut speed_human: Option<String> = None;
+    let mut eta_human: Option<String> = None;
+    let mut percent: Option<f64> = None;
+
+    if let Some(idx) = line.find('%') {
+        let pre: String = line[..idx].chars().rev()
+            .take_while(|c| c.is_ascii_digit() || *c == '.').collect();
+        let pre: String = pre.chars().rev().collect();
+        percent = pre.parse::<f64>().ok();
+    }
+    if let Some(of_idx) = line.find(" of ") {
+        let after = line[of_idx + 4..].trim_start();
+        let token: String = after.chars().take_while(|c| !c.is_whitespace()).collect();
+        total_bytes = parse_size_token(&token);
+    }
+    if let Some(at_idx) = line.find(" at ") {
+        let after = &line[at_idx + 4..];
+        let speed: String = after.split_whitespace().next().unwrap_or("").to_string();
+        if !speed.is_empty() { speed_human = Some(speed); }
+    }
+    if let Some(eta_idx) = line.find(" ETA ") {
+        let token: String = line[eta_idx + 5..].chars().take_while(|c| !c.is_whitespace()).collect();
+        if !token.is_empty() { eta_human = Some(token); }
+    }
+    let bytes = match (percent, total_bytes) {
+        (Some(p), Some(t)) => ((p / 100.0) * t as f64) as u64,
+        _ => 0,
+    };
+    Some(DownloadProgress { bytes, total_bytes, speed_human, eta_human })
+}
+
+fn parse_size_token(s: &str) -> Option<u64> {
+    let s = s.trim();
+    let (num_part, suffix): (String, String) = s.chars().partition(|c| c.is_ascii_digit() || *c == '.');
+    let n: f64 = num_part.parse().ok()?;
+    let mult: f64 = match suffix.to_ascii_uppercase().trim() {
+        "B" => 1.0,
+        "KIB" | "K" => 1024.0,
+        "MIB" | "M" => 1024.0 * 1024.0,
+        "GIB" | "G" => 1024.0 * 1024.0 * 1024.0,
+        "TIB" | "T" => 1024.0_f64.powi(4),
+        _ => return None,
+    };
+    Some((n * mult) as u64)
+}
+
+#[cfg(test)]
+mod progress_tests {
+    use super::*;
+
+    #[test]
+    fn parses_typical_line() {
+        let p = parse_progress_line("[download]   12.3% of   40.00MiB at  2.10MiB/s ETA 00:14").unwrap();
+        assert_eq!(p.total_bytes, Some(40 * 1024 * 1024));
+        assert_eq!(p.eta_human.as_deref(), Some("00:14"));
+    }
+
+    #[test]
+    fn ignores_non_progress_lines() {
+        assert!(parse_progress_line("[info] something").is_none());
+    }
+}
+
+impl YtDlpHandle {
+    pub async fn download_audio(
+        &self, url: &str, target_dir: &Path,
+        on_progress: impl Fn(DownloadProgress) + Send + Sync + 'static,
+        cancel: Arc<AtomicBool>,
+    ) -> Result<MediaArtefacts, WebMediaError> {
+        if !self.is_available() { return Err(WebMediaError::YtDlpNotFound); }
+        std::fs::create_dir_all(target_dir).map_err(|e| WebMediaError::FfmpegFailed(e.to_string()))?;
+
+        let out_template = target_dir.join("audio.%(ext)s");
+        let thumb_template = target_dir.join("thumbnail.%(ext)s");
+
+        let mut cmd = tokio::process::Command::new(&self.binary);
+        cmd.args([
+            "-x", "--audio-format", "mp3", "--audio-quality", "2",
+            "--write-thumbnail", "--convert-thumbnails", "jpg",
+            "--no-playlist", "--newline",
+            "--sleep-interval", "1", "--max-sleep-interval", "3",
+            "-o", out_template.to_str().unwrap(),
+            "-o", &format!("thumbnail:{}", thumb_template.display()),
+            url,
+        ]);
+        cmd.stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());
+
+        configure_process_group(&mut cmd);
+
+        let mut child = cmd.spawn().map_err(|e| WebMediaError::YtDlpCrashed {
+            exit_code: -1, stderr_tail: e.to_string()
+        })?;
+        let pid = child.id();
+
+        let stdout = child.stdout.take().unwrap();
+        let mut reader = BufReader::new(stdout).lines();
+        let mut stderr_buf = String::new();
+
+        let cancel_clone = cancel.clone();
+        let progress_task = tokio::spawn(async move {
+            while let Ok(Some(line)) = reader.next_line().await {
+                if cancel_clone.load(Ordering::Relaxed) { break; }
+                if let Some(p) = parse_progress_line(&line) { on_progress(p); }
+            }
+        });
+
+        let cancel_watch = cancel.clone();
+        let cancel_kill = tokio::spawn(async move {
+            while !cancel_watch.load(Ordering::Relaxed) {
+                tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+            }
+            kill_process_group(pid);
+        });
+
+        let status = child.wait().await.map_err(|e| WebMediaError::YtDlpCrashed {
+            exit_code: -1, stderr_tail: e.to_string()
+        })?;
+        let _ = progress_task.await;
+        cancel_kill.abort();
+
+        if let Some(mut e) = child.stderr.take() {
+            use tokio::io::AsyncReadExt;
+            let _ = e.read_to_string(&mut stderr_buf).await;
+        }
+
+        if cancel.load(Ordering::Relaxed) {
+            return Err(WebMediaError::IntegrityCheckFailed);
+        }
+        if !status.success() {
+            return Err(classify_stderr(&stderr_buf, status.code().unwrap_or(-1)));
+        }
+
+        let audio_path = find_one_with_prefix(target_dir, "audio.")?;
+        let thumbnail_path = find_one_with_prefix(target_dir, "thumbnail.").ok();
+        Ok(MediaArtefacts { audio_path: Some(audio_path), video_path: None, thumbnail_path })
+    }
+}
+
+fn find_one_with_prefix(dir: &Path, prefix: &str) -> Result<PathBuf, WebMediaError> {
+    for entry in std::fs::read_dir(dir).map_err(|e| WebMediaError::FfmpegFailed(e.to_string()))? {
+        let entry = entry.map_err(|e| WebMediaError::FfmpegFailed(e.to_string()))?;
+        if entry.file_name().to_string_lossy().starts_with(prefix) { return Ok(entry.path()); }
+    }
+    Err(WebMediaError::IntegrityCheckFailed)
+}
+
+#[cfg(unix)]
+fn configure_process_group(cmd: &mut tokio::process::Command) {
+    use std::os::unix::process::CommandExt as UnixCommandExt;
+    unsafe {
+        cmd.pre_exec(|| { libc::setsid(); Ok(()) });
+    }
+}
+
+#[cfg(windows)]
+fn configure_process_group(cmd: &mut tokio::process::Command) {
+    use std::os::windows::process::CommandExt as WinCommandExt;
+    const CREATE_NEW_PROCESS_GROUP: u32 = 0x00000200;
+    cmd.creation_flags(CREATE_NEW_PROCESS_GROUP);
+}
+
+#[cfg(unix)]
+fn kill_process_group(pid: Option<u32>) {
+    unsafe { if let Some(p) = pid { libc::killpg(p as i32, libc::SIGTERM); } }
+}
+
+#[cfg(windows)]
+fn kill_process_group(_pid: Option<u32>) {
+    // On Windows, killing via process-group requires a Job Object or sending CTRL_BREAK_EVENT.
+    // For v1 we rely on tokio's Child::start_kill via the worker layer if needed.
 }
