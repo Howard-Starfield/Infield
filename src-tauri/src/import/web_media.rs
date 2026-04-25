@@ -252,6 +252,41 @@ impl Default for WebMediaFormat {
     fn default() -> Self { WebMediaFormat::Mp3Audio }
 }
 
+// ── Task 15: Import opts types ───────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct AlreadyImportedHit {
+    pub node_id: String,
+    pub imported_at: String,
+    pub vault_path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct PlaylistSource {
+    pub title: String,
+    pub url: String,
+    pub index: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct WebMediaImportOpts {
+    pub keep_media: bool,
+    pub format: WebMediaFormat,
+    pub parent_folder_node_id: Option<String>,
+    pub playlist_source: Option<PlaylistSource>,
+}
+
+impl Default for WebMediaImportOpts {
+    fn default() -> Self {
+        Self {
+            keep_media: true,
+            format: WebMediaFormat::default(),
+            parent_folder_node_id: None,
+            playlist_source: None,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct MediaArtefacts {
     pub audio_path: Option<PathBuf>,

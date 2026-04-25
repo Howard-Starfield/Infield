@@ -6,7 +6,11 @@
 mod post_processing;
 mod segmenting;
 pub mod web_media;
-pub use web_media::{WebMediaMetadata, WebMediaError, YtDlpHandle};
+pub use web_media::{
+    WebMediaMetadata, WebMediaError, YtDlpHandle,
+    WebMediaImportOpts, WebMediaFormat, PlaylistSource, AlreadyImportedHit,
+    PlaylistEnvelope, PlaylistEntry, DownloadProgress, MediaArtefacts,
+};
 
 use crate::actions::maybe_convert_chinese_variant;
 use crate::audio_toolkit::constants;
@@ -107,6 +111,17 @@ struct ImportJob {
     segment_index: u32,
     segment_count: u32,
     current_step: Option<String>,
+    // W7 WebMedia fields — in-memory only; not persisted. Boot recovery (Task 21)
+    // marks any in-flight WebMedia jobs as Error on restart.
+    web_meta: Option<web_media::WebMediaMetadata>,
+    web_opts: Option<web_media::WebMediaImportOpts>,
+    download_bytes: Option<u64>,
+    download_total_bytes: Option<u64>,
+    download_speed_human: Option<String>,
+    // draft_node_id / local_audio_path / media_dir used by Task 18 Downloading state
+    draft_node_id: Option<String>,
+    local_audio_path: Option<PathBuf>,
+    media_dir: Option<PathBuf>,
 }
 
 impl ImportJob {
@@ -123,10 +138,10 @@ impl ImportJob {
             segment_index: self.segment_index,
             segment_count: self.segment_count,
             current_step: self.current_step.clone(),
-            web_meta: None,
-            download_bytes: None,
-            download_total_bytes: None,
-            download_speed_human: None,
+            web_meta: self.web_meta.clone(),
+            download_bytes: self.download_bytes,
+            download_total_bytes: self.download_total_bytes,
+            download_speed_human: self.download_speed_human.clone(),
         }
     }
 }
@@ -755,6 +770,55 @@ impl ImportQueueService {
                 segment_index: 0,
                 segment_count: 0,
                 current_step: None,
+                web_meta: None,
+                web_opts: None,
+                download_bytes: None,
+                download_total_bytes: None,
+                download_speed_human: None,
+                draft_node_id: None,
+                local_audio_path: None,
+                media_dir: None,
+            };
+            self.inner.jobs.lock().await.push(job);
+            ids.push(id);
+        }
+        emit_snapshot(&self.inner).await;
+        self.inner.wake.notify_one();
+        Ok(ids)
+    }
+
+    /// Enqueue one WebMedia import job per URL. Each job is in-memory only;
+    /// web_opts are NOT persisted to SQLite — boot recovery (Task 21) will mark
+    /// any in-flight WebMedia jobs as Error on restart.
+    pub async fn enqueue_urls(
+        &self,
+        urls: Vec<String>,
+        opts: web_media::WebMediaImportOpts,
+    ) -> Result<Vec<String>, String> {
+        let mut ids = Vec::with_capacity(urls.len());
+        for url in urls {
+            let id = uuid::Uuid::new_v4().to_string();
+            let job = ImportJob {
+                id: id.clone(),
+                file_name: url.clone(),
+                source_path: PathBuf::from(&url),
+                kind: ImportJobKind::WebMedia,
+                state: ImportJobState::Queued,
+                message: None,
+                note_id: None,
+                cancel_requested: Arc::new(AtomicBool::new(false)),
+                progress: 0.0,
+                segment_index: 0,
+                segment_count: 0,
+                current_step: None,
+                web_meta: None,
+                web_opts: Some(opts.clone()),
+                download_bytes: None,
+                download_total_bytes: None,
+                download_speed_human: None,
+                draft_node_id: None,
+                local_audio_path: None,
+                media_dir: None,
             };
             self.inner.jobs.lock().await.push(job);
             ids.push(id);
@@ -952,6 +1016,61 @@ impl ImportQueueService {
         emit_snapshot(inner).await;
         emit_workspace_import_synced(inner, &note.id).await;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod enqueue_urls_unit_tests {
+    use super::*;
+    use crate::import::web_media::WebMediaImportOpts;
+
+    /// Construct the ImportJob the same way enqueue_urls does, then assert fields.
+    /// This is a pure-unit test — no AppHandle, no async runtime complexity.
+    #[test]
+    fn web_media_job_fields_are_set_correctly() {
+        let url = "https://www.youtube.com/watch?v=abc".to_string();
+        let opts = WebMediaImportOpts::default();
+        let id = "test-id".to_string();
+        let job = ImportJob {
+            id: id.clone(),
+            file_name: url.clone(),
+            source_path: PathBuf::from(&url),
+            kind: ImportJobKind::WebMedia,
+            state: ImportJobState::Queued,
+            message: None,
+            note_id: None,
+            cancel_requested: Arc::new(AtomicBool::new(false)),
+            progress: 0.0,
+            segment_index: 0,
+            segment_count: 0,
+            current_step: None,
+            web_meta: None,
+            web_opts: Some(opts),
+            download_bytes: None,
+            download_total_bytes: None,
+            download_speed_human: None,
+            draft_node_id: None,
+            local_audio_path: None,
+            media_dir: None,
+        };
+        assert_eq!(job.kind, ImportJobKind::WebMedia);
+        assert_eq!(job.state, ImportJobState::Queued);
+        assert!(job.web_opts.is_some());
+        assert!(job.web_meta.is_none());
+        let dto = job.to_dto();
+        assert_eq!(dto.kind, ImportJobKind::WebMedia);
+        assert!(dto.web_meta.is_none());
+        assert!(dto.download_bytes.is_none());
+    }
+
+    #[test]
+    fn enqueue_urls_opts_default_keep_media_true() {
+        let opts = WebMediaImportOpts::default();
+        assert!(opts.keep_media);
+        assert!(opts.parent_folder_node_id.is_none());
+        assert!(opts.playlist_source.is_none());
+        // format is Mp3Audio by default
+        assert!(matches!(opts.format, crate::import::web_media::WebMediaFormat::Mp3Audio));
     }
 }
 
