@@ -292,3 +292,65 @@ mod install_helper_tests {
         assert!(!"deadbeef".eq_ignore_ascii_case("deadbeed"));
     }
 }
+
+pub fn uninstall(app: &AppHandle) -> Result<(), String> {
+    let dir = extension_dir(app)?;
+    if dir.exists() { fs::remove_dir_all(&dir).map_err(|e| e.to_string())?; }
+    let _ = app.emit("plugin-state-changed", ());
+    Ok(())
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct UpdateCheckResult {
+    pub current: Option<String>,
+    pub latest: String,
+    pub update_available: bool,
+}
+
+pub async fn check_update(app: &AppHandle) -> Result<UpdateCheckResult, String> {
+    let release = fetch_latest_release_metadata().await?;
+    let status = read_status(app)?;
+    let current = status.version.clone();
+    let update_available = current.as_deref() != Some(&release.tag_name);
+
+    let dir = extension_dir(app)?;
+    if dir.exists() {
+        let _ = fs::write(dir.join("last_checked_at.txt"), Utc::now().to_rfc3339());
+        let _ = fs::write(dir.join("latest_available.txt"), &release.tag_name);
+    }
+    Ok(UpdateCheckResult { current, latest: release.tag_name, update_available })
+}
+
+pub fn should_auto_check_now(status: &PluginStatus) -> bool {
+    let Some(last) = status.last_checked_at.as_deref() else { return true; };
+    let Ok(last_dt) = chrono::DateTime::parse_from_rfc3339(last) else { return true; };
+    let elapsed = Utc::now().signed_duration_since(last_dt.with_timezone(&Utc));
+    elapsed.num_days() >= 7
+}
+
+#[cfg(test)]
+mod auto_check_tests {
+    use super::*;
+
+    fn status_with_last_check(at: Option<String>) -> PluginStatus {
+        PluginStatus { installed: true, version: Some("v1".into()), installed_at: None,
+            last_checked_at: at, latest_available: None, size_bytes: None }
+    }
+
+    #[test]
+    fn auto_check_when_never_checked() {
+        assert!(should_auto_check_now(&status_with_last_check(None)));
+    }
+
+    #[test]
+    fn auto_check_after_seven_days() {
+        let eight_days_ago = (Utc::now() - chrono::Duration::days(8)).to_rfc3339();
+        assert!(should_auto_check_now(&status_with_last_check(Some(eight_days_ago))));
+    }
+
+    #[test]
+    fn no_auto_check_within_seven_days() {
+        let two_days_ago = (Utc::now() - chrono::Duration::days(2)).to_rfc3339();
+        assert!(!should_auto_check_now(&status_with_last_check(Some(two_days_ago))));
+    }
+}
