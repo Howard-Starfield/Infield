@@ -109,7 +109,20 @@ finalizing tier assignment:
    (`.notes-tree-root.heros-glass-card,
    .notes-editor-column.heros-glass-card,
    .notes-backlinks.heros-glass-card`, lines 749-755).
-10. **Baseline screenshot capture** before migration starts, retake
+10. **Delete the runtime token-mutation `useEffect` in `src/App.tsx`**
+    (lines ~92-176, the block keyed on `vaultData?.uiPreferences`).
+    This is leftover from the deleted theme module per CLAUDE.md
+    Rule 12 / Deferred list. It mutates `--heros-glass-fill`,
+    `--heros-glass-black`, `--heros-glass-black-deep`, plus
+    `--heros-brand`, `--heros-bg-foundation`, `--heros-text-*`,
+    `--heros-btn-hover`, `--heros-card-hover`, `--heros-selection`,
+    `--on-surface*`, `--heros-text-shadow`, `--heros-panel-shadow`,
+    `--heros-grain-opacity` based on `prefs.themeColor /
+    glassIntensity / grainIntensity`. Verified no SettingsView UI
+    surface exposes these prefs, so no user-facing control breaks.
+    The `celebrationService.setPreferences(prefs)` call inside the
+    same effect is **kept** — moved into a separate, smaller effect.
+11. **Baseline screenshot capture** before migration starts, retake
     after each tier's commit, diff visually.
 
 ### Explicitly excluded
@@ -381,10 +394,14 @@ the standalone rule at App.css:789 fully owns its appearance.
    `--heros-glass-black-deep` with `--row-hover-fill-deep` across
    App.css and any other `src/styles/*.css` matches. Then delete the
    two deprecated alias lines from `:root`. Verify via grep.
-6. **Commit F — retire `--heros-glass-fill`.** Update the
-   `.login-mode` override at App.css:2730 to set `--panel-fill`
-   instead. Delete the `--heros-glass-fill` alias and the original
-   token from `:root`. Verify via grep.
+6. **Commit F — retire `--heros-glass-fill` and delete App.tsx
+   theme-effect.** Update the `.login-mode` override at App.css:2730
+   to set `--panel-fill` instead. Delete the `--heros-glass-fill`
+   alias and the original token from `:root`. Delete the runtime
+   token-mutation `useEffect` in `src/App.tsx` (the whole block
+   keyed on `vaultData?.uiPreferences`); preserve the
+   `celebrationService.setPreferences(prefs)` call by extracting it
+   into a small standalone effect. Verify via grep.
 
 Each commit is independently revertable. If commit C makes the
 titlebar look wrong, revert C and the design system is back to a
@@ -461,6 +478,7 @@ via Grep tool or ripgrep) must come back at the expected level:
 | `\.notes-[a-z-]+\.heros-glass-card` (specificity hack) | notes.css | Zero matches |
 | `--heros-glass-fill\b` | entire `src/` tree | Zero matches |
 | `--heros-glass-black(\b\|-deep)` | entire `src/` tree | Zero matches |
+| `setProperty\(['"]--heros-` | `src/App.tsx` | Zero matches |
 
 ### Build + tests
 
