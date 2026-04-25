@@ -863,11 +863,6 @@
   box-shadow: none;
 }
 
-.tree-row--selected {
-  background: rgba(204, 76, 43, 0.12);
-  color: rgba(248, 250, 255, 0.94);
-}
-
 .tree-row__branch {
   width: calc(var(--tree-depth, 0) * 20px);
   min-width: calc(var(--tree-depth, 0) * 20px);
@@ -902,10 +897,6 @@
 .tree-row--drag-preview {
   pointer-events: none;
   box-sizing: border-box;
-}
-
-.tree-row--drag-source {
-  visibility: hidden;
 }
 
 .notes-tabs {
