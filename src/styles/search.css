@@ -136,3 +136,40 @@
 .search-empty__suggestion:hover {
   text-decoration: underline;
 }
+
+/* ── search-filters — W3 sidebar (node-type, tag, date) ─────────── */
+/* SELF-REVIEW: width 200px has no matching token in :root;
+   --account-sidebar-width is 240px (too wide). Left as literal pending
+   a future --search-filters-width token. */
+.search-filters {
+  width: 200px;
+  flex-shrink: 0;
+  padding: var(--space-4);
+  border-right: 1px solid var(--border-subtle);
+  overflow-y: auto;
+}
+.search-filters__section {
+  margin-bottom: var(--space-6);
+}
+.search-filters__heading {
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--heros-text-dim);
+  margin: 0 0 var(--space-2) 0;
+  font-weight: 600;
+}
+.search-filters__checkbox,
+.search-filters__radio {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) 0;
+  font-size: var(--text-sm);
+  color: var(--heros-text-muted);
+  cursor: pointer;
+}
+.search-filters__checkbox input,
+.search-filters__radio input {
+  cursor: pointer;
+}
