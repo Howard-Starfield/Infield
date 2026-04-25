@@ -270,13 +270,13 @@ async function resolveVaultAbsolutePath(vaultRelPath: string): Promise<string | 
       if (result.status !== 'ok') return null
       cachedAppDataDir = result.data
     }
-    // Vault root convention per CLAUDE.md: <app_data>/handy-vault/
+    // Vault root convention: <app_data>/infield-vault/ (renamed from handy-vault).
     // The relative path uses forward slashes from Rust; normalise the
     // join with whatever the platform separator is by passing the raw
     // string — Tauri's fs plugin accepts both `/` and `\` on Windows.
     const sep = cachedAppDataDir.includes('\\') ? '\\' : '/'
     const root = cachedAppDataDir.endsWith(sep) ? cachedAppDataDir : cachedAppDataDir + sep
-    return `${root}handy-vault${sep}${vaultRelPath.replace(/^[/\\]+/, '')}`
+    return `${root}infield-vault${sep}${vaultRelPath.replace(/^[/\\]+/, '')}`
   } catch {
     return null
   }

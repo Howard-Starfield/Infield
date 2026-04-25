@@ -38,9 +38,9 @@ function formatDuration(seconds: number): string {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
-function defaultOpts(): WebMediaImportOpts {
+function makeOpts(keepMedia: boolean): WebMediaImportOpts {
   return {
-    keep_media: false,
+    keep_media: keepMedia,
     format: { kind: 'mp3_audio' },
     parent_folder_node_id: null,
     playlist_source: null,
@@ -117,6 +117,7 @@ export function ImportUrlTab() {
   const plugin = useYtDlpPlugin();
   const [selectedUrl, setSelectedUrl] = useState<string | null>(null);
   const [preview, setPreview] = useState<PreviewState>({ kind: 'idle' });
+  const [keepMedia, setKeepMedia] = useState(true);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Debounced metadata fetch on URL select.
@@ -203,9 +204,16 @@ export function ImportUrlTab() {
         <section className="heros-glass-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: 16, height: 'fit-content' }}>
           {!plugin.status?.installed
             ? <PluginMissingBanner plugin={plugin} />
-            : <UrlInputBlock onSingle={url => setSelectedUrl(url)} onBulk={urls => commitBulk(urls, defaultOpts())} />
+            : (
+              <UrlInputBlock
+                onSingle={url => setSelectedUrl(url)}
+                onBulk={urls => commitBulk(urls, makeOpts(keepMedia))}
+                keepMedia={keepMedia}
+                onKeepMediaChange={setKeepMedia}
+              />
+            )
           }
-          <PreviewBlock preview={preview} onCommit={commitSingle} />
+          <PreviewBlock preview={preview} onCommit={() => commitSingle(makeOpts(keepMedia))} />
         </section>
 
         {/* Right Column: Processing + Completed */}
@@ -219,7 +227,7 @@ export function ImportUrlTab() {
         <PlaylistSelectorModal
           envelope={preview.envelope}
           onCancel={() => setPreview({ kind: 'idle' })}
-          onCommit={sel => commitPlaylist(preview.envelope, sel, defaultOpts())}
+          onCommit={sel => commitPlaylist(preview.envelope, sel, makeOpts(keepMedia))}
         />
       )}
     </div>
@@ -227,7 +235,12 @@ export function ImportUrlTab() {
 }
 
 // ── URL input block (drop-zone-styled paste area) ──────────────
-function UrlInputBlock({ onSingle, onBulk }: { onSingle: (url: string) => void; onBulk: (urls: string[]) => void }) {
+function UrlInputBlock({ onSingle, onBulk, keepMedia, onKeepMediaChange }: {
+  onSingle: (url: string) => void;
+  onBulk: (urls: string[]) => void;
+  keepMedia: boolean;
+  onKeepMediaChange: (next: boolean) => void;
+}) {
   const [text, setText] = useState('');
   const urls = detectUrls(text);
   const isBulk = urls.length > 1;
@@ -277,6 +290,25 @@ function UrlInputBlock({ onSingle, onBulk }: { onSingle: (url: string) => void; 
         />
       </div>
 
+      <label
+        style={{
+          display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer',
+          fontSize: '12px', color: 'var(--heros-text-muted)',
+          padding: '6px 10px', borderRadius: 10,
+          background: 'rgba(255,255,255,0.03)',
+          border: '1px solid rgba(255,255,255,0.06)',
+        }}
+        title="When on, the downloaded audio file is kept on disk after transcription. When off, only the transcript and thumbnail are kept."
+      >
+        <input
+          type="checkbox"
+          checked={keepMedia}
+          onChange={e => onKeepMediaChange(e.target.checked)}
+          style={{ accentColor: 'var(--heros-brand)' }}
+        />
+        <span>Keep media file after transcription</span>
+      </label>
+
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'space-between' }}>
         <span style={{ fontSize: '11px', color: 'var(--heros-text-dim)', fontFamily: 'monospace' }}>
           {urls.length === 0 ? '—' : `${urls.length} URL${urls.length !== 1 ? 's' : ''} detected`}
@@ -317,7 +349,7 @@ function PluginMissingBanner({ plugin }: { plugin: ReturnType<typeof useYtDlpPlu
 }
 
 // ── Preview block ──────────────────────────────────────────────
-function PreviewBlock({ preview, onCommit }: { preview: PreviewState; onCommit: (opts: WebMediaImportOpts) => void }) {
+function PreviewBlock({ preview, onCommit }: { preview: PreviewState; onCommit: () => void }) {
   if (preview.kind === 'idle') return null;
   if (preview.kind === 'loading') return <div className="preview-skeleton" />;
   if (preview.kind === 'live') return <p className="import-view__empty">Live streams are not supported yet.</p>;
@@ -352,12 +384,12 @@ function PreviewBlock({ preview, onCommit }: { preview: PreviewState; onCommit: 
         {already ? (
           <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
             <span className="import-view__empty" style={{ padding: 0, textAlign: 'left' }}>Already imported</span>
-            <button className="heros-btn" onClick={() => onCommit(defaultOpts())} style={{ fontSize: 'var(--text-xs)' }}>
+            <button className="heros-btn" onClick={onCommit} style={{ fontSize: 'var(--text-xs)' }}>
               Import anyway
             </button>
           </div>
         ) : (
-          <button className="heros-btn heros-btn-brand" onClick={() => onCommit(defaultOpts())}>
+          <button className="heros-btn heros-btn-brand" onClick={onCommit}>
             Import →
           </button>
         )}
