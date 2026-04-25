@@ -2943,10 +2943,11 @@ body.is-resizing {
   font-size: 10.5px; font-weight: 600;
   letter-spacing: 0.06em; text-transform: uppercase;
   color: rgba(255, 255, 255, 0.2);
-  background: rgba(0, 0, 0, 0.28);
+  background: var(--card-deep-fill);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   white-space: nowrap;
-  backdrop-filter: blur(12px);
+  backdrop-filter: blur(var(--card-deep-blur)) saturate(var(--card-deep-saturate));
+  -webkit-backdrop-filter: blur(var(--card-deep-blur)) saturate(var(--card-deep-saturate));
 }
 .db-table tbody td {
   padding: 10px 14px; color: #fff;

@@ -202,6 +202,11 @@
   box-shadow: none;
 }
 
+.tree-row--selected {
+  background: rgba(204, 76, 43, 0.12);
+  color: rgba(248, 250, 255, 0.94);
+}
+
 .tree-row__branch {
   width: calc(var(--tree-depth, 0) * 20px);
   min-width: calc(var(--tree-depth, 0) * 20px);
@@ -245,6 +250,10 @@
 .tree-row--drag-preview {
   pointer-events: none;
   box-sizing: border-box;
+}
+
+.tree-row--drag-source {
+  visibility: hidden;
 }
 
 .tree-row__rename {
@@ -742,23 +751,16 @@
   box-sizing: border-box;
 }
 
-/* Double-class specificity (0,2,0) beats .heros-glass-card (0,1,0) regardless
-   of cascade order — needed because notes.css is @import-ed at the top of
-   App.css while .heros-glass-card is defined later in the same file.
-   Values mirror .db-table thead th: rgba(0,0,0,0.28) + blur(12px). */
+/* Notes panels use the deep-tier fill/blur via the .heros-glass-card default
+   fallback rule in App.css. Only the non-redundant surface overrides remain:
+   blue-tinted partial rim (top+left only) and shadow without the inset
+   highlight that --heros-panel-shadow includes. */
 .notes-tree-root.heros-glass-card,
 .notes-editor-column.heros-glass-card,
 .notes-backlinks.heros-glass-card {
-  background: rgba(0, 0, 0, 0.28);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
   border-top: 1px solid rgba(178, 185, 218, 0.10);
   border-left: 1px solid rgba(178, 185, 218, 0.10);
   box-shadow: 0 18px 44px rgba(0, 0, 0, 0.34);
-  border-radius: 18px;
-  text-shadow: none;
-  transform: none;
-  will-change: auto;
 }
 
 .notes-editor-column {
@@ -861,6 +863,11 @@
   box-shadow: none;
 }
 
+.tree-row--selected {
+  background: rgba(204, 76, 43, 0.12);
+  color: rgba(248, 250, 255, 0.94);
+}
+
 .tree-row__branch {
   width: calc(var(--tree-depth, 0) * 20px);
   min-width: calc(var(--tree-depth, 0) * 20px);
@@ -895,6 +902,10 @@
 .tree-row--drag-preview {
   pointer-events: none;
   box-sizing: border-box;
+}
+
+.tree-row--drag-source {
+  visibility: hidden;
 }
 
 .notes-tabs {
