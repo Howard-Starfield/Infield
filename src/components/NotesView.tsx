@@ -158,15 +158,25 @@ export function NotesView() {
       const i = (ev as CustomEvent).detail
       if (typeof i === 'number') dispatch({ type: 'SWITCH_TO_INDEX', index: i })
     }
+    const onOpenNewTab = (ev: Event) => {
+      const id = (ev as CustomEvent).detail
+      if (typeof id === 'string') {
+        autoFocusNodeIds.current.delete(id)  // not auto-focus on cross-page open
+        dispatch({ type: 'OPEN_IN_NEW_TAB', nodeId: id })
+        bumpRefresh()
+      }
+    }
     window.addEventListener('notes:open', onOpen)
     window.addEventListener('notes:new-tab', onNewTab)
     window.addEventListener('notes:close-active', onCloseActive)
     window.addEventListener('notes:switch-index', onSwitchIndex)
+    window.addEventListener('notes:open-new-tab', onOpenNewTab)
     return () => {
       window.removeEventListener('notes:open', onOpen)
       window.removeEventListener('notes:new-tab', onNewTab)
       window.removeEventListener('notes:close-active', onCloseActive)
       window.removeEventListener('notes:switch-index', onSwitchIndex)
+      window.removeEventListener('notes:open-new-tab', onOpenNewTab)
     }
   }, [openFromShortcut, handleCreateRoot, activeTab])
 
