@@ -1072,10 +1072,11 @@ async getFooterSystemStatus() : Promise<Result<FooterSystemStatus, string>> {
 },
 /**
  * Hybrid search for workspace nodes (FTS + vector, merged via RRF).
+ * W3 adds optional filters for node_type, tags, date range, and pagination.
  */
-async searchWorkspaceHybrid(query: string, limit: number | null) : Promise<Result<WorkspaceSearchResult[], string>> {
+async searchWorkspaceHybrid(query: string, limit: number | null, offset: number | null, nodeTypes: string[] | null, tags: string[] | null, createdFrom: number | null, createdTo: number | null) : Promise<Result<WorkspaceSearchResult[], string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("search_workspace_hybrid", { query, limit }) };
+    return { status: "ok", data: await TAURI_INVOKE("search_workspace_hybrid", { query, limit, offset, nodeTypes, tags, createdFrom, createdTo }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -1106,6 +1107,41 @@ async searchWorkspaceTitle(query: string, limit: number | null) : Promise<Result
 async reindexAllEmbeddings() : Promise<Result<number, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("reindex_all_embeddings") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Stage 4: re-score top-N candidates via cross-encoder. Returns null on
+ * timeout, model unavailable, or internal error — caller falls back to RRF.
+ */
+async rerankCandidates(query: string, candidates: RerankCandidate[], limit: number, timeoutMs: number | null) : Promise<Result<RerankResult[] | null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("rerank_candidates", { query, candidates, limit, timeoutMs }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Footer / settings status surface.
+ */
+async getRerankerStatus() : Promise<Result<RerankerStatus, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_reranker_status") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Trigger lazy download. Frontend invokes this on first search if status
+ * reports !is_available. Concurrent calls return the same in-flight result.
+ */
+async downloadRerankerModel() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("download_reranker_model") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -1979,7 +2015,7 @@ async setAppZoom(scale: number) : Promise<Result<null, string>> {
     else return { status: "error", error: e  as any };
 }
 },
-async ytDlpPluginStatus(app: AppHandle) : Promise<Result<PluginStatus, string>> {
+async ytDlpPluginStatus() : Promise<Result<PluginStatus, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("yt_dlp_plugin_status") };
 } catch (e) {
@@ -2011,6 +2047,10 @@ async uninstallYtDlpPlugin() : Promise<Result<null, string>> {
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Fetch yt-dlp metadata for a URL and check whether it has already been
+ * imported into the workspace.
+ */
 async fetchUrlMetadata(url: string) : Promise<Result<UrlMetadataResult, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("fetch_url_metadata", { url }) };
@@ -2019,6 +2059,9 @@ async fetchUrlMetadata(url: string) : Promise<Result<UrlMetadataResult, string>>
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Fetch the entries of a playlist URL without downloading any media.
+ */
 async fetchPlaylistEntries(url: string) : Promise<Result<PlaylistEnvelope, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("fetch_playlist_entries", { url }) };
@@ -2027,6 +2070,9 @@ async fetchPlaylistEntries(url: string) : Promise<Result<PlaylistEnvelope, strin
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Enqueue one or more URLs for import. Returns the job IDs.
+ */
 async enqueueImportUrls(urls: string[], opts: WebMediaImportOpts) : Promise<Result<string[], string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("enqueue_import_urls", { urls, opts }) };
@@ -2035,6 +2081,9 @@ async enqueueImportUrls(urls: string[], opts: WebMediaImportOpts) : Promise<Resu
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Pause the import queue worker (in-flight jobs finish; no new jobs start).
+ */
 async pauseImportQueue() : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("pause_import_queue") };
@@ -2043,6 +2092,9 @@ async pauseImportQueue() : Promise<Result<null, string>> {
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Resume the import queue worker.
+ */
 async resumeImportQueue() : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("resume_import_queue") };
@@ -2051,6 +2103,9 @@ async resumeImportQueue() : Promise<Result<null, string>> {
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Return whether the import queue is currently paused.
+ */
 async importQueuePauseState() : Promise<Result<boolean, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("import_queue_pause_state") };
@@ -2076,6 +2131,7 @@ historyUpdatePayload: "history-update-payload"
 
 /** user-defined types **/
 
+export type AlreadyImportedHit = { node_id: string; imported_at: string; vault_path: string }
 export type AppSettings = { bindings: Partial<{ [key in string]: ShortcutBinding }>; push_to_talk: boolean; audio_feedback: boolean; audio_feedback_volume?: number; sound_theme?: SoundTheme; start_hidden?: boolean; autostart_enabled?: boolean; update_checks_enabled?: boolean; selected_model?: string; always_on_microphone?: boolean; selected_microphone?: string | null; clamshell_microphone?: string | null; selected_output_device?: string | null; translate_to_english?: boolean; selected_language?: string; overlay_position?: OverlayPosition; debug_mode?: boolean; log_level?: LogLevel; custom_words?: string[]; model_unload_timeout?: ModelUnloadTimeout; word_correction_threshold?: number; history_limit?: number; recording_retention_period?: RecordingRetentionPeriod; paste_method?: PasteMethod; clipboard_handling?: ClipboardHandling; auto_submit?: boolean; auto_submit_key?: AutoSubmitKey; auto_create_note?: boolean; post_process_enabled?: boolean; post_process_provider_id?: string; post_process_providers?: PostProcessProvider[]; post_process_api_keys?: SecretMap; post_process_models?: Partial<{ [key in string]: string }>; post_process_prompts?: LLMPrompt[]; post_process_selected_prompt_id?: string | null; import_post_process_prompt_id?: string | null; local_llm_num_ctx?: number; note_prompts?: LLMPrompt[]; llm_model_path?: string | null; llm_gpu_enabled?: boolean; auto_tag_enabled?: boolean; mute_while_recording?: boolean; append_trailing_space?: boolean; app_language?: string; experimental_enabled?: boolean; lazy_stream_close?: boolean; keyboard_implementation?: KeyboardImplementation; show_tray_icon?: boolean; paste_delay_ms?: number; typing_tool?: TypingTool; external_script_path: string | null; custom_filler_words?: string[] | null; whisper_accelerator?: WhisperAcceleratorSetting; ort_accelerator?: OrtAcceleratorSetting; embedding_model?: EmbeddingModel; whisper_gpu_device?: number; extra_recording_buffer_ms?: number; capture_mode?: CaptureMode; loopback_device?: string | null; loopback_audio_source?: LoopbackAudioSource; system_audio_max_chunk_secs?: number; 
 /**
  * Wall-clock gap between delivered transcription chunks to start a new `[MM:SS]` paragraph.
@@ -2270,17 +2326,9 @@ export type ImplementationChangeResult = { success: boolean;
  * List of binding IDs that were reset to defaults due to incompatibility
  */
 reset_bindings: string[] }
-export type ImportJobDto = { id: string; file_name: string; source_path: string; kind: ImportJobKind; state: ImportJobState; message: string | null; note_id: string | null; progress: number; segment_index: number; segment_count: number; current_step: string | null; web_meta?: WebMediaMetadata; download_bytes?: number; download_total_bytes?: number; download_speed_human?: string }
+export type ImportJobDto = { id: string; file_name: string; source_path: string; kind: ImportJobKind; state: ImportJobState; message: string | null; note_id: string | null; progress: number; segment_index: number; segment_count: number; current_step: string | null; web_meta?: WebMediaMetadata | null; download_bytes?: number | null; download_total_bytes?: number | null; download_speed_human?: string | null }
 export type ImportJobKind = "markdown" | "plain_text" | "pdf" | "audio" | "video" | "web_media" | "unknown"
 export type ImportJobState = "queued" | "fetching_meta" | "downloading" | "preparing" | "segmenting" | "draft_created" | "transcribing" | "post_processing" | "finalizing" | "extracting_text" | "creating_note" | "done" | "error" | "cancelled"
-export type WebMediaMetadata = { url: string; source_id: string; title: string; thumbnail_url?: string; duration_seconds?: number; channel?: string; platform: string; published_at?: string; available_video_heights: number[]; is_live: boolean }
-export type AlreadyImportedHit = { node_id: string; imported_at: string; vault_path: string }
-export type PlaylistSource = { title: string; url: string; index: number }
-export type WebMediaFormat = { kind: "mp3_audio" } | { kind: "mp4_video"; max_height: number }
-export type WebMediaImportOpts = { keep_media: boolean; format: WebMediaFormat; parent_folder_node_id: string | null; playlist_source: PlaylistSource | null }
-export type PlaylistEntry = { url: string; source_id: string; title: string; duration_seconds: number | null; thumbnail_url: string | null; channel: string | null }
-export type PlaylistEnvelope = { playlist_url: string; playlist_title: string; channel: string | null; entries: PlaylistEntry[] }
-export type UrlMetadataResult = WebMediaMetadata & { already_imported: AlreadyImportedHit | null }
 export type ImportQueueSnapshot = { jobs: ImportJobDto[] }
 export type InterviewStartResult = { workspace_doc_id: string; started_at_ms: number }
 export type KeyboardImplementation = "tauri" | "handy_keys"
@@ -2330,7 +2378,6 @@ export type OverlayPosition = "none" | "top" | "bottom"
 export type PaginatedHistory = { entries: HistoryEntry[]; has_more: boolean }
 export type PasteMethod = "ctrl_v" | "direct" | "none" | "shift_insert" | "ctrl_shift_v" | "external_script"
 export type PermissionAccess = "allowed" | "denied" | "unknown"
-export type PluginStatus = { installed: boolean; version: string | null; installed_at: string | null; last_checked_at: string | null; latest_available: string | null; size_bytes: number | null }
 /**
  * Permission outcomes for mic and accessibility steps.
  * 
@@ -2340,6 +2387,10 @@ export type PluginStatus = { installed: boolean; version: string | null; install
  * "platform doesn't need it").
  */
 export type PermissionState = "granted" | "denied" | "skipped" | "not_applicable"
+export type PlaylistEntry = { url: string; source_id: string; title: string; duration_seconds: number | null; thumbnail_url: string | null; channel: string | null }
+export type PlaylistEnvelope = { playlist_url: string; playlist_title: string; channel: string | null; entries: PlaylistEntry[] }
+export type PlaylistSource = { title: string; url: string; index: number }
+export type PluginStatus = { installed: boolean; version: string | null; installed_at: string | null; last_checked_at: string | null; latest_available: string | null; size_bytes: number | null }
 export type PostProcessProvider = { id: string; label: string; base_url: string; allow_base_url_edit?: boolean; models_endpoint?: string | null; supports_structured_output?: boolean }
 export type PromptContext = { recent_messages: ChatMemoryMessage[]; relevant_memories: MemoryChunk[] }
 export type ProviderStatus = { provider_id: string; model: string; base_url: string | null; 
@@ -2387,6 +2438,10 @@ sha256: string | null;
  */
 required: boolean }
 export type RenderDeviceInfo = { id: string; name: string }
+export type RerankCandidate = { node_id: string; title: string; excerpt: string }
+export type RerankResult = { node_id: string; rerank_score: number; original_rank: number }
+export type RerankerModelInfo = { model_id: string; model_hash: string | null }
+export type RerankerStatus = { model_info: RerankerModelInfo; is_available: boolean; unavailable_reason: string | null; model_downloaded: boolean }
 /**
  * A database row, returned by get_rows / create_row.
  */
@@ -2419,6 +2474,11 @@ date_format: string;
 time_format: string; include_time: boolean } } | { type: "single_select"; config: { options: SelectOption[] } } | { type: "multi_select"; config: { options: SelectOption[] } } | { type: "checkbox" } | { type: "url" } | { type: "checklist" } | { type: "last_edited_time" } | { type: "created_time" } | { type: "time" } | { type: "date"; config: { date_format: string; time_format: string; include_time: boolean } } | { type: "media" } | { type: "protected" }
 export type TypingTool = "auto" | "wtype" | "kwtype" | "dotool" | "ydotool" | "xdotool"
 export type UpdateCheckResult = { current: string | null; latest: string; update_available: boolean }
+/**
+ * Combined result from `fetch_url_metadata`: the raw metadata from yt-dlp
+ * plus an optional hit if this URL has already been imported.
+ */
+export type UrlMetadataResult = ({ url: string; source_id: string; title: string; thumbnail_url?: string | null; duration_seconds?: number | null; channel?: string | null; platform: string; published_at?: string | null; available_video_heights: number[]; is_live: boolean }) & { already_imported: AlreadyImportedHit | null }
 export type VaultSyncStatus = { total_documents: number; synced_documents: number; pending_documents: number }
 /**
  * Extended status that includes the on-disk index file size.
@@ -2430,6 +2490,9 @@ export type VaultSyncStatus = { total_documents: number; synced_documents: numbe
  * with the frontend binding and return 0.
  */
 export type VectorIndexStatus = { dimension: number; model_name: string; total_chunks: number; stale_chunks: number; is_empty: boolean; index_size_bytes: number; health: string }
+export type WebMediaFormat = { kind: "mp_3_audio" } | { kind: "mp_4_video"; max_height: number }
+export type WebMediaImportOpts = { keep_media: boolean; format: WebMediaFormat; parent_folder_node_id: string | null; playlist_source: PlaylistSource | null }
+export type WebMediaMetadata = { url: string; source_id: string; title: string; thumbnail_url?: string | null; duration_seconds?: number | null; channel?: string | null; platform: string; published_at?: string | null; available_video_heights: number[]; is_live: boolean }
 export type WhisperAcceleratorSetting = "auto" | "cpu" | "gpu"
 export type WindowsMicrophonePermissionStatus = { supported: boolean; overall_access: PermissionAccess; device_access: PermissionAccess; app_access: PermissionAccess; desktop_app_access: PermissionAccess }
 export type WorkspaceMemoryPreview = { id: string; category: string; content: string; source: string }
