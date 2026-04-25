@@ -576,3 +576,155 @@ fn run_inference(
 fn sigmoid(x: f32) -> f32 {
     1.0 / (1.0 + (-x).exp())
 }
+
+// ─── Rule 19: model-version guard ────────────────────────────────────────
+
+use rusqlite::Connection;
+use sha2::{Digest, Sha256};
+
+/// Outcome of the Rule 19 check on boot.
+pub enum Rule19Outcome {
+    /// First run, no prior info row — inserted now.
+    FirstRun,
+    /// Prior info matches on-disk model — nothing to do.
+    Match,
+    /// Mismatch on model_id or model_hash — caller must clear LRU.
+    /// (Reranker scores are in-memory only, no persisted vectors to reindex.)
+    Mismatch { reason: String },
+    /// Model file missing — skip check entirely. Lazy-download will populate.
+    ModelMissing,
+}
+
+/// Compare the model on disk against `reranker_model_info`. Mirror of
+/// `embedding_ort::rule_19_reindex_check` but simpler — no vec_embeddings
+/// to wipe, just an in-memory LRU to invalidate.
+pub fn rule_19_check_reranker(
+    conn: &mut Connection,
+    model_path: &PathBuf,
+) -> Result<Rule19Outcome> {
+    let model_file = model_path.join("model.onnx");
+    if !model_file.exists() {
+        return Ok(Rule19Outcome::ModelMissing);
+    }
+
+    let on_disk_hash = sha256_file(&model_file)?;
+
+    let prior: Option<(String, String)> = conn
+        .query_row(
+            "SELECT model_id, model_hash FROM reranker_model_info WHERE id = 1",
+            [],
+            |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)),
+        )
+        .ok();
+
+    match prior {
+        None => {
+            conn.execute(
+                "INSERT INTO reranker_model_info (id, model_id, model_hash) VALUES (1, ?1, ?2)",
+                rusqlite::params![MODEL_ID, on_disk_hash],
+            )?;
+            Ok(Rule19Outcome::FirstRun)
+        }
+        Some((prior_id, prior_hash)) => {
+            if prior_id != MODEL_ID {
+                conn.execute(
+                    "UPDATE reranker_model_info SET model_id = ?1, model_hash = ?2 WHERE id = 1",
+                    rusqlite::params![MODEL_ID, on_disk_hash],
+                )?;
+                Ok(Rule19Outcome::Mismatch {
+                    reason: format!("model_id changed: {prior_id} -> {MODEL_ID}"),
+                })
+            } else if prior_hash != on_disk_hash {
+                conn.execute(
+                    "UPDATE reranker_model_info SET model_hash = ?1 WHERE id = 1",
+                    rusqlite::params![on_disk_hash],
+                )?;
+                Ok(Rule19Outcome::Mismatch {
+                    reason: "model_hash changed".to_string(),
+                })
+            } else {
+                Ok(Rule19Outcome::Match)
+            }
+        }
+    }
+}
+
+fn sha256_file(path: &std::path::Path) -> Result<String> {
+    use std::io::Read;
+    let mut file = std::fs::File::open(path)?;
+    let mut hasher = Sha256::new();
+    let mut buf = [0u8; 8192];
+    loop {
+        let n = file.read(&mut buf)?;
+        if n == 0 {
+            break;
+        }
+        hasher.update(&buf[..n]);
+    }
+    Ok(format!("{:x}", hasher.finalize()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+    use std::io::Write;
+
+    fn fresh_conn_with_table() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute(
+            "CREATE TABLE reranker_model_info (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                model_id TEXT NOT NULL,
+                model_hash TEXT NOT NULL
+            )",
+            [],
+        )
+        .unwrap();
+        conn
+    }
+
+    fn fake_model(dir: &std::path::Path, contents: &[u8]) {
+        let p = dir.join("model.onnx");
+        let mut f = std::fs::File::create(p).unwrap();
+        f.write_all(contents).unwrap();
+    }
+
+    #[test]
+    fn rule_19_first_run_inserts() {
+        let tmp = TempDir::new().unwrap();
+        fake_model(tmp.path(), b"v1");
+        let mut conn = fresh_conn_with_table();
+        let outcome = rule_19_check_reranker(&mut conn, &tmp.path().to_path_buf()).unwrap();
+        assert!(matches!(outcome, Rule19Outcome::FirstRun));
+    }
+
+    #[test]
+    fn rule_19_match_on_unchanged() {
+        let tmp = TempDir::new().unwrap();
+        fake_model(tmp.path(), b"v1");
+        let mut conn = fresh_conn_with_table();
+        let _ = rule_19_check_reranker(&mut conn, &tmp.path().to_path_buf()).unwrap();
+        let outcome2 = rule_19_check_reranker(&mut conn, &tmp.path().to_path_buf()).unwrap();
+        assert!(matches!(outcome2, Rule19Outcome::Match));
+    }
+
+    #[test]
+    fn rule_19_mismatch_on_changed_hash() {
+        let tmp = TempDir::new().unwrap();
+        fake_model(tmp.path(), b"v1");
+        let mut conn = fresh_conn_with_table();
+        let _ = rule_19_check_reranker(&mut conn, &tmp.path().to_path_buf()).unwrap();
+        fake_model(tmp.path(), b"v2-different");
+        let outcome2 = rule_19_check_reranker(&mut conn, &tmp.path().to_path_buf()).unwrap();
+        assert!(matches!(outcome2, Rule19Outcome::Mismatch { .. }));
+    }
+
+    #[test]
+    fn rule_19_model_missing_short_circuits() {
+        let tmp = TempDir::new().unwrap();
+        let mut conn = fresh_conn_with_table();
+        let outcome = rule_19_check_reranker(&mut conn, &tmp.path().to_path_buf()).unwrap();
+        assert!(matches!(outcome, Rule19Outcome::ModelMissing));
+    }
+}
