@@ -20,7 +20,7 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  color: #fff;
+  color: var(--heros-text-primary);
 }
 
 .extension-card__body {
@@ -36,7 +36,7 @@
 
 .extension-card__status,
 .extension-card__desc {
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--heros-text-muted);
   margin: 0;
   font-size: var(--text-sm);
 }
