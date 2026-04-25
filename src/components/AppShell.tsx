@@ -19,6 +19,7 @@ import { SystemAudioView } from './SystemAudioView';
 import { NotesView } from './NotesView';
 import { DatabasesView } from './DatabasesView';
 import { BuddyView } from './BuddyView';
+import { SpotlightOverlay } from './SpotlightOverlay';
 
 import { HerOSBackground } from './HerOS';
 
@@ -33,6 +34,7 @@ export default function AppShell({ currentPage, onNavigate }: AppShellProps) {
   const { vaultData } = useVault();
   const { isLayoutMode } = useLayout();
   const [isNavExpanded, setIsNavExpanded] = useState(false);
+  const [spotlightVisible, setSpotlightVisible] = useState(false)
 
   useEffect(() => {
     const onKey = async (e: KeyboardEvent) => {
@@ -100,6 +102,12 @@ export default function AppShell({ currentPage, onNavigate }: AppShellProps) {
         window.dispatchEvent(new CustomEvent('notes:switch-index', { detail: idx }))
         return
       }
+      // Cmd+K → toggle Spotlight (any page).
+      if (e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        setSpotlightVisible((v) => !v)
+        return
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -123,6 +131,21 @@ export default function AppShell({ currentPage, onNavigate }: AppShellProps) {
 
   return (
     <div style={{ position: 'relative', width: '100vw', height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      {spotlightVisible && (
+        <SpotlightOverlay
+          onDismiss={() => setSpotlightVisible(false)}
+          onOpenPreview={(nodeId) => {
+            setSpotlightVisible(false)
+            onNavigate('notes')
+            window.dispatchEvent(new CustomEvent('notes:open', { detail: nodeId }))
+          }}
+          onOpenInNewTab={(nodeId) => {
+            setSpotlightVisible(false)
+            onNavigate('notes')
+            window.dispatchEvent(new CustomEvent('notes:open-new-tab', { detail: nodeId }))
+          }}
+        />
+      )}
       <TitleBar
         currentPath={displayPath}
         isNavExpanded={isNavExpanded}
