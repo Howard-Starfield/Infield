@@ -8,6 +8,7 @@ pub mod llm;
 pub mod memory;
 pub mod models;
 pub mod onboarding;
+pub mod rerank;
 pub mod search;
 pub mod system_audio;
 pub mod transcription;
