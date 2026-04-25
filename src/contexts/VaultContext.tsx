@@ -35,6 +35,11 @@ import {
 } from 'react'
 import type { VaultData, VaultEnvelope, UiPreferences } from '../types'
 import { commands, type OnboardingState, type OnboardingStep, type OnboardingStatePatch } from '../bindings'
+import {
+  effectiveUiScale,
+  persistLogicalUiScale,
+  readStoredLogicalUiScale,
+} from '../services/uiScale'
 
 interface VaultContextType {
   isLocked: boolean
@@ -104,19 +109,20 @@ const MIN_WINDOW = { width: 900, height: 540 }
  *  (scale >= 1.0 → window grows; scale < 1.0 → window stays so
  *  zoom-out actually gives more visible content). */
 function applyUiScale(scale: number) {
-  const clamped = clampScale(scale)
+  const logicalScale = persistLogicalUiScale(clampScale(scale))
+  const effectiveScale = effectiveUiScale(logicalScale)
   // Keep --ui-scale CSS var in sync for any token-driven consumers.
   // --app-zoom is no longer used as a CSS `zoom` driver; kept as an
   // informational token in case future CSS rules want to read it.
-  document.documentElement.style.setProperty('--ui-scale', String(clamped))
-  document.documentElement.style.setProperty('--app-zoom', String(clamped))
+  document.documentElement.style.setProperty('--ui-scale', String(effectiveScale))
+  document.documentElement.style.setProperty('--app-zoom', String(effectiveScale))
   try {
-    localStorage.setItem('ui-scale', String(clamped))
+    localStorage.setItem('ui-scale', String(logicalScale))
   } catch {
     /* private browsing / quota — silent */
   }
-  void setWebviewZoom(clamped)
-  void resizeWindowToScale(clamped)
+  void setWebviewZoom(effectiveScale)
+  void resizeWindowToScale(logicalScale)
 }
 
 /** Invokes the Rust-side `set_app_zoom` Tauri command which calls
@@ -199,7 +205,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   // main.tsx already painted (avoids slider snap-back on first render).
   const initialScale = (() => {
     try {
-      return clampScale(parseFloat(localStorage.getItem('ui-scale') ?? '1'))
+      return clampScale(readStoredLogicalUiScale())
     } catch {
       return 1.0
     }

@@ -2227,7 +2227,7 @@ impl WorkspaceManager {
                     current_step TEXT NOT NULL
                         CHECK (current_step IN (
                             'welcome', 'theme', 'mic',
-                            'accessibility', 'models', 'vault', 'done'
+                            'accessibility', 'models', 'vault', 'extensions', 'done'
                         )),
                     mic_permission TEXT
                         CHECK (mic_permission IS NULL OR mic_permission IN (

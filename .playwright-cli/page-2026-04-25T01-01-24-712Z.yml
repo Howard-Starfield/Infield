@@ -1,0 +1,20 @@
+- generic [ref=e3]:
+  - generic:
+    - img
+  - generic [ref=e9]:
+    - generic:
+      - generic:
+        - paragraph: Welcome to Element Softaware's
+        - heading "OS1" [level=1]:
+          - text: OS
+          - superscript: "1"
+        - paragraph: Operating System
+    - generic:
+      - paragraph: Her
+      - paragraph: a Spike Jonze love story
+      - generic:
+        - text: Joaquin Phoenix
+        - text: Scarlett Johansson
+        - text: Amy Adams
+        - text: Rooney Mara
+  - region "Notifications alt+T"

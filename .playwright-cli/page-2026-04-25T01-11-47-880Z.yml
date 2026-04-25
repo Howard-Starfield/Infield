@@ -1,0 +1,212 @@
+- generic [ref=e3]:
+  - generic:
+    - img
+  - generic [ref=e17]:
+    - banner [ref=e18]:
+      - generic [ref=e19]:
+        - button "Expand navigation" [ref=e21] [cursor=pointer]:
+          - img [ref=e22]
+        - generic [ref=e23]: INFIELD · VAULT - PERSONAL
+      - generic [ref=e26]:
+        - generic:
+          - img
+        - textbox "Search ⌘K" [ref=e27]:
+          - /placeholder: Search  ⌘K
+      - generic [ref=e28]:
+        - button "Customize Workspace" [ref=e30] [cursor=pointer]:
+          - img [ref=e31]
+        - button "Notifications" [ref=e33] [cursor=pointer]:
+          - img [ref=e34]
+        - generic [ref=e37]:
+          - generic "Background Worker Status" [ref=e38]:
+            - generic [ref=e40]: HUB ACTIVE
+          - generic "eBay Data Sync" [ref=e41]:
+            - img [ref=e42]
+            - generic [ref=e47]: SYNC
+          - generic "0 Actions Pending" [ref=e48]:
+            - img [ref=e49]
+            - generic [ref=e51]: "Q: 0"
+        - generic [ref=e52]:
+          - img [ref=e53]
+          - text: 05:00
+        - generic [ref=e56]:
+          - button [ref=e57] [cursor=pointer]:
+            - img [ref=e58]
+          - button [ref=e59] [cursor=pointer]:
+            - img [ref=e60]
+          - button [ref=e62] [cursor=pointer]:
+            - img [ref=e63]
+    - generic [ref=e66]:
+      - navigation [ref=e67]:
+        - button "Home" [ref=e68] [cursor=pointer]:
+          - img [ref=e70]
+          - generic: Home
+        - button "Buddy System" [ref=e75] [cursor=pointer]:
+          - img [ref=e77]
+          - generic: Buddy System
+        - button "Neural Search" [ref=e80] [cursor=pointer]:
+          - img [ref=e82]
+          - generic: Neural Search
+        - button "Import" [ref=e85] [cursor=pointer]:
+          - img [ref=e87]
+          - generic: Import
+        - button "Audio Intelligence" [ref=e90] [cursor=pointer]:
+          - img [ref=e92]
+          - generic: Audio Intelligence
+        - button "System Audio Capture" [ref=e95] [cursor=pointer]:
+          - img [ref=e97]
+          - generic: System Audio Capture
+        - button "Persistent Notes" [ref=e99] [cursor=pointer]:
+          - img [ref=e101]
+          - generic: Persistent Notes
+        - button "Databases" [ref=e104] [cursor=pointer]:
+          - img [ref=e106]
+          - generic: Databases
+        - button "Inbox" [ref=e110] [cursor=pointer]:
+          - img [ref=e112]
+          - generic: Inbox
+        - button "Favorites" [ref=e115] [cursor=pointer]:
+          - img [ref=e117]
+          - generic: Favorites
+        - button "About" [ref=e119] [cursor=pointer]:
+          - img [ref=e121]
+          - generic: About
+        - button "Settings" [ref=e123] [cursor=pointer]:
+          - img [ref=e125]
+          - generic: Settings
+        - button "Lock Vault" [ref=e128] [cursor=pointer]:
+          - img [ref=e130]
+          - generic: Lock Vault
+      - main [ref=e133]:
+        - generic [ref=e370]:
+          - generic [ref=e505]:
+            - generic [ref=e508]: Interview
+            - heading "Record a conversation" [level=1] [ref=e510]
+            - paragraph [ref=e511]: Mic + system audio captured together. Speakers separated, merged by timestamp, saved under Interviews/.
+          - generic [ref=e380]:
+            - tablist "Recording mode" [ref=e381]:
+              - tab "System audio" [ref=e382] [cursor=pointer]
+              - tab "Interview" [active] [selected] [ref=e383] [cursor=pointer]
+            - generic [ref=e512]:
+              - generic [ref=e513]: Speaker
+              - textbox "Participant name (e.g. Alice)" [ref=e514]
+          - generic [ref=e384]:
+            - generic [ref=e385]:
+              - generic [ref=e386]:
+                - generic [ref=e389]: Ready
+                - generic [ref=e390]: 00:00
+              - generic [ref=e391]:
+                - generic [ref=e394]:
+                  - generic:
+                    - generic:
+                      - generic:
+                        - img
+                      - generic: Ready for a two-speaker transcript
+                      - paragraph: Name the other speaker, start the session, and the feed will interleave you and them by timestamp.
+                    - generic:
+                      - generic: 00:00:03
+                      - generic:
+                        - generic: You
+                        - generic: So what's your take on the roadmap?
+                    - generic:
+                      - generic: 00:00:07
+                      - generic:
+                        - generic: Alice
+                        - generic: I think the merge step is what makes the transcript usable — otherwise you're just reading two columns.
+                - generic [ref=e405]:
+                  - button "Export — coming in W6" [disabled] [ref=e406]:
+                    - img [ref=e407]
+                  - button "Start interview session" [ref=e515] [cursor=pointer]:
+                    - img [ref=e411]
+                  - button "Clear visible transcript (does not delete the saved doc)" [ref=e413] [cursor=pointer]:
+                    - img [ref=e414]
+            - complementary [ref=e417]:
+              - generic [ref=e418]:
+                - generic [ref=e419]: Session
+                - generic [ref=e420]:
+                  - generic [ref=e421]:
+                    - img [ref=e516]
+                    - text: Interview mode
+                  - paragraph [ref=e424]: Mic + system audio captured together. Speakers separated, merged by timestamp, saved under Interviews/.
+                  - generic [ref=e425]:
+                    - generic [ref=e426]:
+                      - generic [ref=e427]: Status
+                      - strong [ref=e428]: Ready
+                    - generic [ref=e429]:
+                      - generic [ref=e430]: Elapsed
+                      - strong [ref=e431]: 00:00
+                    - generic [ref=e432]:
+                      - generic [ref=e433]: Lines
+                      - strong [ref=e434]: "0"
+                    - generic [ref=e435]:
+                      - generic [ref=e436]: Saved to
+                      - strong [ref=e437]: Interviews/
+              - generic [ref=e438]:
+                - generic [ref=e439]:
+                  - generic [ref=e440]:
+                    - img [ref=e441]
+                    - text: Tuning
+                  - generic [ref=e442]: Ready
+                - generic [ref=e443]:
+                  - generic [ref=e444]:
+                    - generic [ref=e445]:
+                      - generic [ref=e446]:
+                        - generic [ref=e447]: Max chunk
+                        - generic [ref=e448]: Force transcribe long speech before VAD sees a pause.
+                      - generic [ref=e449]: Next start
+                    - generic [ref=e450]:
+                      - slider "Max chunk" [ref=e451]: "2"
+                      - generic [ref=e452]: 2.0s
+                    - generic [ref=e453]:
+                      - generic [ref=e454]: 0.5-10s
+                      - generic [ref=e455]: Default 2.0s
+                  - generic [ref=e456]:
+                    - generic [ref=e457]:
+                      - generic [ref=e458]:
+                        - generic [ref=e459]: VAD hangover
+                        - generic [ref=e460]: Trailing silence before a spoken segment is cut.
+                      - generic [ref=e461]: Next start
+                    - generic [ref=e462]:
+                      - slider "VAD hangover" [ref=e463]: "0.5"
+                      - generic [ref=e464]: 0.5s
+                    - generic [ref=e465]:
+                      - generic [ref=e466]: 0.3-10s
+                      - generic [ref=e467]: Default 0.5s
+                  - generic [ref=e468]:
+                    - generic [ref=e469]:
+                      - generic [ref=e470]:
+                        - generic [ref=e471]: Paragraph gap
+                        - generic [ref=e472]: Silence between chunks that starts a new timestamp.
+                      - generic [ref=e473]: Live
+                    - generic [ref=e474]:
+                      - slider "Paragraph gap" [ref=e475]: "1.5"
+                      - generic [ref=e476]: 1.5s
+                    - generic [ref=e477]:
+                      - generic [ref=e478]: 0.5-10s
+                      - generic [ref=e479]: Default 1.5s
+                - generic [ref=e480]:
+                  - paragraph [ref=e481]: Paragraph gap updates immediately. Max chunk and VAD hangover apply to the next capture to avoid mutating the audio thread mid-stream.
+                  - button "Reset system audio tuning to defaults" [ref=e482] [cursor=pointer]:
+                    - img [ref=e483]
+              - generic [ref=e486]:
+                - generic [ref=e487]: Device
+                - generic [ref=e488]:
+                  - generic [ref=e489]:
+                    - generic [ref=e490]: Render output
+                    - generic [ref=e491]: —
+                  - generic [ref=e492]:
+                    - generic [ref=e493]: Method
+                    - generic [ref=e494]:
+                      - img [ref=e495]
+                      - text: Mic + loopback
+                  - generic [ref=e521]:
+                    - generic [ref=e522]: Speaker
+                    - generic [ref=e523]:
+                      - img [ref=e524]
+                      - text: Guest
+                  - generic [ref=e499]:
+                    - generic [ref=e500]: Destination
+                    - generic [ref=e501]:
+                      - img [ref=e502]
+                      - text: Interviews/
+  - region "Notifications alt+T"

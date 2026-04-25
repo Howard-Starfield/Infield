@@ -58,9 +58,9 @@ function AppContent() {
     const handleKeyDown = (e: KeyboardEvent) => {
       const preferredTrigger = vaultData?.uiPreferences?.spotlightTrigger || 'KeyF';
       const isPreferred = e.ctrlKey && e.code === preferredTrigger;
-      const isFallback = e.ctrlKey && e.code === 'Space';
+      const isCmdK = (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k';
 
-      if (isPreferred || isFallback) {
+      if (isPreferred || isCmdK) {
         e.preventDefault();
         setIsSpotlightOpen(prev => !prev);
       }
@@ -358,15 +358,21 @@ function AppContent() {
             style={{ position: 'relative', zIndex: 10, width: '100%', height: '100%' }}
           >
             <AppShell currentPage={currentPage} onNavigate={setCurrentPage} />
-            <SpotlightOverlay 
-              isOpen={isSpotlightOpen} 
-              onClose={() => setIsSpotlightOpen(false)}
-              onAction={(action) => {
-                if (['dashboard', 'inbox', 'security', 'activity', 'capture', 'settings', 'resume'].includes(action)) {
-                  setCurrentPage(action);
-                }
-              }}
-            />
+            {isSpotlightOpen && (
+              <SpotlightOverlay
+                onDismiss={() => setIsSpotlightOpen(false)}
+                onOpenPreview={(nodeId) => {
+                  setIsSpotlightOpen(false);
+                  setCurrentPage('notes');
+                  window.dispatchEvent(new CustomEvent('notes:open', { detail: nodeId }));
+                }}
+                onOpenInNewTab={(nodeId) => {
+                  setIsSpotlightOpen(false);
+                  setCurrentPage('notes');
+                  window.dispatchEvent(new CustomEvent('notes:open-new-tab', { detail: nodeId }));
+                }}
+              />
+            )}
           </motion.div>
         )}
       </AnimatePresence>

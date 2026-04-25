@@ -657,7 +657,6 @@ export function AudioView() {
     stopPlayback()
     setUnavailablePaths(new Set())
     // Only depends on selectedDate; stopPlayback identity is stable.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate])
 
   // ── Render ───────────────────────────────────────────────────────────────

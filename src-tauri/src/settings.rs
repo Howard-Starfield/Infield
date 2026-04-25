@@ -425,6 +425,66 @@ impl EmbeddingModel {
     }
 }
 
+/// W7: settings governing the URL media import pipeline.
+#[derive(Serialize, Deserialize, Debug, Clone, Type)]
+pub struct WebImportSettings {
+    /// Default parent workspace node id for newly imported media (null = inbox root).
+    #[serde(default)]
+    pub default_parent_folder_id: Option<String>,
+    /// Preferred download format (mp3 audio or mp4 video).
+    #[serde(default)]
+    pub default_format: crate::import::WebMediaFormat,
+    /// Keep the downloaded media file after transcription.
+    #[serde(default = "default_web_import_keep_media")]
+    pub default_keep_media: bool,
+    /// Hard cap on media duration accepted into the queue (seconds). Default 4h.
+    #[serde(default = "default_web_import_max_duration_seconds")]
+    pub max_duration_seconds: u32,
+    /// Days after which transcribed media files are deleted (0 = never).
+    #[serde(default)]
+    pub media_cleanup_after_days: u32,
+    /// Maximum concurrent yt-dlp download processes.
+    #[serde(default = "default_web_import_concurrent_downloads")]
+    pub concurrent_downloads: u32,
+    /// Maximum concurrent metadata-fetch (yt-dlp --dump-json) processes.
+    #[serde(default = "default_web_import_concurrent_meta_fetches")]
+    pub concurrent_meta_fetches: u32,
+    /// Minimum politeness sleep between requests (seconds).
+    #[serde(default = "default_web_import_politeness_sleep_min")]
+    pub politeness_sleep_min: u32,
+    /// Maximum politeness sleep between requests (seconds).
+    #[serde(default = "default_web_import_politeness_sleep_max")]
+    pub politeness_sleep_max: u32,
+    /// When true, yt-dlp binary is checked for updates on each queue run.
+    #[serde(default = "default_web_import_yt_dlp_auto_check_updates")]
+    pub yt_dlp_auto_check_updates: bool,
+}
+
+impl Default for WebImportSettings {
+    fn default() -> Self {
+        Self {
+            default_parent_folder_id: None,
+            default_format: crate::import::WebMediaFormat::Mp3Audio,
+            default_keep_media: default_web_import_keep_media(),
+            max_duration_seconds: default_web_import_max_duration_seconds(),
+            media_cleanup_after_days: 0,
+            concurrent_downloads: default_web_import_concurrent_downloads(),
+            concurrent_meta_fetches: default_web_import_concurrent_meta_fetches(),
+            politeness_sleep_min: default_web_import_politeness_sleep_min(),
+            politeness_sleep_max: default_web_import_politeness_sleep_max(),
+            yt_dlp_auto_check_updates: default_web_import_yt_dlp_auto_check_updates(),
+        }
+    }
+}
+
+fn default_web_import_keep_media() -> bool { true }
+fn default_web_import_max_duration_seconds() -> u32 { 14_400 }
+fn default_web_import_concurrent_downloads() -> u32 { 2 }
+fn default_web_import_concurrent_meta_fetches() -> u32 { 4 }
+fn default_web_import_politeness_sleep_min() -> u32 { 1 }
+fn default_web_import_politeness_sleep_max() -> u32 { 3 }
+fn default_web_import_yt_dlp_auto_check_updates() -> bool { true }
+
 /* still handy for composing the initial JSON in the store ------------- */
 #[derive(Serialize, Deserialize, Debug, Clone, Type)]
 pub struct AppSettings {
@@ -574,6 +634,9 @@ pub struct AppSettings {
     /// When true, the onboarding flow runs on each app start until the user turns it off in settings.
     #[serde(default = "default_show_onboarding")]
     pub show_onboarding: bool,
+    /// W7: URL media import pipeline configuration.
+    #[serde(default)]
+    pub web_import: WebImportSettings,
 }
 
 fn default_show_onboarding() -> bool {
@@ -1088,6 +1151,7 @@ pub fn get_default_settings() -> AppSettings {
         chat_max_output_tokens: default_chat_max_output_tokens(),
         chat_omit_max_tokens_for_openai_compatible: false,
         show_onboarding: default_show_onboarding(),
+        web_import: WebImportSettings::default(),
     }
 }
 
@@ -1242,6 +1306,31 @@ pub fn get_recording_retention_period(app: &AppHandle) -> RecordingRetentionPeri
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn web_import_settings_round_trip() {
+        let s = WebImportSettings::default();
+        let json = serde_json::to_string(&s).unwrap();
+        let back: WebImportSettings = serde_json::from_str(&json).unwrap();
+        assert!(back.default_keep_media);
+        assert_eq!(back.max_duration_seconds, 14_400);
+        assert_eq!(back.concurrent_downloads, 2);
+        assert_eq!(back.concurrent_meta_fetches, 4);
+        assert_eq!(back.politeness_sleep_min, 1);
+        assert_eq!(back.politeness_sleep_max, 3);
+        assert!(back.yt_dlp_auto_check_updates);
+        assert_eq!(back.media_cleanup_after_days, 0);
+        assert!(back.default_parent_folder_id.is_none());
+    }
+
+    #[test]
+    fn app_settings_web_import_defaults_via_serde_default() {
+        // Simulate loading old persisted JSON that has no web_import key.
+        let json = r#"{"bindings":{},"push_to_talk":false,"audio_feedback":false}"#;
+        let s: AppSettings = serde_json::from_str(json).expect("parse minimal settings");
+        assert_eq!(s.web_import.max_duration_seconds, 14_400);
+        assert!(s.web_import.default_keep_media);
+    }
 
     #[test]
     fn default_settings_disable_auto_submit() {

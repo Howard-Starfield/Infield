@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { ScrollShadow } from './ScrollShadow';
 import { EmptyState } from './EmptyState';
 import { useVault } from '../contexts/VaultContext';
+import { effectiveUiScale } from '../services/uiScale';
 // Generating mock conversations matching the image
 import { Group as PanelGroup, Panel, Separator as PanelResizeHandle } from 'react-resizable-panels';
 
@@ -51,19 +52,7 @@ export function ConversationList({ onSelect, onDeselect, selectedIds = new Set()
     rowVirtualizer.scrollToIndex(selectedIndex, { align: 'auto' });
   }, [selectedIndex]);
 
-  const [uiScale, setUiScale] = useState(() => {
-    const saved = localStorage.getItem('ui-scale');
-    return saved ? parseFloat(saved) : 1.0;
-  });
-
-  useEffect(() => {
-    const handleStorage = () => {
-      const saved = localStorage.getItem('ui-scale');
-      if (saved) setUiScale(parseFloat(saved));
-    };
-    window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
-  }, []);
+  const uiScale = effectiveUiScale(vaultData?.uiPreferences?.uiScale ?? 1.0);
 
   const rowVirtualizer = useVirtualizer({
     count: conversations.length,

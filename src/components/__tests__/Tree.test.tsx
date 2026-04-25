@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { flattenVisible } from '../Tree'
+import { flattenVisible, isVisibleDescendant } from '../Tree'
 import type { WorkspaceNode } from '../../bindings'
 
 function n(id: string, name: string, parent: string | null = null): WorkspaceNode {
@@ -68,5 +68,22 @@ describe('flattenVisible', () => {
     )
     const rows = flattenVisible(s)
     expect(rows.map((r) => r.id)).toEqual(['a', 'a1'])
+  })
+
+  it('detects visible descendants for drag cycle prevention', () => {
+    const s = state(
+      ['a', 'b'],
+      { a: ['a1'], a1: ['a1a'] },
+      [
+        n('a', 'Alpha'),
+        n('a1', 'Alpha Child', 'a'),
+        n('a1a', 'Alpha Grandchild', 'a1'),
+        n('b', 'Beta'),
+      ],
+      ['a', 'a1'],
+    )
+    const rows = flattenVisible(s)
+    expect(isVisibleDescendant(rows, 'a', 'a1a')).toBe(true)
+    expect(isVisibleDescendant(rows, 'a1', 'b')).toBe(false)
   })
 })

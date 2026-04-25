@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import { EditorState } from '@codemirror/state'
-import { EditorView, keymap, placeholder } from '@codemirror/view'
+import { EditorView, keymap, placeholder, tooltips } from '@codemirror/view'
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
 import { searchKeymap } from '@codemirror/search'
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
@@ -170,6 +170,7 @@ export function MarkdownEditor({
       if (!saver) return
 
       const extensions = [
+        tooltips({ parent: document.body }),
         EditorView.lineWrapping,
         history(),
         keymap.of([
@@ -187,6 +188,8 @@ export function MarkdownEditor({
             wikilinkCompletionSource(tauriWikilinkSearch),
           ],
           activateOnTyping: true,
+          aboveCursor: false,
+          tooltipClass: () => 'notes-editor-autocomplete',
         }),
         voiceMemoPillPlugin(),
         nodeLinkClickPlugin((id, { meta }) => {

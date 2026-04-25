@@ -200,10 +200,7 @@ export function NotesView() {
         onCreateChild={handleCreateChild}
         refreshToken={refreshToken}
       />
-      <section
-        className="heros-glass-card notes-editor-column"
-        style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
-      >
+      <section className="heros-glass-card notes-editor-column">
         <NotesTabs
           tabs={state.tabs}
           activeTabId={state.activeTabId}

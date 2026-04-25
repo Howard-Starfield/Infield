@@ -3,12 +3,15 @@ import { motion, AnimatePresence } from 'motion/react'
 import {
   Headphones,
   Square,
-  Sparkles,
   Trash2,
   Download,
   Volume2,
   SlidersHorizontal,
   RotateCcw,
+  Mic,
+  Users,
+  Radio,
+  FileText,
 } from 'lucide-react'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { toast } from 'sonner'
@@ -515,13 +518,25 @@ export function SystemAudioView() {
       ? { kicker: 'Interview', title: 'Record a', highlight: 'conversation', subtitle: 'Mic + system audio captured together. Speakers separated, merged by timestamp, saved under Interviews/.' }
       : { kicker: 'System Audio', title: 'Capture what you', highlight: 'hear', subtitle: "Transcribe anything playing through your speakers — podcasts, calls, videos. Paragraphs append to today's System Audio doc." }
   const headlineAccent = modeAccent(mode)
+  const isInterview = mode === 'interview'
+  const participantLabel = participantName.trim() || 'Guest'
+  const methodLabel = isInterview ? 'Mic + loopback' : 'WASAPI loopback'
+  const destinationLabel = isInterview ? 'Interviews/' : "Today's System Audio"
+  const emptyTitle = isInterview ? 'Ready for a two-speaker transcript' : 'Ready to capture system audio'
+  const emptyDescription = isInterview
+    ? 'Name the other speaker, start the session, and the feed will interleave you and them by timestamp.'
+    : "Start capture and live paragraphs will appear here while the saved note updates in today's System Audio doc."
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+    <div
+      className={`system-audio-page system-audio-page--${mode} ${isCapturing ? 'is-live' : ''}`}
+      style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}
+    >
       {/* Page header — always visible, mode-adaptive */}
       <section
+        className="system-audio-hero"
         style={{
-          padding: '44px 40px 16px 40px',
+          padding: '24px 40px 14px 40px',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -619,7 +634,7 @@ export function SystemAudioView() {
                 flexDirection: 'column',
                 alignItems: 'center',
                 gap: 14,
-                padding: '4px 40px 22px 40px',
+                padding: '0 40px 14px 40px',
               }}
             >
               <div
@@ -726,22 +741,25 @@ export function SystemAudioView() {
 
       {/* Main grid: glass transcript card + info column */}
       <div
+        className="system-audio-workbench"
         style={{
           display: 'grid',
-          gridTemplateColumns: '1fr 300px',
+          gridTemplateColumns: 'minmax(560px, 980px) minmax(280px, 340px)',
+          justifyContent: 'center',
           flex: 1,
           minHeight: 0,
-          gap: 5,
-          padding: '0 0 5px 0',
+          gap: 16,
+          padding: '0 18px 18px 18px',
         }}
       >
         {/* Transcript Column */}
         <section
-          className="heros-glass-card"
+          className="heros-glass-card system-audio-transcript"
           style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
         >
           {/* Simplified status row: dot + label + timer */}
           <div
+            className="system-audio-status-row"
             style={{
               padding: '20px 32px',
               display: 'flex',
@@ -800,21 +818,24 @@ export function SystemAudioView() {
             flexDirection: 'column',
           }}
         >
-          <ScrollShadow containerRef={scrollRef} style={{ flex: 1, padding: '32px 32px 140px 32px' }}>
+          <ScrollShadow containerRef={scrollRef} style={{ flex: 1, padding: '36px 44px 150px 44px' }}>
             <div
               style={{
                 display: 'flex',
                 flexDirection: 'column',
                 gap: 24,
-                maxWidth: '800px',
+                maxWidth: '760px',
                 margin: '0 auto',
               }}
             >
               {transcript.length === 0 && !isCapturing && mode === 'system' && (
-                <p style={{ color: 'rgba(255,255,255,0.3)', textAlign: 'center', marginTop: 64 }}>
-                  Press the headphones button to capture system audio. Transcripts append to
-                  today's System Audio doc.
-                </p>
+                <div className="system-audio-empty">
+                  <div className="system-audio-empty__orb">
+                    <Radio size={24} />
+                  </div>
+                  <div className="system-audio-empty__title">{emptyTitle}</div>
+                  <p>{emptyDescription}</p>
+                </div>
               )}
 
               {transcript.length === 0 && !isCapturing && mode === 'interview' && (
@@ -830,18 +851,13 @@ export function SystemAudioView() {
                   }}
                   aria-hidden="true"
                 >
-                  <p
-                    style={{
-                      color: 'rgba(255,255,255,0.55)',
-                      textAlign: 'center',
-                      fontSize: 13,
-                      lineHeight: 1.6,
-                      margin: 0,
-                    }}
-                  >
-                    Mic + system audio recorded together. Paragraphs interleave by timestamp
-                    and land in <strong style={{ color: '#fff' }}>Interviews/</strong>.
-                  </p>
+                  <div className="system-audio-empty system-audio-empty--compact">
+                    <div className="system-audio-empty__orb">
+                      <Users size={24} />
+                    </div>
+                    <div className="system-audio-empty__title">{emptyTitle}</div>
+                    <p>{emptyDescription}</p>
+                  </div>
 
                   {/* Example bubbles — typographic preview of the merged feed */}
                   {[
@@ -921,6 +937,7 @@ export function SystemAudioView() {
                 const hasAccent = line.kind !== 'system'
                 return (
                   <motion.div
+                    className={`system-audio-line system-audio-line--${line.kind}`}
                     key={line.id}
                     layout="position"
                     initial={{ opacity: 0, y: 6, filter: 'blur(6px)' }}
@@ -1008,6 +1025,7 @@ export function SystemAudioView() {
 
           {/* Floating Controls */}
           <div
+            className="system-audio-control-dock"
             style={{
               position: 'absolute',
               bottom: '32px',
@@ -1083,8 +1101,8 @@ export function SystemAudioView() {
       </section>
 
       {/* Info Column */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-        <section className="heros-glass-card" style={{ padding: '24px' }}>
+      <aside className="system-audio-side" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <section className="heros-glass-card system-audio-side-card system-audio-mode-card" style={{ padding: '22px' }}>
           <div
             style={{
               fontSize: '10px',
@@ -1095,7 +1113,7 @@ export function SystemAudioView() {
               marginBottom: 16,
             }}
           >
-            AI Insight
+            Session
           </div>
           <div
             style={{
@@ -1119,17 +1137,34 @@ export function SystemAudioView() {
                 marginBottom: 8,
               }}
             >
-              <Sparkles size={14} /> Coming in W6
+              {isInterview ? <Users size={14} /> : <Headphones size={14} />}
+              {isInterview ? 'Interview mode' : 'System audio mode'}
             </div>
             <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.7)', lineHeight: 1.6 }}>
-              {mode === 'interview'
-                ? 'Interview summary + action items land once AI chat is wired up.'
-                : 'Live insights from the model land once AI chat is wired up.'}
+              {headline.subtitle}
             </p>
+            <div className="system-audio-session-grid">
+              <div>
+                <span>Status</span>
+                <strong>{isCapturing ? 'Live' : 'Ready'}</strong>
+              </div>
+              <div>
+                <span>Elapsed</span>
+                <strong>{formatTime(timer)}</strong>
+              </div>
+              <div>
+                <span>Lines</span>
+                <strong>{transcript.length}</strong>
+              </div>
+              <div>
+                <span>Saved to</span>
+                <strong>{destinationLabel}</strong>
+              </div>
+            </div>
           </div>
         </section>
 
-        <section className="heros-glass-card" style={{ padding: '24px' }}>
+        <section className="heros-glass-card system-audio-side-card" style={{ padding: '22px' }}>
           <div
             style={{
               display: 'flex',
@@ -1233,7 +1268,7 @@ export function SystemAudioView() {
           </div>
         </section>
 
-        <section className="heros-glass-card" style={{ padding: '24px', flex: 1 }}>
+        <section className="heros-glass-card system-audio-side-card system-audio-device-card" style={{ padding: '22px', flex: 1 }}>
           <div
             style={{
               fontSize: '10px',
@@ -1275,12 +1310,40 @@ export function SystemAudioView() {
                   gap: 4,
                 }}
               >
-                <Volume2 size={12} /> {mode === 'interview' ? 'Mic + loopback' : 'WASAPI loopback'}
+                <Volume2 size={12} /> {methodLabel}
+              </span>
+            </div>
+            {isInterview && (
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  fontSize: '12px',
+                  color: 'rgba(255,255,255,0.5)',
+                }}
+              >
+                <span>Speaker</span>
+                <span style={{ color: '#fff', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <Mic size={12} /> {participantLabel}
+                </span>
+              </div>
+            )}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                fontSize: '12px',
+                color: 'rgba(255,255,255,0.5)',
+              }}
+            >
+              <span>Destination</span>
+              <span style={{ color: '#fff', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <FileText size={12} /> {destinationLabel}
               </span>
             </div>
           </div>
         </section>
-      </div>
+      </aside>
     </div>
     </div>
   )

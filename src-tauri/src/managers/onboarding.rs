@@ -28,6 +28,7 @@ pub enum OnboardingStep {
     Accessibility,
     Models,
     Vault,
+    Extensions, // W7: browser-extension / yt-dlp install step
     Done,
 }
 
@@ -38,6 +39,7 @@ impl OnboardingStep {
             Self::Accessibility => "accessibility",
             Self::Models => "models",
             Self::Vault => "vault",
+            Self::Extensions => "extensions",
             Self::Done => "done",
         }
     }
@@ -52,6 +54,7 @@ impl OnboardingStep {
             "accessibility" => Self::Accessibility,
             "models" => Self::Models,
             "vault" => Self::Vault,
+            "extensions" => Self::Extensions,
             "done" => Self::Done,
             other => return Err(format!("unknown onboarding step: {other}")),
         })
@@ -421,6 +424,19 @@ mod tests {
         let m = OnboardingManager::new(Arc::new(Mutex::new(conn)));
         let s = m.get().await.expect("read");
         assert_eq!(s.current_step, OnboardingStep::Mic);
+    }
+
+    #[test]
+    fn extensions_serializes_snake_case() {
+        let s = OnboardingStep::Extensions;
+        assert_eq!(serde_json::to_string(&s).unwrap(), "\"extensions\"");
+    }
+
+    #[test]
+    fn extensions_from_str_roundtrips() {
+        let s = OnboardingStep::from_str("extensions").expect("parse extensions");
+        assert_eq!(s, OnboardingStep::Extensions);
+        assert_eq!(s.as_str(), "extensions");
     }
 
     #[tokio::test]

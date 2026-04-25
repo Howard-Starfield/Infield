@@ -23,8 +23,7 @@ export const slashCompletionSource =
       .filter((cmd) => matchesQuery(cmd, query))
       .map((cmd) => ({
         label: cmd.label,
-        detail: cmd.shortcutHint,
-        info: cmd.description,
+        detail: cmd.description,
         type: cmd.category,
         boost: cmd.boost ?? 0,
         apply: (view, _completion, from, to) => cmd.run(view, from, to),

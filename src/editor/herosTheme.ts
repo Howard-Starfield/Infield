@@ -7,36 +7,50 @@ import { EditorView } from '@codemirror/view'
  */
 export const herosEditorTheme = EditorView.theme({
   '&': {
-    color: 'var(--heros-text-premium)',
+    color: 'rgba(238, 242, 255, 0.92)',
     backgroundColor: 'transparent',
     height: '100%',
   },
   '.cm-scroller': {
     fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif",
-    fontSize: 'var(--text-base)',
-    lineHeight: '1.7',
+    fontSize: '15.5px',
+    lineHeight: '1.78',
     overflow: 'auto',
   },
   '.cm-content': {
-    padding: 'var(--space-6) 0',
-    maxWidth: '760px',
+    padding: '30px 0 96px',
+    maxWidth: '820px',
     margin: '0 auto',
-    caretColor: 'var(--heros-brand)',
+    caretColor: 'rgba(244, 247, 255, 0.9)',
   },
   '.cm-line': {
-    padding: '0 var(--space-6)',
+    padding: '0 44px',
   },
   '.cm-activeLine, .cm-activeLineGutter': {
     backgroundColor: 'transparent',
   },
   '.cm-cursor, .cm-dropCursor': {
-    borderLeftColor: 'var(--heros-brand)',
+    borderLeftColor: 'rgba(244, 247, 255, 0.9)',
   },
   '&.cm-focused .cm-selectionBackground, .cm-selectionBackground': {
-    backgroundColor: 'color-mix(in srgb, var(--heros-brand) 18%, transparent)',
+    backgroundColor: 'rgba(160, 170, 205, 0.2)',
+  },
+  '.cm-placeholder': {
+    color: 'rgba(188, 197, 224, 0.58)',
+    fontWeight: 540,
   },
   '&.cm-focused': { outline: 'none' },
-  // Autocomplete popup — HerOS card
+  // Autocomplete popup — HerOS card.
+  // cm-tooltip-above/below live on the OUTER .cm-tooltip wrapper (positioned
+  // by CM6 at cursorBottom). The inner .cm-tooltip-autocomplete is content
+  // only. Use the outer wrapper for the gap so it snaps to the cursor line.
+  '.cm-tooltip': {
+    marginTop: '2px',
+  },
+  '.cm-tooltip.cm-tooltip-above': {
+    marginTop: '0',
+    marginBottom: '2px',
+  },
   '.cm-tooltip-autocomplete': {
     background: 'var(--heros-glass-black)',
     border: '1px solid var(--border-subtle)',
@@ -45,22 +59,34 @@ export const herosEditorTheme = EditorView.theme({
     fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif",
     padding: 'var(--space-1)',
   },
+  '.cm-tooltip-autocomplete.notes-editor-autocomplete': {
+    zIndex: '1200',
+  },
   '.cm-tooltip-autocomplete > ul > li': {
-    padding: 'var(--space-2) var(--space-3)',
+    padding: '7px 12px',
     borderRadius: 'var(--radius-sm)',
     color: 'var(--heros-text-muted)',
   },
   '.cm-tooltip-autocomplete > ul > li[aria-selected]': {
-    background: 'color-mix(in srgb, var(--heros-brand) 15%, transparent)',
+    background: 'rgba(255, 255, 255, 0.07)',
     color: 'var(--heros-text-premium)',
   },
   '.cm-tooltip-autocomplete .cm-completionLabel': {
-    fontWeight: 500,
+    display: 'block',
+    fontWeight: 680,
+    lineHeight: '1.2',
   },
   '.cm-tooltip-autocomplete .cm-completionDetail': {
-    color: 'var(--heros-text-faint)',
-    fontSize: 'var(--text-xs)',
-    marginLeft: 'var(--space-3)',
+    display: 'block',
+    color: 'rgba(188, 197, 224, 0.64)',
+    fontSize: '12px',
+    fontWeight: 520,
+    lineHeight: '1.35',
+    marginLeft: '0',
+    marginTop: '3px',
+  },
+  '.cm-completionInfo': {
+    display: 'none',
   },
   // node:// link mark — see Task 7
   '.cm-node-link': {
