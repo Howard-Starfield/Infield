@@ -21,10 +21,24 @@ premium liquid-glass depth while making "nudge the notes card a hair
 darker" a 30-second edit.
 
 After this lands, every glass surface in the app sources its
-appearance from one of three named tiers (`--card-deep-*`,
-`--card-mid-*`, `--card-overlay-*`), each with four axes
-(`fill`, `blur`, `saturate`, `rim`). Editing one tier shifts every
-surface mapped to it, in lockstep.
+appearance from one of four named groups:
+
+- Three **card** tiers for dark content surfaces:
+  `--card-deep-*`, `--card-mid-*`, `--card-overlay-*`.
+- One **panel** group for the bright entry-experience shell glass:
+  `--panel-*`.
+
+Each group has four axes (`fill`, `blur`, `saturate`, `rim`). Editing
+one group shifts every surface mapped to it, in lockstep. Cards and
+panels are deliberately separate **materials** — cards are dark
+content surfaces; panel is the bright airy glass used by
+LoadingScreen, LoginPage, OnboardingFlow, the lock overlay, and the
+PlaylistSelectorModal.
+
+Two legacy tokens (`--heros-glass-black`, `--heros-glass-black-deep`)
+that were *misnamed* — they're row-hover fills, not card surfaces —
+get **renamed** to `--row-hover-fill` / `--row-hover-fill-deep`,
+preserving their behavior while fixing the semantics.
 
 This is a **dev-ergonomics refactor**, not a runtime feature. CLAUDE.md
 Rule 12 (no runtime theme switching, no preset system, no `tokens.ts`)
@@ -48,6 +62,11 @@ finalizing tier assignment:
 3. **Any glass surface missed?** Tier mapping in §4 is drafted from a
    codebase grep; user should walk the running app and call out any
    surface not assigned.
+4. **Should ImportView's side panels (`.import-view__panel`) belong
+   to `--panel-*` or `--card-*`?** Currently use `.heros-glass-panel`
+   (so they inherit panel — the bright entry-experience material), but
+   they're inside the main app shell, not the entry experience. May
+   feel out of place. Confirm visually after migration.
 
 ---
 
@@ -55,10 +74,15 @@ finalizing tier assignment:
 
 ### Included
 
-1. **New token block** in `src/App.css :root` defining 12 tier tokens
-   plus the deprecation aliases (§5).
-2. **Class structure** — `.heros-glass-card` and `.heros-glass-panel`
-   gain `--deep` / `--mid` / `--overlay` BEM modifiers (§5).
+1. **New token blocks** in `src/App.css :root`:
+   - 12 card-tier tokens (`--card-{deep,mid,overlay}-{fill,blur,saturate,rim}`)
+   - 4 panel tokens (`--panel-{fill,blur,saturate,rim}`)
+   - 2 row-hover renames (`--row-hover-fill`, `--row-hover-fill-deep`)
+   - Plus deprecation aliases for the migration window (§5).
+2. **Class structure** — `.heros-glass-card` gains
+   `--deep` / `--mid` / `--overlay` BEM modifiers (§5).
+   `.heros-glass-panel` gets a single rule sourced from `--panel-*`
+   tokens (no modifiers; it's one material).
 3. **Default fallback** — `.heros-glass-card` alone (no modifier)
    resolves to `--deep`. Preserves current visual default for any
    call-site we miss.
@@ -67,15 +91,26 @@ finalizing tier assignment:
    - `src/styles/notes.css`
    - `src/styles/system-audio.css`
    - `src/styles/onboarding.css`
-5. **Retirement** of three legacy tokens after migration:
-   `--heros-glass-fill`, `--heros-glass-black`, `--heros-glass-black-deep`.
-6. **Deletion** of the notes.css specificity hack
+5. **Sidebar / chrome surfaces without `.heros-glass-card` class**
+   (`.icon-rail`, `.thread-workspace`, `.account-sidebar`,
+   `.conversation-list`, `.inspector-panel`, `.titlebar`) migrate via
+   **direct token substitution** in their existing CSS rules — no
+   class changes in JSX.
+6. **Retirement of `--heros-glass-fill`** after migration.
+7. **Rename `--heros-glass-black` → `--row-hover-fill`** and
+   `--heros-glass-black-deep` → `--row-hover-fill-deep`. These are
+   row-hover states (`.db-view:hover`, `.kan-card:hover`,
+   `.list-row:hover`, `.db-table tr:hover td`, `.db-pill:hover`),
+   not card surfaces. Behavior preserved; semantics fixed.
+8. **`.login-mode` local override** updated to redefine `--panel-fill`
+   (instead of the retired `--heros-glass-fill`), preserving the
+   contextual brightening of the lock surface.
+9. **Deletion** of the notes.css specificity hack
    (`.notes-tree-root.heros-glass-card,
    .notes-editor-column.heros-glass-card,
    .notes-backlinks.heros-glass-card`, lines 749-755).
-7. **Baseline screenshot capture** before migration starts, retake
-   after each tier's commit, diff visually. Phase 1 = zero visual
-   change.
+10. **Baseline screenshot capture** before migration starts, retake
+    after each tier's commit, diff visually.
 
 ### Explicitly excluded
 
@@ -102,14 +137,16 @@ finalizing tier assignment:
 
 ---
 
-## 4. Tier mapping
+## 4. Surface mapping
 
 ### `--card-deep-*` — primary content panes
 
 Heaviest fill, lowest blur. The "this is where work happens" surface.
 
-- `.heros-glass-card` base (App.css)
-- `.heros-glass-panel` base (App.css)
+- `.heros-glass-card` base (App.css line 202 → migrated to use deep
+  tokens). Most JSX call-sites use bare `.heros-glass-card` and
+  inherit deep via the default-fallback rule — only call-sites
+  needing a non-default tier add an explicit modifier.
 - `.notes-tree-root`, `.notes-editor-column`, `.notes-backlinks`
   (notes.css — replaces the deleted specificity hack)
 - `.db-table thead th` (App.css:2881 — current source-of-truth visual)
@@ -118,13 +155,16 @@ Heaviest fill, lowest blur. The "this is where work happens" surface.
 ### `--card-mid-*` — chrome and secondary surfaces
 
 Medium fill, medium blur. Floats above content but isn't itself
-content.
+content. These migrate via **direct token substitution** in their
+existing CSS rules — no class changes.
 
 - `.titlebar` / `.heros-titlebar` (~App.css:257) — *flagged in §2*
-- `.icon-rail` background
-- `.thread-workspace` outer frame
-- `.heros-glass-bubble` / `.heros-glass-bubble-me` — *flagged in §2*
-- Sidebar surfaces in DashboardView, ImportView, ActivityView
+- `.icon-rail` background (App.css:957+)
+- `.thread-workspace` outer frame (App.css:1633)
+- `.account-sidebar`, `.conversation-list`, `.inspector-panel`
+  (App.css:957 group)
+- `.heros-glass-bubble` / `.heros-glass-bubble-me` (App.css:255+) —
+  *flagged in §2*
 
 ### `--card-overlay-*` — floating layers above content
 
@@ -135,7 +175,32 @@ shows the content layer faintly through it.
 - `.spotlight-*` (Cmd+K quick open, onboarding spotlights)
 - `.cm-cursor-tooltip` and other CM6 tooltips
 - Popovers, dropdowns, context menus
-- The lock overlay (`.login-mode`)
+
+### `--panel-*` — bright entry-experience shell glass
+
+White-translucent, heavily blurred. The atmospheric glass for
+the boot/lock/onboarding/modal moments. Used by 4 call-sites:
+
+- `.heros-glass-panel` standalone rule (App.css:789) — migrated to
+  use `--panel-*` tokens
+- Wrappers via `<HerOSPanel>` (HerOS.tsx:42): LoadingScreen,
+  LoginPage, OnboardingFlow, lock overlay
+- `.import-view__panel` (ImportView side panels — *flagged in §2*)
+- `.playlist-modal__panel` (PlaylistSelectorModal popup)
+
+`.login-mode` body modifier locally redefines `--panel-fill` to push
+the lock surface even brighter, preserving the existing contextual
+override pattern.
+
+### Row-hover surfaces (renamed, not retiered)
+
+These are `:hover` fills on rows/items inside cards — they're not
+card surfaces and don't fit the tier system. They keep their
+behavior; the tokens just get renamed for clarity:
+
+- `.db-view:hover`, `.db-pill:hover`, `.list-row:hover`,
+  `.db-table tr:hover td` → use `--row-hover-fill`
+- `.kan-card:hover` → uses `--row-hover-fill-deep`
 
 ---
 
@@ -168,6 +233,22 @@ New block in `src/App.css :root` under a clearly-marked banner:
 --card-overlay-blur:     28px;
 --card-overlay-saturate: 160%;
 --card-overlay-rim:      rgba(255, 255, 255, 0.12);
+
+/* === PANEL — entry-experience shell glass ============================== */
+/* Bright atmospheric material for LoadingScreen / LoginPage / Onboarding /
+   lock overlay / PlaylistSelectorModal. Distinct from cards. */
+
+--panel-fill:        rgba(255, 255, 255, 0.08);
+--panel-blur:        24px;
+--panel-saturate:    120%;
+--panel-rim:         rgba(255, 255, 255, 0.15);
+
+/* === ROW HOVER (renamed from --heros-glass-black*) ===================== */
+/* :hover fills for rows inside cards. Not card surfaces; just renamed
+   for clarity. */
+
+--row-hover-fill:        rgba(9, 12, 22, 0.98);
+--row-hover-fill-deep:   rgba(5, 5, 8, 0.95);
 ```
 
 ### Deep starting values
@@ -225,41 +306,85 @@ flat blur. Yoking it to blur would lose that dial.
 
 ### Deprecation aliases (transitional, single commit)
 
-Before retirement, the three doomed tokens alias to their new
+Before retirement/rename, the three legacy tokens alias to their new
 equivalents so the migration can proceed call-site-by-call-site:
 
 ```css
 /* Deprecated — migrate call sites then delete in final commit */
---heros-glass-fill:       var(--card-deep-fill);
---heros-glass-black:      var(--card-deep-fill);
---heros-glass-black-deep: var(--card-overlay-fill);
+--heros-glass-fill:       var(--panel-fill);       /* used by .heros-glass-panel
+                                                      and .login-mode override */
+--heros-glass-black:      var(--row-hover-fill);
+--heros-glass-black-deep: var(--row-hover-fill-deep);
 ```
 
-These aliases survive only until §6's final retirement commit.
+These aliases survive only until §6's final retirement commit. Note
+that `--heros-glass-fill` aliases to **panel** (not card-deep) because
+its actual usage is the `.heros-glass-panel` rule and the
+`.login-mode` lock surface — the brightening of the entry experience.
+
+### Class structure for `.heros-glass-panel`
+
+`.heros-glass-panel` is one material (no tiers). The standalone rule
+at App.css:789 gets rewritten to source from panel tokens:
+
+```css
+.heros-glass-panel {
+  position: relative;
+  background: var(--panel-fill);
+  backdrop-filter: blur(var(--panel-blur)) saturate(var(--panel-saturate));
+  -webkit-backdrop-filter: blur(var(--panel-blur)) saturate(var(--panel-saturate));
+  border: 1px solid var(--panel-rim);
+  border-radius: 24px;
+  padding: 48px 40px;
+  box-shadow:
+    0 12px 40px 0 rgba(0, 0, 0, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+```
+
+Inset highlight + outer shadow stay literal (not tokenized) because
+they're material-specific to panel — different from card shadows.
+
+The combined rule at App.css:202 (`.heros-glass-panel, .heros-glass-card`)
+gets split: `.heros-glass-card` keeps the rule (with tier modifiers
+added), `.heros-glass-panel` is removed from the selector list since
+the standalone rule at App.css:789 fully owns its appearance.
 
 ---
 
 ## 6. Migration mechanics
 
-### Sequence (one tier per commit)
+### Sequence (one group per commit)
 
-1. **Commit A — token block + class modifiers + aliases.** Add the new
-   `:root` block, add the BEM modifier classes to `.heros-glass-card`
-   and `.heros-glass-panel`, install the deprecation aliases for the
-   three doomed tokens. No call sites change. No visual change.
-2. **Commit B — deep tier migration.** Add `heros-glass-card--deep`
-   modifier to JSX call-sites for deep-tier surfaces. Delete the
-   notes.css specificity hack (lines 749-755). Replace any raw
-   `rgba(0,0,0,0.28)` literals in deep-tier CSS with
-   `var(--card-deep-fill)`.
-3. **Commit C — mid tier migration.** Same recipe for mid-tier
-   surfaces. Migrate `.titlebar`, `.icon-rail`, chat bubbles, sidebars.
-4. **Commit D — overlay tier migration.** Same recipe for
-   `.cm-tooltip-autocomplete`, `.spotlight-*`, lock overlay, etc.
-5. **Commit E — retire deprecated tokens.** Delete
-   `--heros-glass-fill`, `--heros-glass-black`,
-   `--heros-glass-black-deep` from `:root`. Verify zero references via
-   grep before commit.
+1. **Commit A — tokens + class structure + aliases.** Add the new
+   `:root` blocks (card tiers, panel, row-hover renames). Add BEM
+   modifier classes to `.heros-glass-card`. Split `.heros-glass-panel`
+   out of the App.css:202 combined rule and rewrite the standalone
+   App.css:789 rule to use `--panel-*` tokens. Install deprecation
+   aliases. No call-sites change. No visual change.
+2. **Commit B — deep tier migration.** Delete the notes.css
+   specificity hack (lines 749-755). Replace any raw `rgba(0,0,0,0.28)`
+   literals in notes.css / system-audio.css with `var(--card-deep-fill)`.
+   Add `heros-glass-card--deep` modifier only to JSX call-sites whose
+   default tier needs to be deep (most stay bare and inherit deep via
+   the fallback rule).
+3. **Commit C — mid tier migration.** Direct token substitution in
+   existing CSS rules for `.titlebar`, `.icon-rail`,
+   `.thread-workspace`, `.account-sidebar`, `.conversation-list`,
+   `.inspector-panel`, `.heros-glass-bubble`, `.heros-glass-bubble-me`.
+   No JSX changes.
+4. **Commit D — overlay tier migration.** Direct token substitution
+   for `.cm-tooltip-autocomplete`, `.spotlight-*`, `.cm-cursor-tooltip`,
+   popovers, dropdowns. No JSX changes.
+5. **Commit E — row-hover rename.** Replace all references to
+   `--heros-glass-black` with `--row-hover-fill` and
+   `--heros-glass-black-deep` with `--row-hover-fill-deep` across
+   App.css and any other `src/styles/*.css` matches. Then delete the
+   two deprecated alias lines from `:root`. Verify via grep.
+6. **Commit F — retire `--heros-glass-fill`.** Update the
+   `.login-mode` override at App.css:2730 to set `--panel-fill`
+   instead. Delete the `--heros-glass-fill` alias and the original
+   token from `:root`. Verify via grep.
 
 Each commit is independently revertable. If commit C makes the
 titlebar look wrong, revert C and the design system is back to a
@@ -326,15 +451,16 @@ are the cases where the user dials in tier values during phase 2.
 
 ### Verification greps
 
-After commit E, four searches (regex patterns, run via Grep tool or
-ripgrep) must come back at the expected level:
+After commit F (final), the following searches (regex patterns, run
+via Grep tool or ripgrep) must come back at the expected level:
 
 | Regex pattern | Files searched | Expected |
 |---|---|---|
 | `rgba\(0,\s*0,\s*0,\s*0\.` | App.css, notes.css, system-audio.css, onboarding.css | Hits only inside `:root` token definitions |
-| `backdrop-filter:\s*blur\(\d+px\)` | same files | Hits only inside `:root` token definitions |
+| `backdrop-filter:\s*blur\(\d+px\)` | same files | Hits only inside `:root` token definitions and the panel rule |
 | `\.notes-[a-z-]+\.heros-glass-card` (specificity hack) | notes.css | Zero matches |
-| `--heros-glass-fill\|--heros-glass-black\|--heros-glass-black-deep` | entire `src/` tree | Zero matches |
+| `--heros-glass-fill\b` | entire `src/` tree | Zero matches |
+| `--heros-glass-black(\b\|-deep)` | entire `src/` tree | Zero matches |
 
 ### Build + tests
 
@@ -356,19 +482,25 @@ to baseline.
 
 In addition to CLAUDE.md's standard DoD:
 
-1. New `--card-{deep,mid,overlay}-*` token block exists in
-   `src/App.css :root` under the documented banner.
-2. `.heros-glass-card` and `.heros-glass-panel` have `--deep`, `--mid`,
-   `--overlay` BEM modifiers; bare class falls back to deep.
-3. Every glass surface in the four migration files is mapped to a tier.
-4. notes.css:749-755 specificity hack is **deleted**.
-5. `--heros-glass-fill`, `--heros-glass-black`,
-   `--heros-glass-black-deep` are **removed** (not aliased) from `:root`.
-6. The three verification greps (§7) come back clean.
-7. Baseline + post-migration screenshots captured under
+1. New `--card-{deep,mid,overlay}-*`, `--panel-*`, and
+   `--row-hover-fill{,-deep}` token blocks exist in `src/App.css :root`
+   under documented banners.
+2. `.heros-glass-card` has `--deep`, `--mid`, `--overlay` BEM
+   modifiers; bare class falls back to deep.
+3. `.heros-glass-panel` is a single rule sourcing from `--panel-*`
+   tokens; removed from the App.css:202 combined rule.
+4. Every glass surface in the four migration files is mapped to a
+   tier (or row-hover, or panel).
+5. notes.css:749-755 specificity hack is **deleted**.
+6. `--heros-glass-fill`, `--heros-glass-black`,
+   `--heros-glass-black-deep` are **removed** from `:root`.
+7. `.login-mode` body modifier overrides `--panel-fill`, not
+   `--heros-glass-fill`.
+8. The five verification greps (§7) come back clean.
+9. Baseline + post-migration screenshots captured under
    `docs/superpowers/specs/baselines/2026-04-25-card-tiers/`.
-8. Open questions in §2 are explicitly revisited by the user with
-   running app visible; tier assignments confirmed or moved.
+10. Open questions in §2 are explicitly revisited by the user with
+    running app visible; tier assignments confirmed or moved.
 
 ---
 
