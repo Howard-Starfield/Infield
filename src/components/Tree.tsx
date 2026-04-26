@@ -1,25 +1,37 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { HerOSInput } from './HerOS'
 import { HerOSMenu } from './HerOSMenu'
-import { FileText, FolderPlus, Plus, Search, ChevronRight, RefreshCw } from 'lucide-react'
+import { FileText, FolderPlus, Plus, Search, ChevronRight, RefreshCw, Trash2, RotateCcw, X, Database, Rows3 } from 'lucide-react'
 import { commands, type WorkspaceNode } from '../bindings'
 import { toast } from 'sonner'
 import {
   DndContext,
   DragOverlay,
   PointerSensor,
+  closestCenter,
+  pointerWithin,
   useSensor,
   useSensors,
   type DragEndEvent,
+  type DragOverEvent,
   type DragStartEvent,
 } from '@dnd-kit/core'
 import {
   SortableContext,
   useSortable,
-  verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
+
+// Prefer pointer-based "am I literally inside this droppable?" detection;
+// fall back to closest-centre for the gap between rows.
+function treeCollisionDetection(args: Parameters<typeof pointerWithin>[0]) {
+  const hits = pointerWithin(args)
+  return hits.length > 0 ? hits : closestCenter(args)
+}
+
+// Items stay in their original DOM positions during drag; the drop indicator
+// communicates placement instead of shuffling siblings around.
+const noopSortingStrategy = () => null
 
 interface TreeProps {
   activeNodeId: string | null
@@ -208,43 +220,52 @@ export function isVisibleDescendant(rows: FlatRow[], ancestorId: string, candida
   return false
 }
 
+// Filters out children when their parent is already in the selection (avoids double-operations on bulk actions).
+function filterNestedSelection(ids: string[], nodes: Map<string, WorkspaceNode>): string[] {
+  const selected = new Set(ids)
+  return ids.filter((id) => {
+    let parentId = nodes.get(id)?.parent_id ?? null
+    while (parentId) {
+      if (selected.has(parentId)) return false
+      parentId = nodes.get(parentId)?.parent_id ?? null
+    }
+    return true
+  })
+}
+
 function SortableRow(props: {
   row: FlatRow
   node: WorkspaceNode
   isActive: boolean
+  isSelected: boolean
+  isDropTarget: boolean
   isExpanded: boolean
   isDragging?: boolean
   onToggle: (id: string) => void
-  onSelect: (id: string) => void
+  onRowClick: (row: FlatRow, event: React.MouseEvent<HTMLDivElement>) => void
   onOpenContextMenu: (anchor: { x: number; y: number }, targetId: string) => void
 }) {
-  const { row, node, isActive, isExpanded, isDragging: isPreviewDragging = false, onToggle, onSelect, onOpenContextMenu } = props
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging: isSortableDragging } =
+  const { row, node, isActive, isSelected, isDropTarget, isExpanded, isDragging: isPreviewDragging = false, onToggle, onRowClick, onOpenContextMenu } = props
+  const { attributes, listeners, setNodeRef, isDragging: isSortableDragging } =
     useSortable({ id: row.id })
   const style: React.CSSProperties = {
-    transform: isSortableDragging ? undefined : CSS.Transform.toString(transform),
-    transition: isSortableDragging ? undefined : transition,
     paddingLeft: `var(--space-2)`,
-    opacity: isSortableDragging ? 0.4 : 1,
   }
   return (
     <div
       ref={setNodeRef}
-      className={`tree-row ${row.depth > 0 ? 'tree-row--child' : ''} ${isActive ? 'tree-row--active' : ''}`}
+      className={`tree-row ${row.depth > 0 ? 'tree-row--child' : ''} ${isSelected ? 'tree-row--selected' : ''} ${isActive ? 'tree-row--active' : ''} ${isDropTarget ? 'tree-row--drop-target' : ''} ${isSortableDragging ? 'tree-row--drag-source' : ''}`}
       style={style}
       data-tree-row-id={row.id}
       {...attributes}
       {...listeners}
-      onClick={() => {
+      onClick={(event) => {
         if (isPreviewDragging) return
-        if (row.hasChildren) {
-          onToggle(row.id)
-        }
-        onSelect(row.id)
+        onRowClick(row, event)
       }}
       onContextMenu={(e) => {
         e.preventDefault()
-        if (isDragging) return
+        if (isSortableDragging || isPreviewDragging) return
         onOpenContextMenu({ x: e.clientX, y: e.clientY }, row.id)
       }}
     >
@@ -298,6 +319,12 @@ export function Tree({
     width: number
     height: number
   } | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [selectionAnchorId, setSelectionAnchorId] = useState<string | null>(null)
+  const [dropIndicator, setDropIndicator] = useState<{ overId: string; mode: 'before' | 'after' | 'inside' } | null>(null)
+  const [trashOpen, setTrashOpen] = useState(false)
+  const [trashedNodes, setTrashedNodes] = useState<WorkspaceNode[]>([])
+  const [trashLoading, setTrashLoading] = useState(false)
   const loadGeneration = useRef(0)
 
   const openContextMenu = useCallback(
@@ -366,6 +393,23 @@ export function Tree({
     void loadRoots()
   }, [loadRoots, refreshToken])
 
+  const loadTrash = useCallback(async () => {
+    setTrashLoading(true)
+    try {
+      const res = await commands.getDeletedNodes()
+      if (res.status === 'ok') setTrashedNodes(res.data)
+      else toast.error('Could not load trash', { description: res.error })
+    } catch (e) {
+      toast.error('Could not load trash', { description: e instanceof Error ? e.message : String(e) })
+    } finally {
+      setTrashLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (trashOpen) void loadTrash()
+  }, [trashOpen, loadTrash])
+
   const loadChildren = useCallback(async (parentId: string) => {
     const res = await commands.getNodeChildren(parentId)
     if (res.status === 'ok') {
@@ -421,6 +465,55 @@ export function Tree({
     [],
   )
 
+  const handleRestoreNode = useCallback(async (id: string) => {
+    try {
+      const res = await commands.restoreNode(id)
+      if (res.status === 'ok') {
+        toast.success('Restored')
+        await loadRoots()
+        await loadTrash()
+      } else {
+        toast.error('Restore failed', { description: res.error })
+      }
+    } catch (e) {
+      toast.error('Restore failed', { description: e instanceof Error ? e.message : String(e) })
+    }
+  }, [loadRoots, loadTrash])
+
+  const handlePermDelete = useCallback(async (id: string) => {
+    try {
+      const res = await commands.permanentDeleteNode(id)
+      if (res.status === 'ok') {
+        await loadTrash()
+      } else {
+        toast.error('Delete failed', { description: res.error })
+      }
+    } catch (e) {
+      toast.error('Delete failed', { description: e instanceof Error ? e.message : String(e) })
+    }
+  }, [loadTrash])
+
+  const handleEmptyTrash = useCallback(async () => {
+    try {
+      const res = await commands.emptyTrash()
+      if (res.status === 'ok') {
+        setTrashedNodes([])
+        toast.success('Trash emptied')
+      } else {
+        toast.error('Empty trash failed', { description: res.error })
+      }
+    } catch (e) {
+      toast.error('Empty trash failed', { description: e instanceof Error ? e.message : String(e) })
+    }
+  }, [])
+
+  const handleBulkDelete = useCallback(async () => {
+    const ids = filterNestedSelection(Array.from(selectedIds), state.nodes)
+    await Promise.all(ids.map((id) => handleDelete(id)))
+    setSelectedIds(new Set())
+    setSelectionAnchorId(null)
+  }, [selectedIds, state.nodes, handleDelete])
+
   const handleCreateChildInTree = useCallback(
     async (parentId: string) => {
       try {
@@ -440,6 +533,30 @@ export function Tree({
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
   )
 
+  const handleDragOver = useCallback((e: DragOverEvent) => {
+    if (!e.over || e.active.id === e.over.id) {
+      setDropIndicator(null)
+      return
+    }
+    const overId = String(e.over.id)
+    const pointer = e.activatorEvent as PointerEvent
+    const currentY = pointer.clientY + e.delta.y
+    const rect = e.over.rect
+
+    // Top half → before. Bottom half + moved right ≥32px → inside. Bottom half → after.
+    const inBottomHalf = currentY >= rect.top + rect.height * 0.5
+    const movedRight = e.delta.x > 32
+    let mode: 'before' | 'after' | 'inside'
+    if (!inBottomHalf) {
+      mode = 'before'
+    } else if (movedRight) {
+      mode = 'inside'
+    } else {
+      mode = 'after'
+    }
+    setDropIndicator({ overId, mode })
+  }, [])
+
   const handleDragStart = (e: DragStartEvent) => {
     const id = String(e.active.id)
     const rowEl = document.querySelector<HTMLElement>(`[data-tree-row-id="${id}"]`)
@@ -453,6 +570,7 @@ export function Tree({
 
   const handleDragEnd = async (e: DragEndEvent) => {
     setDragState(null)
+    setDropIndicator(null)
     if (!e.over || e.active.id === e.over.id) return
     const activeId = String(e.active.id)
     const overId = String(e.over.id)
@@ -461,14 +579,16 @@ export function Tree({
     const overIdx = visibleRows.findIndex((r) => r.id === overId)
     if (activeIdx === -1 || overIdx === -1) return
 
-    // Target parent: same parent as the over-row (sibling reorder only
-    // in W2 — re-parenting via drag deferred to W2.5).
     const overNode = state.nodes.get(overId)
     if (!overNode) return
     const activeNode = state.nodes.get(activeId)
     if (!activeNode) return
     const sourceParent = activeNode.parent_id
-    const shouldNest = e.delta.x > 18
+
+    // Use the visual indicator's mode for drop placement — consistent with what the user saw.
+    const mode = dropIndicator?.overId === overId ? dropIndicator.mode : 'after'
+    const shouldNest = mode === 'inside'
+    const droppingBefore = mode === 'before'
     let targetParent = overNode.parent_id
 
     // Compute new position as midpoint of over-row and its neighbour
@@ -477,7 +597,6 @@ export function Tree({
       .map((id) => state.nodes.get(id))
       .filter((x): x is WorkspaceNode => !!x)
     const overSibIdx = siblings.findIndex((s) => s.id === overId)
-    const droppingBefore = activeIdx > overIdx
     let newPos: number
     if (droppingBefore) {
       const prev = siblings[overSibIdx - 1]
@@ -534,6 +653,33 @@ export function Tree({
   const rows = useMemo(() => flattenVisible(state), [state])
   const dragRow = dragState ? rows.find((row) => row.id === dragState.id) ?? null : null
   const dragNode = dragState ? state.nodes.get(dragState.id) ?? null : null
+
+  const handleRowClick = useCallback(
+    (row: FlatRow, event: React.MouseEvent<HTMLDivElement>) => {
+      if (event.metaKey || event.ctrlKey) {
+        setSelectedIds((prev) => {
+          const next = new Set(prev)
+          if (next.has(row.id)) next.delete(row.id)
+          else next.add(row.id)
+          return next
+        })
+        setSelectionAnchorId(row.id)
+      } else if (event.shiftKey && selectionAnchorId) {
+        const anchorIdx = rows.findIndex((r) => r.id === selectionAnchorId)
+        const clickIdx = rows.findIndex((r) => r.id === row.id)
+        if (anchorIdx !== -1 && clickIdx !== -1) {
+          const [from, to] = anchorIdx < clickIdx ? [anchorIdx, clickIdx] : [clickIdx, anchorIdx]
+          setSelectedIds(new Set(rows.slice(from, to + 1).map((r) => r.id)))
+        }
+      } else {
+        setSelectedIds(new Set())
+        setSelectionAnchorId(row.id)
+        if (row.hasChildren) void handleToggle(row.id)
+        onSelect(row.id)
+      }
+    },
+    [rows, selectionAnchorId, handleToggle, onSelect],
+  )
 
   // Keyboard nav: handle at the container level so tree rows don't need tabindex.
   const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -624,33 +770,42 @@ export function Tree({
         )}
         <DndContext
           sensors={sensors}
+          collisionDetection={treeCollisionDetection}
           onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
           onDragEnd={handleDragEnd}
         >
           <SortableContext
             items={rows.map((r) => r.id)}
-            strategy={verticalListSortingStrategy}
+            strategy={noopSortingStrategy}
           >
             {rows.map((row) => {
               const node = state.nodes.get(row.id)
               if (!node) return null
+              const ind = dropIndicator?.overId === row.id ? dropIndicator : null
+              const lineStyle = { marginLeft: `calc(${row.depth} * 20px + 8px)` }
               return (
-                <SortableRow
-                  key={row.id}
-                  row={row}
-                  node={node}
-                  isActive={row.id === activeNodeId}
-                  isExpanded={state.expanded.has(row.id)}
-                  onToggle={(id) => void handleToggle(id)}
-                  onSelect={onSelect}
-                  onOpenContextMenu={openContextMenu}
-                />
+                <Fragment key={row.id}>
+                  {ind?.mode === 'before' && <div className="tree-drop-line" style={lineStyle} />}
+                  <SortableRow
+                    row={row}
+                    node={node}
+                    isActive={row.id === activeNodeId}
+                    isSelected={selectedIds.has(row.id)}
+                    isDropTarget={ind?.mode === 'inside'}
+                    isExpanded={state.expanded.has(row.id)}
+                    onToggle={(id) => void handleToggle(id)}
+                    onRowClick={handleRowClick}
+                    onOpenContextMenu={openContextMenu}
+                  />
+                  {ind?.mode === 'after' && <div className="tree-drop-line" style={lineStyle} />}
+                </Fragment>
               )
             })}
           </SortableContext>
           {typeof document !== 'undefined' &&
             createPortal(
-              <DragOverlay>
+              <DragOverlay dropAnimation={null}>
                 {dragState && dragRow && dragNode ? (
                   <div
                     style={{
@@ -690,14 +845,89 @@ export function Tree({
         </DndContext>
       </div>
 
+      <button
+        className="notes-trash-toggle"
+        onClick={() => setTrashOpen((o) => !o)}
+        title="Trash"
+      >
+        <Trash2 size={12} />
+        <span className="notes-trash-toggle__label">Trash</span>
+        {trashedNodes.length > 0 && (
+          <span className="notes-trash-toggle__badge">{trashedNodes.length}</span>
+        )}
+        <ChevronRight
+          size={11}
+          style={{ transform: trashOpen ? 'rotate(90deg)' : 'none', transition: 'transform 150ms' }}
+        />
+      </button>
+
+      {trashOpen && (
+        <div className="notes-trash-panel">
+          {trashLoading && (
+            <div className="notes-backlinks__empty" style={{ fontSize: 12 }}>Loading…</div>
+          )}
+          {!trashLoading && trashedNodes.length === 0 && (
+            <div className="notes-backlinks__empty" style={{ fontSize: 12 }}>Trash is empty</div>
+          )}
+          {trashedNodes.map((node) => {
+            const TrashIcon = node.node_type === 'database' ? Database
+              : node.node_type === 'row' ? Rows3
+              : FileText
+            return (
+            <div key={node.id} className="notes-trash-item">
+              <span className="notes-trash-item__icon"><TrashIcon size={11} /></span>
+              <span className="notes-trash-item__name" title={node.name}>{node.name}</span>
+              <span className="notes-trash-item__actions">
+                <button
+                  className="notes-trash-item__btn"
+                  title="Restore"
+                  onClick={() => void handleRestoreNode(node.id)}
+                >
+                  <RotateCcw size={11} />
+                </button>
+                <button
+                  className="notes-trash-item__btn notes-trash-item__btn--danger"
+                  title="Delete permanently"
+                  onClick={() => void handlePermDelete(node.id)}
+                >
+                  <X size={11} />
+                </button>
+              </span>
+            </div>
+            )
+          })}
+          {!trashLoading && trashedNodes.length > 0 && (
+            <div className="notes-trash-footer">
+              <button
+                className="notes-trash-footer__empty-btn"
+                onClick={() => void handleEmptyTrash()}
+              >
+                Clear all
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       {menu && (() => {
         const target = state.nodes.get(menu.targetId)
         if (!target) return null
+        const isBulkTarget = selectedIds.size > 1 && selectedIds.has(menu.targetId)
+        const bulkIds = isBulkTarget
+          ? filterNestedSelection(Array.from(selectedIds), state.nodes)
+          : []
         return (
           <HerOSMenu
             anchor={menu.anchor}
             onDismiss={() => setMenu(null)}
-            items={[
+            items={isBulkTarget ? [
+              {
+                id: 'delete-bulk',
+                label: `Delete ${bulkIds.length} item${bulkIds.length !== 1 ? 's' : ''}`,
+                danger: true,
+                onSelect: () => void handleBulkDelete(),
+              },
+            ] : [
               {
                 id: 'open',
                 label: 'Open',
