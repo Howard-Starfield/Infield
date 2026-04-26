@@ -861,6 +861,8 @@ pub fn run(cli_args: CliArgs) {
             commands::database::get_fields,
             commands::database::get_rows,
             commands::database::create_row,
+            commands::database::delete_row,
+            commands::database::delete_database,
             commands::database::update_cell,
             commands::database::get_all_cells_for_row,
             commands::database::get_rows_filtered_sorted,

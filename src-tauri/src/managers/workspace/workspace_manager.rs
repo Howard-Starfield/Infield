@@ -1323,6 +1323,25 @@ impl WorkspaceManager {
         Ok(())
     }
 
+    /// Update the `name` column on a workspace_nodes row. Used by `update_cell`
+    /// when a primary RichText field is edited so the mirror node's display
+    /// name (visible in tree view + search) tracks the row's title. Idempotent
+    /// — silently no-ops if `node_id` is not present.
+    pub async fn update_workspace_mirror_name(
+        &self,
+        node_id: &str,
+        name: &str,
+    ) -> Result<(), String> {
+        let now = chrono::Utc::now().timestamp();
+        let conn = self.conn.lock().await;
+        conn.execute(
+            "UPDATE workspace_nodes SET name = ?1, updated_at = ?2 WHERE id = ?3",
+            params![name, now, node_id],
+        )
+        .map_err(|e| format!("update_workspace_mirror_name failed: {e}"))?;
+        Ok(())
+    }
+
     /// Returns the vault root directory path, migrating the legacy Handy folder name on demand.
     pub fn vault_root(&self, app: &tauri::AppHandle) -> std::path::PathBuf {
         resolve_vault_root(app)
@@ -4429,5 +4448,44 @@ mod migration_tests {
         assert_eq!(after_name, "Renamed");
         assert_eq!(after_position, 5.0);
         assert!(after_deleted.is_none(), "ON CONFLICT must clear deleted_at");
+    }
+
+    /// Test the SQL emitted by `update_workspace_mirror_name`. SQL-direct because
+    /// the Windows linker pitfall blocks `WorkspaceManager` instantiation in tests.
+    #[test]
+    fn update_workspace_mirror_name_sql_changes_name_and_updated_at() {
+        ensure_vec_extension();
+        let mut conn = rusqlite::Connection::open_in_memory().expect("open mem");
+        WorkspaceManager::migrations()
+            .to_latest(&mut conn)
+            .expect("migrate");
+
+        let now: i64 = 1_700_000_000;
+        conn.execute(
+            "INSERT INTO workspace_nodes
+               (id, parent_id, node_type, name, icon, position,
+                created_at, updated_at, properties, body, vault_rel_path)
+             VALUES (?1, NULL, 'row', ?2, '', 0.0, ?3, ?3, '{}', '', ?4)",
+            rusqlite::params!["row-1", "Old Title", now, "databases/p/rows/row-1.md"],
+        )
+        .expect("insert row node");
+
+        // Mirror what `update_workspace_mirror_name` does.
+        let later: i64 = now + 100;
+        conn.execute(
+            "UPDATE workspace_nodes SET name = ?1, updated_at = ?2 WHERE id = ?3",
+            rusqlite::params!["New Title", later, "row-1"],
+        )
+        .expect("update name");
+
+        let (name, updated_at): (String, i64) = conn
+            .query_row(
+                "SELECT name, updated_at FROM workspace_nodes WHERE id = ?1",
+                rusqlite::params!["row-1"],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .expect("row exists");
+        assert_eq!(name, "New Title");
+        assert_eq!(updated_at, later);
     }
 }

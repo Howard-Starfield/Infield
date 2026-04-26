@@ -189,6 +189,41 @@ pub async fn create_row_inner_with_vault(
     Ok(Row { id: row_id, database_id })
 }
 
+/// Delete a row: hard-delete from db_rows + soft-delete the mirror.
+/// `soft_delete_node` cascades to descendants and clears FTS / embeddings.
+/// `delete_row_hard` removes db_rows + db_cells via CASCADE. Vault file is
+/// left on disk per Rule 13 lifecycle (soft-delete is recoverable; the file
+/// stays as forensic evidence and is removed only on permanent delete,
+/// which is deferred to W9 Trash UI).
+pub async fn delete_row_inner_with_vault(
+    db_mgr: &Arc<DatabaseManager>,
+    ws_mgr: &Arc<WorkspaceManager>,
+    row_id: &str,
+) -> Result<(), String> {
+    db_mgr
+        .delete_row_hard(row_id)
+        .await
+        .map_err(|e| e.to_string())?;
+    ws_mgr.soft_delete_node(row_id).await?;
+    Ok(())
+}
+
+/// Delete a database: hard-delete from databases (CASCADE removes
+/// db_fields/db_rows/db_cells/db_views) + soft-delete the mirror (cascades
+/// to row mirrors, clears FTS / embeddings). Vault files left on disk.
+pub async fn delete_database_inner_with_vault(
+    db_mgr: &Arc<DatabaseManager>,
+    ws_mgr: &Arc<WorkspaceManager>,
+    db_id: &str,
+) -> Result<(), String> {
+    db_mgr
+        .delete_database_hard(db_id)
+        .await
+        .map_err(|e| e.to_string())?;
+    ws_mgr.soft_delete_node(db_id).await?;
+    Ok(())
+}
+
 // ------------------------------------------------------------------ //
 //  Tauri commands
 // ------------------------------------------------------------------ //
@@ -257,6 +292,34 @@ pub async fn create_row(
 
 #[tauri::command]
 #[specta::specta]
+pub async fn delete_row(
+    state: State<'_, Arc<AppState>>,
+    row_id: String,
+) -> Result<(), String> {
+    delete_row_inner_with_vault(
+        &state.database_manager,
+        &state.workspace_manager,
+        &row_id,
+    )
+    .await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn delete_database(
+    state: State<'_, Arc<AppState>>,
+    database_id: String,
+) -> Result<(), String> {
+    delete_database_inner_with_vault(
+        &state.database_manager,
+        &state.workspace_manager,
+        &database_id,
+    )
+    .await
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn update_cell(
     app: AppHandle,
     state: State<'_, Arc<AppState>>,
@@ -289,7 +352,31 @@ pub async fn update_cell(
         .update_cell(&row_id, &field_id, &data)
         .await
     {
-        Ok(()) => Ok(()),
+        Ok(()) => {
+            // Propagate primary-field text edits to the mirror's name so the tree view,
+            // FTS, and search results reflect the row's title. Only fires for primary
+            // RichText cells; other field types and non-primary cells are no-ops.
+            if let CellData::RichText(ref new_text) = data {
+                let fields = state
+                    .database_manager
+                    .get_fields(&database_id)
+                    .await
+                    .map_err(|e| e.to_string())?;
+                if fields.iter().any(|f| f.id == field_id && f.is_primary) {
+                    if let Err(e) = state
+                        .workspace_manager
+                        .update_workspace_mirror_name(&row_id, new_text)
+                        .await
+                    {
+                        log::warn!(
+                            "primary-name mirror sync failed for row {row_id}: {e}. \
+                             Cell write succeeded; tree title may lag until next refresh."
+                        );
+                    }
+                }
+            }
+            Ok(())
+        }
         Err(e) => {
             log::warn!(
                 "vault-sqlite drift: row={} field={} vault wrote new value but SQLite update_cell failed: {}. \
