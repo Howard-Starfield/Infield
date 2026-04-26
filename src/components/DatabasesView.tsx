@@ -75,13 +75,14 @@ export function DatabasesView({ onNavigate }: Props) {
   }, [databases, selectedDbId])
 
   const handleOpenRow = useCallback(
-    (rowId: string) => {
-      // Existing pattern: navigate to Notes, then fire the `notes:open`
-      // event NotesView already listens for (W2.5 Task 16).
-      onNavigate('notes')
-      window.dispatchEvent(new CustomEvent('notes:open', { detail: rowId }))
+    (_rowId: string) => {
+      // Row-detail page (Notion-style full row view with body markdown editor)
+      // is deferred to a post-W4 polish phase. For now, click is a no-op so the
+      // user stays in the table view and uses inline cell editing as the primary
+      // interaction. The previous code dispatched a 'notes:open' event that
+      // navigated to NotesView — confusing, since rows aren't notes. Removed.
     },
-    [onNavigate],
+    [],
   )
 
   const handleNewDatabase = useCallback(async () => {
