@@ -80,6 +80,14 @@ const DRIP_DURATION_SEC: f64 = 8.0 * 60.0 * 60.0; // 8 hours
 const CLAIM_MIN_POINTS: f64 = 50.0;
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, specta::Type)]
+pub struct MilestoneTickResult {
+    pub progress: i64,
+    pub target: i64,
+    pub completed: bool,
+    pub unlocked_buddy_id: Option<String>,
+}
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, specta::Type)]
 pub struct ClaimResult {
     pub points_claimed: f64,
     pub xp_awarded: i64,
@@ -430,6 +438,59 @@ impl BuddyManager {
             points_claimed,
             xp_awarded,
             gear_dropped: drops,
+        })
+    }
+
+    pub async fn tick_milestone(&self, milestone_id: &str, delta: i64, now_ms: i64) -> Result<MilestoneTickResult, String> {
+        use rand::Rng;
+        let mut conn = self.conn.lock().await;
+        let tx = conn.transaction().map_err(|e| format!("buddy::tick_milestone: begin tx: {e}"))?;
+
+        let (cur_progress, target, already_completed_at, reward): (i64, i64, Option<i64>, Option<String>) =
+            tx.query_row(
+                "SELECT progress, target, completed_at_ms, reward_buddy_id
+                   FROM buddy_milestones WHERE milestone_id = ?",
+                [milestone_id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+            ).map_err(|e| format!("buddy::tick_milestone: read milestone {milestone_id}: {e}"))?;
+
+        let new_progress = (cur_progress + delta).min(target);
+        tx.execute(
+            "UPDATE buddy_milestones SET progress = ? WHERE milestone_id = ?",
+            params![new_progress, milestone_id],
+        ).map_err(|e| format!("buddy::tick_milestone: update progress: {e}"))?;
+
+        let mut unlocked_buddy_id: Option<String> = None;
+        let just_completed = already_completed_at.is_none() && new_progress >= target;
+        if just_completed {
+            tx.execute(
+                "UPDATE buddy_milestones SET completed_at_ms = ? WHERE milestone_id = ?",
+                params![now_ms, milestone_id],
+            ).map_err(|e| format!("buddy::tick_milestone: mark completed: {e}"))?;
+            if let Some(buddy_id) = reward.as_deref() {
+                let exists: i64 = tx.query_row(
+                    "SELECT count(*) FROM buddy_unlocks WHERE buddy_id = ?",
+                    [buddy_id], |r| r.get(0),
+                ).map_err(|e| format!("buddy::tick_milestone: check buddy exists: {e}"))?;
+                if exists == 0 {
+                    let mut rng = rand::thread_rng();
+                    let shiny = rng.gen_range(0..256) == 0;  // spec §6.6 — 1/256 per buddy
+                    tx.execute(
+                        "INSERT INTO buddy_unlocks (buddy_id, unlocked_at_ms, level, shiny)
+                         VALUES (?, ?, 1, ?)",
+                        params![buddy_id, now_ms, shiny as i32],
+                    ).map_err(|e| format!("buddy::tick_milestone: insert unlock: {e}"))?;
+                    unlocked_buddy_id = Some(buddy_id.to_string());
+                }
+            }
+        }
+
+        tx.commit().map_err(|e| format!("buddy::tick_milestone: commit: {e}"))?;
+        Ok(MilestoneTickResult {
+            progress: new_progress,
+            target,
+            completed: new_progress >= target,
+            unlocked_buddy_id,
         })
     }
 
@@ -846,6 +907,37 @@ mod tests {
             c.query_row("SELECT count(*) FROM buddy_claim_log", [], |r| r.get(0)).unwrap()
         };
         assert_eq!(log_count, 1);
+    }
+
+    #[tokio::test]
+    async fn tick_milestone_increments_progress() {
+        let conn = Arc::new(Mutex::new(setup()));
+        let mgr = BuddyManager::new(conn);
+        let res = mgr.tick_milestone("notes-50", 5, 100).await.expect("tick");
+        assert!(!res.completed);
+        assert_eq!(res.progress, 5);
+    }
+
+    #[tokio::test]
+    async fn tick_milestone_completes_and_unlocks_buddy() {
+        let conn = Arc::new(Mutex::new(setup()));
+        let mgr = BuddyManager::new(conn.clone());
+        let res = mgr.tick_milestone("notes-50", 50, 100).await.expect("tick");
+        assert!(res.completed);
+        assert_eq!(res.unlocked_buddy_id.as_deref(), Some("glide-wings"));
+
+        let s = mgr.get_state(100).await.expect("get");
+        assert!(s.roster.iter().any(|b| b.buddy_id == "glide-wings"));
+    }
+
+    #[tokio::test]
+    async fn tick_milestone_idempotent_after_completion() {
+        let conn = Arc::new(Mutex::new(setup()));
+        let mgr = BuddyManager::new(conn);
+        mgr.tick_milestone("notes-50", 50, 100).await.expect("first");
+        let res = mgr.tick_milestone("notes-50", 100, 200).await.expect("second");
+        assert!(res.completed);
+        assert!(res.unlocked_buddy_id.is_none(), "must not double-unlock");
     }
 
     #[test]
