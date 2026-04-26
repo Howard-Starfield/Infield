@@ -1656,6 +1656,7 @@ mod enqueue_urls_unit_tests {
     fn enqueue_urls_opts_default_keep_media_true() {
         let opts = WebMediaImportOpts::default();
         assert!(opts.keep_media);
+        assert!(opts.transcribe);
         assert!(opts.parent_folder_node_id.is_none());
         assert!(opts.playlist_source.is_none());
         // format is Mp3Audio by default

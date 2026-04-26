@@ -287,6 +287,7 @@ pub struct PlaylistSource {
 pub struct WebMediaImportOpts {
     pub keep_media: bool,
     pub format: WebMediaFormat,
+    pub transcribe: bool,
     pub parent_folder_node_id: Option<String>,
     pub playlist_source: Option<PlaylistSource>,
 }
@@ -296,6 +297,7 @@ impl Default for WebMediaImportOpts {
         Self {
             keep_media: true,
             format: WebMediaFormat::default(),
+            transcribe: true,
             parent_folder_node_id: None,
             playlist_source: None,
         }
