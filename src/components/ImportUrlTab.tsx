@@ -38,15 +38,6 @@ function formatDuration(seconds: number): string {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
-function makeOpts(keepMedia: boolean): WebMediaImportOpts {
-  return {
-    keep_media: keepMedia,
-    format: { kind: 'mp3_audio' },
-    parent_folder_node_id: null,
-    playlist_source: null,
-  };
-}
-
 function jobProgress(job: ImportJobDto): number {
   if (job.state === 'done') return 100;
   if (job.state === 'fetching_meta') return 5;
@@ -118,11 +109,36 @@ export function ImportUrlTab() {
   const [text, setText] = useState('');
   const [format, setFormat] = useState<Format>('mp3');
   const [keepMedia, setKeepMedia] = useState(true);
+  const [transcribeMp4, setTranscribeMp4] = useState(false);
+  const [resolutionByUrl, setResolutionByUrl] = useState<Record<string, number>>({});
   const [previews, setPreviews] = useState<Record<string, PreviewState>>({});
   const [fetching, setFetching] = useState(false);
   const [activePlaylistUrl, setActivePlaylistUrl] = useState<string | null>(null);
 
   const urls = detectUrls(text);
+
+  function makeOpts(url: string): WebMediaImportOpts {
+    if (format === 'mp4') {
+      const ready = previews[url];
+      const heights = (ready && ready.kind === 'ready') ? ready.meta.available_video_heights : [];
+      const fallback = heights.length ? Math.max(...heights) : 720;
+      const h = resolutionByUrl[url] ?? fallback;
+      return {
+        keep_media: keepMedia,
+        format: { kind: 'mp_4_video', max_height: h },
+        transcribe: transcribeMp4,
+        parent_folder_node_id: null,
+        playlist_source: null,
+      };
+    }
+    return {
+      keep_media: keepMedia,
+      format: { kind: 'mp_3_audio' },
+      transcribe: true,
+      parent_folder_node_id: null,
+      playlist_source: null,
+    };
+  }
 
   async function fetchAll() {
     if (urls.length === 0) return;
@@ -161,7 +177,7 @@ export function ImportUrlTab() {
   }
 
   async function downloadOne(url: string) {
-    const res = await commands.enqueueImportUrls([url], makeOpts(keepMedia));
+    const res = await commands.enqueueImportUrls([url], makeOpts(url));
     if (res.status === 'error') {
       console.error('enqueueImportUrls failed:', res.error);
       return;
@@ -178,10 +194,12 @@ export function ImportUrlTab() {
       .filter(([_, p]) => p.kind === 'ready' && !(p as { alreadyImported: unknown }).alreadyImported)
       .map(([url]) => url);
     if (readyUrls.length === 0) return;
-    const res = await commands.enqueueImportUrls(readyUrls, makeOpts(keepMedia));
-    if (res.status === 'error') {
-      console.error('enqueueImportUrls failed:', res.error);
-      return;
+    for (const url of readyUrls) {
+      const res = await commands.enqueueImportUrls([url], makeOpts(url));
+      if (res.status === 'error') {
+        console.error('enqueueImportUrls failed:', res.error);
+        return;
+      }
     }
     setPreviews(prev => {
       const next = { ...prev };
@@ -195,7 +213,7 @@ export function ImportUrlTab() {
     for (let i = 0; i < sel.length; i++) {
       const e = sel[i];
       const res = await commands.enqueueImportUrls([e.url], {
-        ...makeOpts(keepMedia),
+        ...makeOpts(e.url),
         playlist_source: { title: envelope.playlist_title, url: envelope.playlist_url, index: i },
       });
       if (res.status === 'error') console.error('enqueue failed:', res.error);
@@ -309,6 +327,25 @@ export function ImportUrlTab() {
                 <span>Keep media file after transcription</span>
               </label>
 
+              {format === 'mp4' && (
+                <label
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer',
+                    fontSize: '12px', color: 'var(--heros-text-muted)',
+                    alignSelf: 'center',
+                  }}
+                  title="Off = video only (faster). On = also transcribe spoken audio."
+                >
+                  <input
+                    type="checkbox"
+                    checked={transcribeMp4}
+                    onChange={e => setTranscribeMp4(e.target.checked)}
+                    style={{ accentColor: 'var(--heros-brand)' }}
+                  />
+                  <span>Transcribe audio too</span>
+                </label>
+              )}
+
               {/* Preview cards (one per URL after fetch) */}
               <AnimatePresence>
                 {previewEntries.length > 0 && (
@@ -324,6 +361,9 @@ export function ImportUrlTab() {
                         key={url}
                         url={url}
                         state={state}
+                        format={format}
+                        selectedHeight={resolutionByUrl[url] ?? null}
+                        onSelectHeight={(h) => setResolutionByUrl(prev => ({ ...prev, [url]: h }))}
                         onDownload={() => downloadOne(url)}
                         onOpenPlaylist={() => setActivePlaylistUrl(url)}
                       />
@@ -399,16 +439,12 @@ function FormatToggle({ value, onChange }: { value: Format; onChange: (next: For
     >
       {(['mp4', 'mp3'] as const).map(f => {
         const active = value === f;
-        const disabled = f === 'mp4'; // MP4 video downloads not yet implemented
         return (
           <button
             key={f}
             role="tab"
             aria-selected={active}
-            aria-disabled={disabled}
-            disabled={disabled}
-            onClick={() => !disabled && onChange(f)}
-            title={disabled ? 'Video downloads coming soon — MP3 audio only for now' : undefined}
+            onClick={() => onChange(f)}
             style={{
               padding: '7px 18px',
               fontSize: 11,
@@ -416,10 +452,10 @@ function FormatToggle({ value, onChange }: { value: Format; onChange: (next: For
               letterSpacing: '0.2em',
               textTransform: 'uppercase',
               background: active ? 'var(--heros-brand)' : 'transparent',
-              color: active ? '#fff' : disabled ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.55)',
+              color: active ? '#fff' : 'rgba(255,255,255,0.55)',
               border: 'none',
               borderRadius: 'var(--segmented-radius, 999px)',
-              cursor: disabled ? 'not-allowed' : 'pointer',
+              cursor: 'pointer',
               fontFamily: 'inherit',
               transition: 'background 180ms ease, color 180ms ease',
             }}
@@ -434,10 +470,13 @@ function FormatToggle({ value, onChange }: { value: Format; onChange: (next: For
 
 // ── Single-URL preview card (shown after Fetch) ────────────────
 function UrlPreviewCard({
-  url, state, onDownload, onOpenPlaylist,
+  url, state, format, selectedHeight, onSelectHeight, onDownload, onOpenPlaylist,
 }: {
   url: string;
   state: PreviewState;
+  format: Format;
+  selectedHeight: number | null;
+  onSelectHeight: (h: number) => void;
   onDownload: () => void;
   onOpenPlaylist: () => void;
 }) {
@@ -535,30 +574,55 @@ function UrlPreviewCard({
               <>
                 <button
                   onClick={onDownload}
+                  disabled={format === 'mp4' && heights.length === 0}
                   className="heros-btn heros-btn-brand"
                   style={{
                     fontSize: 11, fontWeight: 700, padding: '6px 14px', borderRadius: 6,
                     letterSpacing: '0.12em', textTransform: 'uppercase',
                     display: 'inline-flex', alignItems: 'center', gap: 6,
+                    opacity: format === 'mp4' && heights.length === 0 ? 0.4 : 1,
                   }}
                 >
                   <Download size={12} /> Download
                 </button>
-                {heights.length > 0 && heights.slice().reverse().slice(0, 6).map(h => (
-                  <span
-                    key={h}
-                    title="Video heights detected — only audio (MP3) is downloaded for now"
-                    style={{
-                      fontSize: 10, fontWeight: 700, padding: '4px 10px', borderRadius: 6,
-                      background: 'rgba(255,255,255,0.06)',
-                      color: 'rgba(255,255,255,0.45)',
-                      textTransform: 'uppercase', letterSpacing: '0.08em',
-                      cursor: 'help',
-                    }}
-                  >
-                    {h}p
-                  </span>
-                ))}
+                {format === 'mp4' && heights.length > 0 ? (
+                  heights.slice().sort((a, b) => b - a).slice(0, 6).map(h => {
+                    const active = (selectedHeight ?? Math.max(...heights)) === h;
+                    return (
+                      <button
+                        key={h}
+                        type="button"
+                        onClick={() => onSelectHeight(h)}
+                        style={{
+                          fontSize: 10, fontWeight: 700, padding: '4px 10px', borderRadius: 6,
+                          background: active ? 'var(--heros-brand)' : 'rgba(255,255,255,0.06)',
+                          color: active ? '#fff' : 'rgba(255,255,255,0.65)',
+                          border: 'none',
+                          textTransform: 'uppercase', letterSpacing: '0.08em',
+                          cursor: 'pointer', fontFamily: 'inherit',
+                          transition: 'background 160ms ease, color 160ms ease',
+                        }}
+                      >
+                        {h}p
+                      </button>
+                    );
+                  })
+                ) : heights.length > 0 ? (
+                  heights.slice().sort((a, b) => b - a).slice(0, 6).map(h => (
+                    <span
+                      key={h}
+                      title="Available video height (MP3 mode downloads audio only)"
+                      style={{
+                        fontSize: 10, fontWeight: 700, padding: '4px 10px', borderRadius: 6,
+                        background: 'rgba(255,255,255,0.06)',
+                        color: 'rgba(255,255,255,0.45)',
+                        textTransform: 'uppercase', letterSpacing: '0.08em',
+                      }}
+                    >
+                      {h}p
+                    </span>
+                  ))
+                ) : null}
               </>
             )}
           </div>
