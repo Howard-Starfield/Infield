@@ -356,11 +356,15 @@ export function Tree({
         throw new Error(res.error)
       }
 
-      dispatch({ type: 'LOAD_CHILDREN', parentId, nodes: res.data })
+      // Notes tree is documents only. Database/row mirrors live under their
+      // own DatabasesView surface — filter them out here so they don't pollute
+      // the notes hierarchy.
+      const docs = res.data.filter((n) => n.node_type === 'document')
+      dispatch({ type: 'LOAD_CHILDREN', parentId, nodes: docs })
 
       if (!expandedIds.has(parentId)) return
       await Promise.all(
-        res.data.map((child) => hydrateBranch(child.id, expandedIds, visited, generation)),
+        docs.map((child) => hydrateBranch(child.id, expandedIds, visited, generation)),
       )
     },
     [],
@@ -372,11 +376,13 @@ export function Tree({
       const res = await commands.getRootNodes()
       if (generation !== loadGeneration.current) return
       if (res.status === 'ok') {
-        dispatch({ type: 'LOAD_ROOTS', nodes: res.data })
+        // Notes tree is documents only — database mirrors live in DatabasesView.
+        const docs = res.data.filter((n) => n.node_type === 'document')
+        dispatch({ type: 'LOAD_ROOTS', nodes: docs })
         const expandedIds = new Set(readStoredExpandedIds())
         const visited = new Set<string>()
         await Promise.all(
-          res.data.map((root) => hydrateBranch(root.id, expandedIds, visited, generation)),
+          docs.map((root) => hydrateBranch(root.id, expandedIds, visited, generation)),
         )
       } else {
         dispatch({ type: 'SET_ERROR', message: res.error })
