@@ -1284,49 +1284,19 @@ impl WorkspaceManager {
         })
     }
 
-    /// Insert or update a workspace_nodes row of node_type='database' that
-    /// mirrors the row in `database.db`. Used by `commands::database::create_database`
-    /// after the database.db INSERT succeeds. Idempotent — safe to call on retry
-    /// or during boot migration. `properties_json` should be a JSON object
-    /// containing at least `{"fields": [...]}` so existing readers (search,
-    /// `vault::table`) can extract the schema; pass `"{}"` if schema is not yet
-    /// available (boot migration uses this for partially-broken legacy rows).
-    pub async fn upsert_database_node(
+    /// Insert or update a workspace_nodes row that mirrors a row in `database.db`.
+    /// Single helper for both `node_type='database'` (databases) and `node_type='row'`
+    /// (rows): pass `parent_id=None` + position=1.0 + an icon for databases, or
+    /// `parent_id=Some(db_id)` + the row's position + empty icon for rows.
+    /// Idempotent — safe to call on retry or during boot migration. For soft-delete,
+    /// use `soft_delete_node` (cascades + cleans FTS + drops embeddings).
+    pub async fn upsert_workspace_mirror_node(
         &self,
-        db_id: &str,
+        node_id: &str,
+        parent_id: Option<&str>,
+        node_type: &str,
         name: &str,
         icon: &str,
-        properties_json: &str,
-        vault_rel_path: &str,
-    ) -> Result<(), String> {
-        let now = chrono::Utc::now().timestamp();
-        let conn = self.conn.lock().await;
-        conn.execute(
-            "INSERT INTO workspace_nodes
-               (id, parent_id, node_type, name, icon, position,
-                created_at, updated_at, properties, body, vault_rel_path)
-             VALUES (?1, NULL, 'database', ?2, ?3, 1.0, ?4, ?4, ?5, '', ?6)
-             ON CONFLICT(id) DO UPDATE SET
-               name           = excluded.name,
-               icon           = excluded.icon,
-               properties     = excluded.properties,
-               updated_at     = excluded.updated_at,
-               vault_rel_path = excluded.vault_rel_path,
-               deleted_at     = NULL",
-            params![db_id, name, icon, now, properties_json, vault_rel_path],
-        )
-        .map_err(|e| format!("upsert_database_node failed: {e}"))?;
-        Ok(())
-    }
-
-    /// Insert or update a workspace_nodes row of node_type='row' that mirrors
-    /// the row in `db_rows`. The `name` is the primary-field display value;
-    /// pass empty string `""` if not yet known (cell write later updates it).
-    pub async fn upsert_row_node(
-        &self,
-        row_id: &str,
-        db_id: &str,
-        name: &str,
         position: f64,
         properties_json: &str,
         vault_rel_path: &str,
@@ -1337,31 +1307,19 @@ impl WorkspaceManager {
             "INSERT INTO workspace_nodes
                (id, parent_id, node_type, name, icon, position,
                 created_at, updated_at, properties, body, vault_rel_path)
-             VALUES (?1, ?2, 'row', ?3, '', ?4, ?5, ?5, ?6, '', ?7)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7, ?8, '', ?9)
              ON CONFLICT(id) DO UPDATE SET
                parent_id      = excluded.parent_id,
                name           = excluded.name,
+               icon           = excluded.icon,
                position       = excluded.position,
                properties     = excluded.properties,
                updated_at     = excluded.updated_at,
                vault_rel_path = excluded.vault_rel_path,
                deleted_at     = NULL",
-            params![row_id, db_id, name, position, now, properties_json, vault_rel_path],
+            params![node_id, parent_id, node_type, name, icon, position, now, properties_json, vault_rel_path],
         )
-        .map_err(|e| format!("upsert_row_node failed: {e}"))?;
-        Ok(())
-    }
-
-    /// Set `deleted_at` on a workspace_nodes row. Used by soft-delete paths
-    /// (database / row deletion). Vault file stays on disk per Rule 13 lifecycle.
-    pub async fn mark_node_deleted(&self, node_id: &str) -> Result<(), String> {
-        let now = chrono::Utc::now().timestamp();
-        let conn = self.conn.lock().await;
-        conn.execute(
-            "UPDATE workspace_nodes SET deleted_at = ?1, updated_at = ?1 WHERE id = ?2",
-            params![now, node_id],
-        )
-        .map_err(|e| format!("mark_node_deleted failed: {e}"))?;
+        .map_err(|e| format!("upsert_workspace_mirror_node failed: {e}"))?;
         Ok(())
     }
 
@@ -4374,14 +4332,14 @@ mod migration_tests {
         assert_eq!(vec_hits.len(), 0, "empty vec_embeddings returns zero rows, not an error");
     }
 
-    /// Test the SQL emitted by `upsert_database_node` directly against an in-memory
-    /// connection. We can't construct a `WorkspaceManager` in unit tests on Windows
-    /// because `Option<Arc<EmbeddingWorker>>` instantiation pulls in `tauri::AppHandle`
-    /// drop chains that fail to load in the test runner (STATUS_ENTRYPOINT_NOT_FOUND).
-    /// The helper's body is a single `conn.execute("INSERT ... ON CONFLICT ...", ...)`
-    /// call — exercising the same SQL here gives equivalent coverage.
+    /// Test the SQL emitted by `upsert_workspace_mirror_node` directly against an
+    /// in-memory connection. Covers both the database (parent_id NULL) and row
+    /// (parent_id set) variants in one round-trip, plus a re-upsert to verify
+    /// ON CONFLICT updates the right columns. Tested SQL-direct because Windows
+    /// MSVC fails to load test exes that materialise `Option<Arc<EmbeddingWorker>>`
+    /// (STATUS_ENTRYPOINT_NOT_FOUND from tauri::AppHandle drop glue).
     #[test]
-    fn upsert_database_node_sql_creates_workspace_nodes_row() {
+    fn upsert_workspace_mirror_node_sql_round_trips_database_and_row() {
         ensure_vec_extension();
         let mut conn = rusqlite::Connection::open_in_memory().expect("open mem");
         WorkspaceManager::migrations()
@@ -4389,125 +4347,87 @@ mod migration_tests {
             .expect("migrate");
 
         let now: i64 = 1_700_000_000;
-        conn.execute(
-            "INSERT INTO workspace_nodes
+        let upsert_sql = "INSERT INTO workspace_nodes
                (id, parent_id, node_type, name, icon, position,
                 created_at, updated_at, properties, body, vault_rel_path)
-             VALUES (?1, NULL, 'database', ?2, ?3, 1.0, ?4, ?4, ?5, '', ?6)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7, ?8, '', ?9)
              ON CONFLICT(id) DO UPDATE SET
+               parent_id      = excluded.parent_id,
                name           = excluded.name,
                icon           = excluded.icon,
+               position       = excluded.position,
                properties     = excluded.properties,
                updated_at     = excluded.updated_at,
                vault_rel_path = excluded.vault_rel_path,
-               deleted_at     = NULL",
-            rusqlite::params!["db-test-1", "My Projects", "ICON", now, "{}", "databases/my-projects/database.md"],
-        )
-        .expect("insert database node");
+               deleted_at     = NULL";
 
-        let (node_type, name, icon, vault_rel_path, deleted_at): (String, String, String, Option<String>, Option<i64>) =
-            conn.query_row(
-                "SELECT node_type, name, icon, vault_rel_path, deleted_at
-                 FROM workspace_nodes WHERE id = ?1",
-                rusqlite::params!["db-test-1"],
-                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
-            )
-            .expect("row exists");
-        assert_eq!(node_type, "database");
-        assert_eq!(name, "My Projects");
-        assert_eq!(icon, "ICON");
-        assert_eq!(vault_rel_path.as_deref(), Some("databases/my-projects/database.md"));
-        assert!(deleted_at.is_none());
-    }
-
-    /// Test `upsert_row_node`'s SQL: insert a database node, then a row node parented
-    /// to it, and verify both round-trip. See `upsert_database_node_sql_creates_workspace_nodes_row`
-    /// for why we test SQL directly instead of through a `WorkspaceManager` instance.
-    #[test]
-    fn upsert_row_node_sql_creates_workspace_nodes_row_with_parent() {
-        ensure_vec_extension();
-        let mut conn = rusqlite::Connection::open_in_memory().expect("open mem");
-        WorkspaceManager::migrations()
-            .to_latest(&mut conn)
-            .expect("migrate");
-        let now: i64 = 1_700_000_000;
-
+        // Database: parent_id NULL, position 1.0, icon 📊
         conn.execute(
-            "INSERT INTO workspace_nodes
-               (id, parent_id, node_type, name, icon, position,
-                created_at, updated_at, properties, body, vault_rel_path)
-             VALUES (?1, NULL, 'database', ?2, ?3, 1.0, ?4, ?4, ?5, '', ?6)
-             ON CONFLICT(id) DO UPDATE SET
-               name = excluded.name, icon = excluded.icon, properties = excluded.properties,
-               updated_at = excluded.updated_at, vault_rel_path = excluded.vault_rel_path,
-               deleted_at = NULL",
-            rusqlite::params!["db-1", "Projects", "ICON", now, "{}", "databases/projects/database.md"],
+            upsert_sql,
+            rusqlite::params![
+                "db-1", Option::<&str>::None, "database", "Projects", "📊", 1.0_f64,
+                now, "{}", "databases/projects/database.md",
+            ],
         )
-        .expect("insert database node");
+        .expect("upsert database");
 
+        // Row: parent_id = db-1, position 0.0, empty icon
         conn.execute(
-            "INSERT INTO workspace_nodes
-               (id, parent_id, node_type, name, icon, position,
-                created_at, updated_at, properties, body, vault_rel_path)
-             VALUES (?1, ?2, 'row', ?3, '', ?4, ?5, ?5, ?6, '', ?7)
-             ON CONFLICT(id) DO UPDATE SET
-               parent_id = excluded.parent_id, name = excluded.name, position = excluded.position,
-               properties = excluded.properties, updated_at = excluded.updated_at,
-               vault_rel_path = excluded.vault_rel_path, deleted_at = NULL",
-            rusqlite::params!["row-1", "db-1", "Helix Q3 Retro", 0.0_f64, now, "{}", "databases/projects/rows/helix-q3-retro.md"],
+            upsert_sql,
+            rusqlite::params![
+                "row-1", Some("db-1"), "row", "Helix Q3 Retro", "", 0.0_f64,
+                now, "{}", "databases/projects/rows/helix-q3-retro.md",
+            ],
         )
-        .expect("insert row node");
+        .expect("upsert row");
 
-        let (parent_id, node_type, name, position, vault_rel_path): (Option<String>, String, String, f64, Option<String>) =
-            conn.query_row(
-                "SELECT parent_id, node_type, name, position, vault_rel_path
-                 FROM workspace_nodes WHERE id = ?1",
-                rusqlite::params!["row-1"],
-                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
-            )
-            .expect("row exists");
-        assert_eq!(parent_id.as_deref(), Some("db-1"));
-        assert_eq!(node_type, "row");
-        assert_eq!(name, "Helix Q3 Retro");
-        assert_eq!(position, 0.0);
-        assert_eq!(vault_rel_path.as_deref(), Some("databases/projects/rows/helix-q3-retro.md"));
-    }
-
-    /// Test `mark_node_deleted`'s SQL: a single UPDATE that sets `deleted_at` and
-    /// `updated_at` to now. See `upsert_database_node_sql_creates_workspace_nodes_row`
-    /// for the rationale (Windows linker constraint on `WorkspaceManager` instantiation).
-    #[test]
-    fn mark_node_deleted_sql_sets_deleted_at() {
-        ensure_vec_extension();
-        let mut conn = rusqlite::Connection::open_in_memory().expect("open mem");
-        WorkspaceManager::migrations()
-            .to_latest(&mut conn)
-            .expect("migrate");
-        let now: i64 = 1_700_000_000;
-
-        conn.execute(
-            "INSERT INTO workspace_nodes
-               (id, parent_id, node_type, name, icon, position,
-                created_at, updated_at, properties, body, vault_rel_path)
-             VALUES (?1, NULL, 'database', 'Projects', 'ICON', 1.0, ?2, ?2, '{}', '', 'databases/projects/database.md')",
-            rusqlite::params!["db-1", now],
-        )
-        .expect("insert database node");
-
-        conn.execute(
-            "UPDATE workspace_nodes SET deleted_at = ?1, updated_at = ?1 WHERE id = ?2",
-            rusqlite::params![now + 1, "db-1"],
-        )
-        .expect("mark deleted");
-
-        let deleted_at: Option<i64> = conn
+        let (db_type, db_parent, db_name): (String, Option<String>, String) = conn
             .query_row(
-                "SELECT deleted_at FROM workspace_nodes WHERE id = ?1",
+                "SELECT node_type, parent_id, name FROM workspace_nodes WHERE id = ?1",
                 rusqlite::params!["db-1"],
-                |r| r.get(0),
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
             )
-            .expect("row queryable");
-        assert!(deleted_at.is_some(), "deleted_at should be set");
-        assert_eq!(deleted_at, Some(now + 1));
+            .expect("db row");
+        assert_eq!(db_type, "database");
+        assert!(db_parent.is_none());
+        assert_eq!(db_name, "Projects");
+
+        let (row_type, row_parent, row_name, row_position): (String, Option<String>, String, f64) =
+            conn.query_row(
+                "SELECT node_type, parent_id, name, position FROM workspace_nodes WHERE id = ?1",
+                rusqlite::params!["row-1"],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+            )
+            .expect("row exists");
+        assert_eq!(row_type, "row");
+        assert_eq!(row_parent.as_deref(), Some("db-1"));
+        assert_eq!(row_name, "Helix Q3 Retro");
+        assert_eq!(row_position, 0.0);
+
+        // Re-upsert the row with a renamed primary cell — ON CONFLICT must
+        // update name, position, and clear deleted_at.
+        conn.execute(
+            "UPDATE workspace_nodes SET deleted_at = ?1 WHERE id = ?2",
+            rusqlite::params![now + 1, "row-1"],
+        )
+        .expect("simulate prior soft-delete");
+        conn.execute(
+            upsert_sql,
+            rusqlite::params![
+                "row-1", Some("db-1"), "row", "Renamed", "", 5.0_f64,
+                now + 2, "{}", "databases/projects/rows/helix-q3-retro.md",
+            ],
+        )
+        .expect("re-upsert row");
+        let (after_name, after_position, after_deleted): (String, f64, Option<i64>) = conn
+            .query_row(
+                "SELECT name, position, deleted_at FROM workspace_nodes WHERE id = ?1",
+                rusqlite::params!["row-1"],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .expect("row exists after re-upsert");
+        assert_eq!(after_name, "Renamed");
+        assert_eq!(after_position, 5.0);
+        assert!(after_deleted.is_none(), "ON CONFLICT must clear deleted_at");
     }
 }
