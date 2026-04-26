@@ -461,14 +461,30 @@ If any scenario fails, see plan §3.19 step 3 for typical regression sites.
 - Pinning real sha256 hashes for `bge-reranker-v2-m3` artefacts after first end-to-end download in dev (placeholder hashes in `reranker_download.rs`).
 - ORT output tensor name assumed `"logits"` for the reranker — verify on first download.
 
-### W4 — Databases views
+### W4 — Databases views ✅ SHIPPED 2026-04-26 (commits A–F + bridge cleanup G)
 
-`DatabasesView` renders a glass frame; internals are eBay mock-ups.
-Replace with Handy's database system:
-- Grid view (Glide Data Grid + `tokenBridge.ts` to consume tokens
-  as hex strings per Rule 12 canvas exception)
-- Board / Calendar / List / Gallery views
-- Database files on disk per vault-database-storage.md contract
+Plan: [docs/superpowers/plans/2026-04-25-w4-bridge-and-cleanup.md](docs/superpowers/plans/2026-04-25-w4-bridge-and-cleanup.md). Storage contract: [docs/architecture/vault-database-storage.md](docs/architecture/vault-database-storage.md).
+
+**Bridge architecture.** `database.db` (DatabaseManager) is the source of truth for schema, cells, and view configs. `workspace.db` `workspace_nodes` carries a mirror row per database (`node_type='database'`) and per row (`node_type='row'`, `parent_id=<db_id>`) so the existing vault writers (`export_database_md`, `export_row`), FTS5, vector embeddings, and wikilinks all see databases natively. Mirror writes happen at the command layer via one generic helper, `WorkspaceManager::upsert_workspace_mirror_node`. Soft-delete reuses `WorkspaceManager::soft_delete_node` (cascade + FTS clean + embedding queue clean). A one-shot boot migration (`run_database_mirror_migration`) backfills mirrors for any databases that pre-date the bridge and sweeps orphan `<vault>/<id>.db.json` files into `<vault>/.handy/legacy-db-json/` for forensic preservation (Invariant #2 — never silent-delete user data).
+
+**What ships in W4.**
+- Sidebar lists databases (queries `databases` table directly).
+- Grid view (TanStack Table + react-virtual) renders rows + editable cells.
+- Board view (dnd-kit) supports column drag-and-drop.
+- Database create / row create / row create-in-group / cell update / delete-row / delete-database all flow through the bridge: SQLite mutation → workspace_nodes mirror → vault file.
+- Vault layout matches the storage contract: `databases/<slug>/database.md` for schema; `databases/<slug>/rows/<short-id>.md` per row.
+- Legacy `<vault>/<id>.db.json` writer (`write_json`, `snapshot_parts`, `startup_scan`) and the snapshot types (`DatabaseSnapshot`, `FieldSnapshot`, `RowSnapshot`, `ViewSnapshot`) deleted from the source tree. Template types (`TemplateEntry`, `TemplateColumn`) preserved — they cross the Tauri boundary.
+- `cargo test --lib -- --skip portable`: 206 passed, 0 failed (4 new SQL-direct tests over the W4 series; orchestration coverage is via the H-7 manual smoke gate).
+
+**Testing constraint to remember (Pitfall).** Instantiating `WorkspaceManager` in `#[cfg(test)]` unit tests on Windows MSVC fails to load the test exe with `STATUS_ENTRYPOINT_NOT_FOUND` (0xc0000139) because materialising `Option<Arc<EmbeddingWorker>>` pulls in `tauri::AppHandle` drop glue with unresolved symbols. Documented in [pitfall.md](pitfall.md). Coverage strategy: pure-SQL helpers via SQL-direct tests (raw `Connection::open_in_memory()` + `WorkspaceManager::migrations().to_latest(...)`); pure file writers via direct calls with constructed `WorkspaceNode` + `&[Field]`; orchestration via manual smoke tests.
+
+**Deferred to W9.**
+- Trash UI for databases/rows. Soft-deleted databases stay in `list_databases` output (the query reads `databases` directly, not the mirror). Sidebar JOIN against `workspace_nodes.deleted_at` to hide soft-deletes is a follow-up.
+- Restore-from-Trash flow that re-inserts `db_rows` / `databases` rows from the preserved mirror metadata.
+- `db_rows.deleted_at` column (currently we hard-delete db_rows on soft-delete; the mirror's `deleted_at` is the user-facing soft state).
+- Slug-collision policy for two databases with identical names. Currently both compute the same `vault_rel_path` (`databases/<same-slug>/database.md`) and the second overwrites the first's vault file. The bridge tolerates it (different UUIDs in workspace_nodes), but the vault file conflicts. Lift the document-side collision helper from `WorkspaceManager::write_node_to_vault` into `vault/format` and call it from `create_database_inner_with_vault` when this becomes a real friction.
+- Field-schema editor (add / rename / delete fields via UI). Schema currently changes only via direct `database.md` edit; round-trip via `vault/import.rs` is the intended path.
+- Performance optimisation of `get_cells_for_rows` (current iterates row IDs serially; bulk JOIN deferred).
 
 ### W5 — Settings
 
@@ -555,9 +571,19 @@ Wires the dormant `ImportView` to a new URL-paste pipeline that downloads media 
 - Rebuild `src-tauri/src/overlay.rs` recording-overlay to work
   with new frontend structure (currently broken — references
   deleted `src/overlay/index.html`)
-- Re-introduce frontend i18n for the wired surfaces if multi-
-  language support is still a goal (copy/ hardcodes English;
-  `src/i18n/locales/` files are preserved for Rust tray menu).
+- Audit i18n coverage on wired surfaces and gap-fill missing keys.
+  Frontend i18n is **live infrastructure**, not dormant: `useTranslation`
+  is called in ~30 `src/` files (114 occurrences) and 20 locales ship
+  under `src/i18n/locales/` (ar, de, es, fr, ja, ko, zh, …). The plumbing
+  was inherited from the upstream `cjpais/handy` port; `copy/` itself
+  had zero i18n which is why some W0-W3 surfaces ported from copy/
+  hardcode English strings. W9 task: run `i18next-parser` (or equivalent)
+  to extract every `t('...')` key from source, diff against
+  `en/translation.json`, and add the missing keys for new W-phase surfaces.
+  **Never bulk-delete locale entries** — keys that look unused are
+  often referenced via dynamic `t(\`prefix.${var}\`)` patterns. Only
+  remove keys as part of the same commit that deletes the feature
+  using them.
 
 ---
 
