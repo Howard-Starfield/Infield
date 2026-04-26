@@ -490,6 +490,7 @@ fn initialize_core_logic(app_handle: &AppHandle) {
         database_manager: database_manager.clone(),
         workspace_manager: workspace_manager.clone(),
     };
+    let database_manager_for_migration = database_manager.clone();
     app_handle.manage(database_manager);
     app_handle.manage(Arc::new(app_state));
 
@@ -498,7 +499,40 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     // continue to instantiate ad-hoc via VaultManager::new(resolve_vault_root)
     // — that pattern is unchanged.
     let vault_manager = Arc::new(VaultManager::new(vault_dir.clone()));
-    app_handle.manage(vault_manager);
+    app_handle.manage(vault_manager.clone());
+
+    // One-shot migration: backfill workspace_nodes mirrors for databases that
+    // pre-date the W4 bridge, and sweep orphan `<vault>/<id>.db.json` files
+    // into `<vault>/.handy/legacy-db-json/` for forensic preservation.
+    // Idempotent — fast no-op when clean.
+    {
+        let db_mgr = database_manager_for_migration;
+        let ws_mgr = workspace_manager.clone();
+        let vm_for_migration = vault_manager.clone();
+        tauri::async_runtime::spawn(async move {
+            match crate::managers::database::migration::run_database_mirror_migration(
+                &db_mgr, &ws_mgr, &vm_for_migration,
+            )
+            .await
+            {
+                Ok(report) => {
+                    if report.mirrors_created
+                        + report.row_mirrors_created
+                        + report.legacy_files_moved
+                        > 0
+                    {
+                        log::info!(
+                            "Database migration: {} db mirrors, {} row mirrors, {} legacy files moved",
+                            report.mirrors_created,
+                            report.row_mirrors_created,
+                            report.legacy_files_moved
+                        );
+                    }
+                }
+                Err(e) => log::warn!("Database migration failed: {e}"),
+            }
+        });
+    }
 
     // Note: Shortcuts are NOT initialized here.
     // The frontend is responsible for calling the `initialize_shortcuts` command

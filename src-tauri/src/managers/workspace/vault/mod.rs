@@ -26,6 +26,12 @@ impl VaultManager {
         Self { vault_root }
     }
 
+    /// Read-only getter for the vault root path. Used by boot migrations and
+    /// other code that needs the path without taking ownership.
+    pub fn vault_root_path(&self) -> &std::path::Path {
+        &self.vault_root
+    }
+
     /// Export one database to the vault. Dispatches to table/board/calendar based on
     /// the primary view layout. Returns all written paths (relative to vault_root).
     pub async fn export_database(
