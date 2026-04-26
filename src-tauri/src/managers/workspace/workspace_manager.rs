@@ -1323,6 +1323,44 @@ impl WorkspaceManager {
         Ok(())
     }
 
+    /// Return the set of `workspace_nodes.id` values where `deleted_at IS NOT NULL`.
+    /// Optional `node_type` filter narrows to one of `'document'`, `'database'`,
+    /// `'row'`. Used by command-layer filters that join across `database.db` and
+    /// `workspace.db` (e.g. `list_databases` hides databases whose mirror is
+    /// soft-deleted) without an SQLite ATTACH dance.
+    pub async fn get_deleted_node_ids(
+        &self,
+        node_type: Option<&str>,
+    ) -> Result<std::collections::HashSet<String>, String> {
+        let conn = self.conn.lock().await;
+        let mut out = std::collections::HashSet::new();
+        if let Some(nt) = node_type {
+            let mut stmt = conn
+                .prepare(
+                    "SELECT id FROM workspace_nodes \
+                     WHERE deleted_at IS NOT NULL AND node_type = ?1",
+                )
+                .map_err(|e| format!("get_deleted_node_ids prepare: {e}"))?;
+            let rows = stmt
+                .query_map(params![nt], |r| r.get::<_, String>(0))
+                .map_err(|e| format!("get_deleted_node_ids query: {e}"))?;
+            for r in rows {
+                out.insert(r.map_err(|e| e.to_string())?);
+            }
+        } else {
+            let mut stmt = conn
+                .prepare("SELECT id FROM workspace_nodes WHERE deleted_at IS NOT NULL")
+                .map_err(|e| format!("get_deleted_node_ids prepare: {e}"))?;
+            let rows = stmt
+                .query_map([], |r| r.get::<_, String>(0))
+                .map_err(|e| format!("get_deleted_node_ids query: {e}"))?;
+            for r in rows {
+                out.insert(r.map_err(|e| e.to_string())?);
+            }
+        }
+        Ok(out)
+    }
+
     /// Update the `name` column on a workspace_nodes row. Used by `update_cell`
     /// when a primary RichText field is edited so the mirror node's display
     /// name (visible in tree view + search) tracks the row's title. Idempotent
@@ -4487,5 +4525,58 @@ mod migration_tests {
             .expect("row exists");
         assert_eq!(name, "New Title");
         assert_eq!(updated_at, later);
+    }
+
+    /// Test the SQL emitted by `get_deleted_node_ids`. Covers both the
+    /// unfiltered query and the `node_type` filter. SQL-direct because the
+    /// Windows linker pitfall blocks `WorkspaceManager` instantiation in tests.
+    #[test]
+    fn get_deleted_node_ids_sql_filters_by_deleted_at_and_node_type() {
+        ensure_vec_extension();
+        let mut conn = rusqlite::Connection::open_in_memory().expect("open mem");
+        WorkspaceManager::migrations()
+            .to_latest(&mut conn)
+            .expect("migrate");
+
+        let now: i64 = 1_700_000_000;
+        // Three rows: one live database, one deleted database, one deleted row.
+        conn.execute_batch(&format!(
+            "INSERT INTO workspace_nodes (id, parent_id, node_type, name, icon, position,
+                created_at, updated_at, deleted_at, properties, body, vault_rel_path)
+             VALUES
+               ('db-live',    NULL, 'database', 'Live',    '', 1.0, {now}, {now}, NULL,    '{{}}', '', 'databases/live/database.md'),
+               ('db-trashed', NULL, 'database', 'Trashed', '', 1.0, {now}, {now}, {trash}, '{{}}', '', 'databases/trashed/database.md'),
+               ('row-trashed','db-live', 'row', 'Tr-row',  '', 0.0, {now}, {now}, {trash}, '{{}}', '', 'databases/live/rows/r1.md');",
+            now = now,
+            trash = now + 1,
+        ))
+        .expect("seed nodes");
+
+        // Mirror what get_deleted_node_ids does, both flavours.
+        let mut all = std::collections::HashSet::new();
+        let mut stmt = conn
+            .prepare("SELECT id FROM workspace_nodes WHERE deleted_at IS NOT NULL")
+            .unwrap();
+        for r in stmt.query_map([], |r| r.get::<_, String>(0)).unwrap() {
+            all.insert(r.unwrap());
+        }
+        assert_eq!(all.len(), 2, "two rows soft-deleted");
+        assert!(all.contains("db-trashed"));
+        assert!(all.contains("row-trashed"));
+
+        let mut just_dbs = std::collections::HashSet::new();
+        let mut stmt = conn
+            .prepare(
+                "SELECT id FROM workspace_nodes WHERE deleted_at IS NOT NULL AND node_type = ?1",
+            )
+            .unwrap();
+        for r in stmt
+            .query_map(rusqlite::params!["database"], |r| r.get::<_, String>(0))
+            .unwrap()
+        {
+            just_dbs.insert(r.unwrap());
+        }
+        assert_eq!(just_dbs.len(), 1, "only the trashed database");
+        assert!(just_dbs.contains("db-trashed"));
     }
 }

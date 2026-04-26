@@ -189,37 +189,32 @@ pub async fn create_row_inner_with_vault(
     Ok(Row { id: row_id, database_id })
 }
 
-/// Delete a row: hard-delete from db_rows + soft-delete the mirror.
-/// `soft_delete_node` cascades to descendants and clears FTS / embeddings.
-/// `delete_row_hard` removes db_rows + db_cells via CASCADE. Vault file is
-/// left on disk per Rule 13 lifecycle (soft-delete is recoverable; the file
-/// stays as forensic evidence and is removed only on permanent delete,
-/// which is deferred to W9 Trash UI).
+/// Soft-delete a row: flips `deleted_at` on the workspace_nodes mirror.
+/// `soft_delete_node` cascades + clears FTS + enqueues embedding deletes.
+/// `db_rows` keeps its row so Restore from Trash can un-flag the mirror
+/// and the data is still there. Permanent delete (which would call
+/// `delete_row_hard`) is deferred to W9. The `db_mgr` parameter is kept in
+/// the signature for symmetry with `delete_database_inner_with_vault` and
+/// to leave room for permanent-delete plumbing without changing the API.
 pub async fn delete_row_inner_with_vault(
-    db_mgr: &Arc<DatabaseManager>,
+    _db_mgr: &Arc<DatabaseManager>,
     ws_mgr: &Arc<WorkspaceManager>,
     row_id: &str,
 ) -> Result<(), String> {
-    db_mgr
-        .delete_row_hard(row_id)
-        .await
-        .map_err(|e| e.to_string())?;
     ws_mgr.soft_delete_node(row_id).await?;
     Ok(())
 }
 
-/// Delete a database: hard-delete from databases (CASCADE removes
-/// db_fields/db_rows/db_cells/db_views) + soft-delete the mirror (cascades
-/// to row mirrors, clears FTS / embeddings). Vault files left on disk.
+/// Soft-delete a database: flips `deleted_at` on the workspace_nodes mirror,
+/// which cascades to row mirrors. `databases` and `db_rows` keep their rows
+/// so Restore from Trash can resurrect the database with all its rows / cells
+/// intact. The `list_databases` command filters out databases whose mirror
+/// is soft-deleted so they disappear from the sidebar until restored.
 pub async fn delete_database_inner_with_vault(
-    db_mgr: &Arc<DatabaseManager>,
+    _db_mgr: &Arc<DatabaseManager>,
     ws_mgr: &Arc<WorkspaceManager>,
     db_id: &str,
 ) -> Result<(), String> {
-    db_mgr
-        .delete_database_hard(db_id)
-        .await
-        .map_err(|e| e.to_string())?;
     ws_mgr.soft_delete_node(db_id).await?;
     Ok(())
 }
@@ -260,15 +255,25 @@ pub async fn get_fields(
 #[tauri::command]
 #[specta::specta]
 pub async fn get_rows(
-    db_mgr: State<'_, Arc<DatabaseManager>>,
+    state: State<'_, Arc<AppState>>,
     database_id: String,
 ) -> Result<Vec<Row>, String> {
-    let ids = db_mgr
+    let ids = state
+        .database_manager
         .get_rows(&database_id)
         .await
         .map_err(|e| e.to_string())?;
+
+    // Hide rows whose workspace_nodes mirror is soft-deleted (Trash UI
+    // restores them via `restore_node`, which un-flags the mirror).
+    let trashed = state
+        .workspace_manager
+        .get_deleted_node_ids(Some("row"))
+        .await?;
+
     Ok(ids
         .into_iter()
+        .filter(|id| !trashed.contains(id))
         .map(|id| Row {
             id,
             database_id: database_id.clone(),
@@ -797,15 +802,25 @@ pub async fn run_workspace_migration(
 #[tauri::command]
 #[specta::specta]
 pub async fn list_databases(
-    db_mgr: State<'_, Arc<DatabaseManager>>,
+    state: State<'_, Arc<AppState>>,
     prefix: Option<String>,
 ) -> Result<Vec<DatabaseSummary>, String> {
-    let rows = db_mgr
+    let rows = state
+        .database_manager
         .list_databases(prefix)
         .await
         .map_err(|e| e.to_string())?;
+
+    // Hide databases whose workspace_nodes mirror is soft-deleted. They stay
+    // in `database.db` so Restore from Trash can resurrect them with all rows.
+    let trashed = state
+        .workspace_manager
+        .get_deleted_node_ids(Some("database"))
+        .await?;
+
     Ok(rows
         .into_iter()
+        .filter(|(id, _, _, _)| !trashed.contains(id))
         .map(|(id, title, icon, row_count)| DatabaseSummary { id, title, icon, row_count })
         .collect())
 }
