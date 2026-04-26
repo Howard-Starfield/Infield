@@ -37,6 +37,18 @@ pub struct DatabaseSummary {
     pub row_count: i64,
 }
 
+/// Per-row cells batch returned by `get_cells_for_rows`. `last_modified_secs`
+/// carries the row's vault-file mtime (seconds since UNIX epoch) so the
+/// frontend can populate `lastSeenMtimeSecs` and feed the Rule 13 conflict
+/// guard on subsequent `update_cell` calls. `None` when the vault file does
+/// not yet exist (e.g. row created in this session, no cells written).
+#[derive(Clone, Debug, Serialize, Deserialize, Type)]
+pub struct RowCellsBatch {
+    pub row_id: String,
+    pub cells: Vec<(String, CellData)>,
+    pub last_modified_secs: Option<i64>,
+}
+
 // ------------------------------------------------------------------ //
 //  Inner (testable without Tauri State)
 // ------------------------------------------------------------------ //
@@ -601,14 +613,81 @@ pub async fn list_databases(
 #[tauri::command]
 #[specta::specta]
 pub async fn get_cells_for_rows(
-    db_mgr: State<'_, Arc<DatabaseManager>>,
+    app: AppHandle,
+    state: State<'_, Arc<AppState>>,
     database_id: String,
     row_ids: Vec<String>,
-) -> Result<Vec<(String, Vec<(String, CellData)>)>, String> {
-    db_mgr
+) -> Result<Vec<RowCellsBatch>, String> {
+    // 1. Cells from the database manager (ordered to match `row_ids`).
+    let cells = state
+        .database_manager
         .get_cells_for_rows(&database_id, &row_ids)
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+
+    // 2. Bulk-look up each row's vault_rel_path from workspace_nodes so we can
+    //    stat() the on-disk file. One SELECT for all rows.
+    let mut rel_path_by_id: std::collections::HashMap<String, String> =
+        std::collections::HashMap::new();
+    if !row_ids.is_empty() {
+        let conn_arc = state.workspace_manager.conn().clone();
+        let row_ids_for_query = row_ids.clone();
+        let lookup: Result<Vec<(String, Option<String>)>, String> =
+            tokio::task::spawn_blocking(move || -> Result<_, String> {
+                let conn = conn_arc.blocking_lock();
+                let placeholders: String = (0..row_ids_for_query.len())
+                    .map(|i| format!("?{}", i + 1))
+                    .collect::<Vec<_>>()
+                    .join(",");
+                let sql = format!(
+                    "SELECT id, vault_rel_path FROM workspace_nodes WHERE id IN ({})",
+                    placeholders
+                );
+                let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
+                let params: Vec<&dyn rusqlite::ToSql> = row_ids_for_query
+                    .iter()
+                    .map(|s| s as &dyn rusqlite::ToSql)
+                    .collect();
+                let rows = stmt
+                    .query_map(params.as_slice(), |r| {
+                        Ok((r.get::<_, String>(0)?, r.get::<_, Option<String>>(1)?))
+                    })
+                    .map_err(|e| e.to_string())?
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(|e| e.to_string())?;
+                Ok(rows)
+            })
+            .await
+            .map_err(|e| e.to_string())?;
+        for (id, rel) in lookup? {
+            if let Some(path) = rel {
+                rel_path_by_id.insert(id, path);
+            }
+        }
+    }
+
+    // 3. Stat each row's vault file. None when missing or unreadable.
+    let vault_root = resolve_vault_root(&app);
+    let result: Vec<RowCellsBatch> = cells
+        .into_iter()
+        .map(|(row_id, cells)| {
+            let last_modified_secs = rel_path_by_id
+                .get(&row_id)
+                .and_then(|rel| {
+                    let abs = vault_root.join(rel);
+                    std::fs::metadata(&abs).ok()
+                })
+                .and_then(|m| m.modified().ok())
+                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|d| d.as_secs() as i64);
+            RowCellsBatch {
+                row_id,
+                cells,
+                last_modified_secs,
+            }
+        })
+        .collect();
+    Ok(result)
 }
 
 // ------------------------------------------------------------------ //

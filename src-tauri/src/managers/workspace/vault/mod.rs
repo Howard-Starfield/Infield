@@ -273,8 +273,11 @@ impl VaultManager {
                             .as_secs() as i64;
                         // +3s grace per Rule 13a (cloud-sync mtime jitter).
                         if disk_secs > last_seen + 3 {
+                            // Canonical VAULT_CONFLICT format — matches
+                            // workspace_manager.rs:1671 and the parser at
+                            // src/editor/conflictState.ts::parseVaultConflictError.
                             return Err(format!(
-                                "VAULT_CONFLICT:{{\"node_id\":\"{row_id}\",\"disk_mtime\":{disk_secs},\"last_seen\":{last_seen}}}"
+                                "VAULT_CONFLICT:{{\"node_id\":\"{row_id}\",\"disk_mtime_secs\":{disk_secs},\"last_seen_secs\":{last_seen}}}"
                             ));
                         }
                     }

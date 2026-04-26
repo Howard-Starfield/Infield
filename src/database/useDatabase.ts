@@ -14,13 +14,15 @@
  *   - 'typing'    — 300ms debounce per (rowId, fieldId) key (RichText / Number).
  *   - 'immediate' — fire-and-forget, no debounce, no batching.
  *
- * `lastSeenMtimeSecs` is tracked per row but is `null` until F-2 lands the
- * focus reconcile path that captures fresh mtimes.
+ * `lastSeenMtimeSecs` is tracked per row, populated from the
+ * `last_modified_secs` field of each `RowCellsBatch` returned by
+ * `getCellsForRows`. Feeds the Rule 13 conflict guard on `updateCell`.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { commands, type CellData, type Field, type FieldType, type Row } from '../bindings'
+import { parseVaultConflictError } from '../editor/conflictState'
 
 const TYPING_DEBOUNCE_MS = 300
 
@@ -85,6 +87,11 @@ export function useDatabase(dbId: string | null): UseDatabaseResult {
   const fetchedRowsRef = useRef<Set<string>>(new Set())
   const debounceTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
   const lastSeenMtimeRef = useRef<Map<string, number | null>>(new Map())
+  // (rowId -> Set<fieldId>) for in-flight mutations. cellsForRange skips
+  // these fields when layering server cells, otherwise a mid-fetch SQLite
+  // read clobbers the user's optimistic value before the in-flight
+  // updateCell completes.
+  const pendingMutationsRef = useRef<Map<string, Set<string>>>(new Map())
 
   // Live-mirror dbId so async callbacks can detect a switch after `await`.
   // Without this, an in-flight fetch from DB-A can scribble onto DB-B's state.
@@ -93,12 +100,17 @@ export function useDatabase(dbId: string | null): UseDatabaseResult {
     dbIdRef.current = dbId
   }, [dbId])
 
+  // Live-mirror of rowIndex so async callbacks (toast Reload action) can
+  // resolve a row's array index without re-running the closure.
+  const rowIndexRef = useRef<RowMeta[]>([])
+
   // Reset everything when dbId changes (or on mount).
   useEffect(() => {
     if (!dbId) {
       cellsRef.current = new Map()
       fetchedRowsRef.current = new Set()
       lastSeenMtimeRef.current = new Map()
+      pendingMutationsRef.current = new Map()
       setFields([])
       setRowIndex([])
       setCellsVersion(v => v + 1)
@@ -111,6 +123,7 @@ export function useDatabase(dbId: string | null): UseDatabaseResult {
     cellsRef.current = new Map()
     fetchedRowsRef.current = new Set()
     lastSeenMtimeRef.current = new Map()
+    pendingMutationsRef.current = new Map()
 
     ;(async () => {
       try {
@@ -145,6 +158,12 @@ export function useDatabase(dbId: string | null): UseDatabaseResult {
     }
   }, [dbId])
 
+  // Keep rowIndexRef synced so the toast Reload action can find a row's
+  // array index without React state being stale across the await boundary.
+  useEffect(() => {
+    rowIndexRef.current = rowIndex
+  }, [rowIndex])
+
   const recomputeRowMeta = useCallback(() => {
     setRowIndex(prev => prev.map((meta, idx) => annotateMeta(meta, idx, fields, cellsRef.current)))
   }, [fields])
@@ -177,10 +196,30 @@ export function useDatabase(dbId: string | null): UseDatabaseResult {
           // before scribbling DB-A data onto DB-B's state.
           if (dbIdRef.current !== capturedDbId) return
           if (res.status !== 'ok') throw new Error(res.error)
-          for (const [rowId, cellPairs] of res.data) {
+          for (const batch of res.data) {
+            // Race guard (Fix 5): preserve any cells with pending in-flight
+            // mutations — otherwise a mid-fetch SQLite read overwrites the
+            // user's optimistic value before the updateCell roundtrip ends.
+            const pendingFields = pendingMutationsRef.current.get(batch.row_id)
             const map = new Map<string, CellData>()
-            for (const [fieldId, data] of cellPairs) map.set(fieldId, data)
-            cellsRef.current.set(rowId, map)
+            const existing = cellsRef.current.get(batch.row_id)
+            if (existing && pendingFields) {
+              for (const fid of pendingFields) {
+                const v = existing.get(fid)
+                if (v != null) map.set(fid, v)
+              }
+            }
+            for (const [fieldId, data] of batch.cells) {
+              if (pendingFields?.has(fieldId)) continue
+              map.set(fieldId, data)
+            }
+            cellsRef.current.set(batch.row_id, map)
+            // Track vault-file mtime so subsequent updateCell calls can feed
+            // the Rule 13 conflict guard. None when the row's vault file
+            // doesn't exist yet (e.g. brand-new row in this session).
+            if (batch.last_modified_secs != null) {
+              lastSeenMtimeRef.current.set(batch.row_id, batch.last_modified_secs)
+            }
           }
           setCellsVersion(v => v + 1)
           recomputeRowMeta()
@@ -199,12 +238,38 @@ export function useDatabase(dbId: string | null): UseDatabaseResult {
     [dbId, rowIndex, recomputeRowMeta],
   )
 
+  // Re-fetches a single row's cells, refreshing both its CellData and
+  // `lastSeenMtimeSecs`. Used by the VAULT_CONFLICT toast's Reload action.
+  const reloadRow = useCallback(
+    (rowId: string) => {
+      if (dbIdRef.current == null) return
+      // Drop the fetched marker so the next cellsForRange will re-fetch.
+      fetchedRowsRef.current.delete(rowId)
+      const idx = rowIndexRef.current.findIndex(r => r.id === rowId)
+      if (idx >= 0) cellsForRangeRef.current?.(idx, idx)
+    },
+    [],
+  )
+  // Forward-decl ref so reloadRow can call cellsForRange without the
+  // recomputeRowMeta -> cellsForRange -> reloadRow circular dep.
+  const cellsForRangeRef = useRef<((startIdx: number, endIdx: number) => void) | null>(null)
+
   const performMutateCell = useCallback(
     async (rowId: string, fieldId: string, data: CellData, prevValue: CellData | undefined) => {
       if (!dbId) return
       const capturedDbId = dbId
       const fieldType = fieldTypeFromCellData(data)
       const lastSeenMtimeSecs = lastSeenMtimeRef.current.get(rowId) ?? null
+
+      // Mark this (rowId, fieldId) as in-flight so cellsForRange won't
+      // overwrite the optimistic value while the mutation is pending.
+      let pending = pendingMutationsRef.current.get(rowId)
+      if (!pending) {
+        pending = new Set<string>()
+        pendingMutationsRef.current.set(rowId, pending)
+      }
+      pending.add(fieldId)
+
       try {
         const res = await commands.updateCell(capturedDbId, rowId, fieldId, fieldType, data, lastSeenMtimeSecs)
         // Stale-response guard: ignore the result if dbId changed mid-flight.
@@ -215,27 +280,55 @@ export function useDatabase(dbId: string | null): UseDatabaseResult {
         // dbId effect already wiped state and rolling back now would corrupt
         // the new database's view.
         if (dbIdRef.current === capturedDbId) {
-          // Restore the prior value rather than blanking the cell. The user
-          // may still be looking at the new value in a contentEditable; a
-          // sudden `undefined` is jarring and loses the previous state.
-          const rowMap = cellsRef.current.get(rowId)
-          if (rowMap) {
-            if (prevValue === undefined) {
-              rowMap.delete(fieldId)
-              if (rowMap.size === 0) cellsRef.current.delete(rowId)
-            } else {
-              rowMap.set(fieldId, prevValue)
+          // VAULT_CONFLICT path (Fix 2): row file changed on disk between
+          // the last cellsForRange and this updateCell. Don't roll back —
+          // keep the optimistic value visible, surface a Reload action so
+          // the user picks the resolution.
+          const errorMessage = err instanceof Error ? err.message : String(err)
+          const conflict = parseVaultConflictError(errorMessage)
+          if (conflict) {
+            toast.error('Row changed on disk', {
+              action: {
+                label: 'Reload',
+                onClick: () => reloadRow(rowId),
+              },
+            })
+          } else {
+            // Restore the prior value rather than blanking the cell. The user
+            // may still be looking at the new value in a contentEditable; a
+            // sudden `undefined` is jarring and loses the previous state.
+            const rowMap = cellsRef.current.get(rowId)
+            if (rowMap) {
+              if (prevValue === undefined) {
+                rowMap.delete(fieldId)
+                if (rowMap.size === 0) cellsRef.current.delete(rowId)
+              } else {
+                rowMap.set(fieldId, prevValue)
+              }
             }
+            setCellsVersion(v => v + 1)
+            toast.error('Failed to save')
           }
-          setCellsVersion(v => v + 1)
-          toast.error('Failed to save')
         }
         // eslint-disable-next-line no-console
         console.error('[useDatabase] updateCell failed', err)
+      } finally {
+        // Always release the pending marker, success OR error. Without this,
+        // a failed mutation would freeze the cell in optimistic state forever.
+        const set = pendingMutationsRef.current.get(rowId)
+        if (set) {
+          set.delete(fieldId)
+          if (set.size === 0) pendingMutationsRef.current.delete(rowId)
+        }
       }
     },
-    [dbId],
+    [dbId, reloadRow],
   )
+
+  // Sync the forward-declared ref so reloadRow can invoke cellsForRange.
+  useEffect(() => {
+    cellsForRangeRef.current = cellsForRange
+  }, [cellsForRange])
 
   const mutateCell = useCallback<UseDatabaseResult['mutateCell']>(
     async (rowId, fieldId, data, kind) => {
@@ -345,6 +438,7 @@ export function useDatabase(dbId: string | null): UseDatabaseResult {
       cellsRef.current.delete(rowId)
       fetchedRowsRef.current.delete(rowId)
       lastSeenMtimeRef.current.delete(rowId)
+      pendingMutationsRef.current.delete(rowId)
       setRowIndex(prev =>
         prev
           .filter(m => m.id !== rowId)

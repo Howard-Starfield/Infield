@@ -307,12 +307,11 @@ const CellDispatcher = memo(
             rowId={rowId}
             value={value}
             onChange={(next, kind) => {
-              if (next == null) {
-                // CellData has no nullable number — represent empty as 0 round-trip.
-                void onMutateCell(rowId, field.id, { type: 'number', value: 0 }, kind)
-              } else {
-                void onMutateCell(rowId, field.id, { type: 'number', value: next }, kind)
-              }
+              // NumberCell drops empty input (Fix 4); a non-finite next is
+              // also defensively guarded here so we never send NaN/0 through
+              // the wire on a stray onChange.
+              if (next == null || !Number.isFinite(next)) return
+              void onMutateCell(rowId, field.id, { type: 'number', value: next }, kind)
             }}
           />
         )
@@ -327,6 +326,7 @@ const CellDispatcher = memo(
             fieldId={field.id}
             rowId={rowId}
             value={value}
+            mode="date"
             onChange={(next, kind) => {
               if (next == null) return
               void onMutateCell(rowId, field.id, { type: 'date', value: next }, kind)
@@ -341,6 +341,7 @@ const CellDispatcher = memo(
             fieldId={field.id}
             rowId={rowId}
             value={value}
+            mode="date_time"
             onChange={(next, kind) => {
               if (next == null) return
               void onMutateCell(rowId, field.id, { type: 'date_time', value: next }, kind)

@@ -87,10 +87,12 @@ export function NumberCell({ value, onChange, readOnly }: NumberCellProps) {
         const raw = e.target.value
         setDraft(raw)
         if (readOnly) return
-        if (raw === '') {
-          onChange(null, 'typing')
-          return
-        }
+        // Empty input is a no-op (Fix 4): the schema has no nullable number
+        // wire format, and previously the dispatcher coerced empty to 0,
+        // which silently wrote 0 every time the user cleared the field.
+        // Leave the prior value in place. TODO(w4-polish): add a real
+        // "clear cell" wire format and surface a clear button.
+        if (raw === '') return
         const parsed = Number(raw)
         if (Number.isFinite(parsed)) onChange(parsed, 'typing')
       }}
@@ -103,7 +105,18 @@ export function NumberCell({ value, onChange, readOnly }: NumberCellProps) {
 export interface DateCellProps extends BaseCellProps {
   /** Unix timestamp in milliseconds, or null. */
   value: number | null
+  /**
+   * Field-type mode. `'date'` renders `<input type="date">` (date-only,
+   * truncates time-of-day). `'date_time'` renders
+   * `<input type="datetime-local">` (preserves H:MM). Pass to match the
+   * field's `field_type` so round-trip writes don't lose precision.
+   */
+  mode: 'date' | 'date_time'
   onChange: (newValue: number | null, kind: MutationKind) => void
+}
+
+function pad2(n: number): string {
+  return n.toString().padStart(2, '0')
 }
 
 function tsToInputDate(ts: number | null): string {
@@ -111,9 +124,7 @@ function tsToInputDate(ts: number | null): string {
   const d = new Date(ts)
   if (Number.isNaN(d.getTime())) return ''
   const yyyy = d.getFullYear().toString().padStart(4, '0')
-  const mm = (d.getMonth() + 1).toString().padStart(2, '0')
-  const dd = d.getDate().toString().padStart(2, '0')
-  return `${yyyy}-${mm}-${dd}`
+  return `${yyyy}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
 }
 
 function inputDateToTs(value: string): number | null {
@@ -123,21 +134,51 @@ function inputDateToTs(value: string): number | null {
   return new Date(y, m - 1, d).getTime()
 }
 
-export function DateCell({ value, onChange, readOnly }: DateCellProps) {
-  const inputValue = tsToInputDate(value)
+function tsToInputDateTime(ts: number | null): string {
+  if (ts == null) return ''
+  const d = new Date(ts)
+  if (Number.isNaN(d.getTime())) return ''
+  const yyyy = d.getFullYear().toString().padStart(4, '0')
+  return `${yyyy}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`
+}
+
+function inputDateTimeToTs(value: string): number | null {
+  if (!value) return null
+  const ts = new Date(value).getTime()
+  return Number.isNaN(ts) ? null : ts
+}
+
+export function DateCell({ value, onChange, readOnly, mode }: DateCellProps) {
+  const isDateTime = mode === 'date_time'
+  const inputValue = isDateTime ? tsToInputDateTime(value) : tsToInputDate(value)
+  const placeholder = isDateTime ? 'Pick date & time' : 'Pick date'
+  // Display label: rely on locale formatting for date_time so seconds aren't
+  // shown but user still sees the time component they entered.
+  const displayLabel = inputValue
+    ? isDateTime
+      ? new Date(inputValue).toLocaleString(undefined, {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      : inputValue
+    : placeholder
   return (
     <label className="db-cell-date">
-      <span className="db-cell-date__pill">
-        {inputValue || 'Pick date'}
-      </span>
+      <span className="db-cell-date__pill">{displayLabel}</span>
       <input
         className="db-cell-date__input"
-        type="date"
+        type={isDateTime ? 'datetime-local' : 'date'}
         value={inputValue}
         readOnly={readOnly}
         onChange={e => {
           if (readOnly) return
-          onChange(inputDateToTs(e.target.value), 'immediate')
+          const next = isDateTime
+            ? inputDateTimeToTs(e.target.value)
+            : inputDateToTs(e.target.value)
+          onChange(next, 'immediate')
         }}
       />
     </label>

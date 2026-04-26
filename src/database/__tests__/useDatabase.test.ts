@@ -122,7 +122,13 @@ describe('useDatabase', () => {
     // Seed a row with an existing rich_text cell so prevValue is defined.
     mockGetRowsFilteredSorted.mockResolvedValueOnce(okResult(makeRows(1)))
     mockGetCellsForRows.mockResolvedValueOnce(
-      okResult([['r0', [['f-text', { type: 'rich_text', value: 'abc' }]]]]),
+      okResult([
+        {
+          row_id: 'r0',
+          cells: [['f-text', { type: 'rich_text', value: 'abc' }]],
+          last_modified_secs: null,
+        },
+      ]),
     )
     // Make the update fail.
     mockUpdateCell.mockResolvedValueOnce({ status: 'error' as const, error: 'boom' })
@@ -189,13 +195,74 @@ describe('useDatabase', () => {
     consoleSpy.mockRestore()
   })
 
+  test('cellsForRange does not overwrite an in-flight optimistic mutation', async () => {
+    // Seed two rows, one of which has an existing cell in SQLite.
+    mockGetRowsFilteredSorted.mockResolvedValueOnce(okResult(makeRows(1)))
+
+    // Make updateCell hang so the mutation stays in-flight.
+    let resolveUpdate: ((v: unknown) => void) | null = null
+    mockUpdateCell.mockImplementationOnce(
+      () =>
+        new Promise(resolve => {
+          resolveUpdate = resolve
+        }),
+    )
+
+    // Server response that would otherwise clobber the optimistic value.
+    mockGetCellsForRows.mockResolvedValueOnce(
+      okResult([
+        {
+          row_id: 'r0',
+          cells: [['f-text', { type: 'rich_text', value: 'server-stale' }]],
+          last_modified_secs: 1700000000,
+        },
+      ]),
+    )
+
+    const { result } = renderHook(() => useDatabase(DB_ID))
+    await waitFor(() => expect(result.current.rowIndex).toHaveLength(1))
+
+    // Fire an immediate mutation. updateCell hangs (resolveUpdate not called yet).
+    void result.current.mutateCell(
+      'r0',
+      'f-text',
+      { type: 'rich_text', value: 'optimistic' },
+      'immediate',
+    )
+
+    // Optimistic value is in cellsRef immediately.
+    await waitFor(() =>
+      expect(result.current.cells.get('r0')?.get('f-text')).toEqual({
+        type: 'rich_text',
+        value: 'optimistic',
+      }),
+    )
+
+    // Now race a cellsForRange that would otherwise overwrite the optimistic
+    // value with the (stale) server response.
+    act(() => result.current.cellsForRange(0, 0))
+
+    await waitFor(() => expect(mockGetCellsForRows).toHaveBeenCalledTimes(1))
+
+    // The pending guard preserves the optimistic value.
+    expect(result.current.cells.get('r0')?.get('f-text')).toEqual({
+      type: 'rich_text',
+      value: 'optimistic',
+    })
+
+    // Resolve the in-flight updateCell so the test cleans up.
+    await act(async () => {
+      resolveUpdate?.(okResult(null))
+    })
+  })
+
   test('soft-delete hides row and clears its cells entry', async () => {
     mockGetRowsFilteredSorted.mockResolvedValueOnce(okResult(makeRows(3)))
     mockGetCellsForRows.mockResolvedValueOnce(
       okResult([
-        ['r0', [['f1', { type: 'rich_text', value: 'hello' }]]],
-        ['r1', [['f1', { type: 'rich_text', value: 'world' }]]],
-        ['r2', [['f1', { type: 'rich_text', value: 'foo' }]]],
+        { row_id: 'r0', cells: [['f1', { type: 'rich_text', value: 'hello' }]], last_modified_secs: null },
+        { row_id: 'r1', cells: [['f1', { type: 'rich_text', value: 'world' }]], last_modified_secs: null },
+        { row_id: 'r2', cells: [['f1', { type: 'rich_text', value: 'foo' }]], last_modified_secs: null },
       ]),
     )
 
