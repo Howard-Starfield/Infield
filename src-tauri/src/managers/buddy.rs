@@ -494,6 +494,108 @@ impl BuddyManager {
         })
     }
 
+    pub async fn switch_active_buddy(&self, buddy_id: &str, now_ms: i64) -> Result<(), String> {
+        let conn = self.conn.lock().await;
+        let count: i64 = conn.query_row(
+            "SELECT count(*) FROM buddy_unlocks WHERE buddy_id = ?",
+            [buddy_id], |r| r.get(0),
+        ).map_err(|e| format!("buddy::switch_active_buddy: read unlocks: {e}"))?;
+        if count == 0 {
+            return Err(format!("buddy::switch_active_buddy: buddy {buddy_id} is not unlocked"));
+        }
+        conn.execute(
+            "UPDATE buddy_state SET active_buddy_id = ?, updated_at_ms = ? WHERE id = 1",
+            params![buddy_id, now_ms],
+        ).map_err(|e| format!("buddy::switch_active_buddy: update active: {e}"))?;
+        Ok(())
+    }
+
+    pub async fn equip_gear(&self, gear_id: &str, slot: &str, target_buddy_id: &str) -> Result<(), String> {
+        if !["hat", "aura", "charm"].contains(&slot) {
+            return Err(format!("buddy::equip_gear: invalid slot {slot}"));
+        }
+        let column = match slot {
+            "hat" => "equipped_hat_id",
+            "aura" => "equipped_aura_id",
+            "charm" => "equipped_charm_id",
+            _ => unreachable!(),
+        };
+        let mut conn = self.conn.lock().await;
+
+        // Validate gear's actual slot matches the requested slot (per Task 2 review augmentation)
+        let actual_slot: String = conn.query_row(
+            "SELECT slot FROM buddy_inventory WHERE gear_id = ?",
+            [gear_id], |r| r.get(0),
+        ).map_err(|e| format!("buddy::equip_gear: read gear: {e}"))?;
+        if actual_slot != slot {
+            return Err(format!("buddy::equip_gear: gear {gear_id} is slot '{actual_slot}' but requested slot '{slot}'"));
+        }
+
+        let tx = conn.transaction().map_err(|e| format!("buddy::equip_gear: begin tx: {e}"))?;
+        // Unequip from any prior buddy
+        tx.execute(
+            &format!("UPDATE buddy_unlocks SET {column} = NULL WHERE {column} = ?"),
+            [gear_id],
+        ).map_err(|e| format!("buddy::equip_gear: unequip prior: {e}"))?;
+        // Equip on target
+        tx.execute(
+            &format!("UPDATE buddy_unlocks SET {column} = ? WHERE buddy_id = ?"),
+            params![gear_id, target_buddy_id],
+        ).map_err(|e| format!("buddy::equip_gear: equip target: {e}"))?;
+        tx.commit().map_err(|e| format!("buddy::equip_gear: commit: {e}"))?;
+        Ok(())
+    }
+
+    pub async fn unequip_gear(&self, slot: &str, buddy_id: &str) -> Result<(), String> {
+        if !["hat", "aura", "charm"].contains(&slot) {
+            return Err(format!("buddy::unequip_gear: invalid slot {slot}"));
+        }
+        let column = match slot {
+            "hat" => "equipped_hat_id",
+            "aura" => "equipped_aura_id",
+            "charm" => "equipped_charm_id",
+            _ => unreachable!(),
+        };
+        let conn = self.conn.lock().await;
+        conn.execute(
+            &format!("UPDATE buddy_unlocks SET {column} = NULL WHERE buddy_id = ?"),
+            [buddy_id],
+        ).map_err(|e| format!("buddy::unequip_gear: clear: {e}"))?;
+        Ok(())
+    }
+
+    pub async fn set_overlay_position(&self, x: f64, y: f64, anchor: &str, now_ms: i64) -> Result<(), String> {
+        let conn = self.conn.lock().await;
+        conn.execute(
+            "UPDATE buddy_state SET overlay_x = ?, overlay_y = ?, overlay_anchor = ?, updated_at_ms = ?
+               WHERE id = 1",
+            params![x, y, anchor, now_ms],
+        ).map_err(|e| format!("buddy::set_overlay_position: update: {e}"))?;
+        Ok(())
+    }
+
+    pub async fn set_overlay_hidden(&self, hidden: bool, now_ms: i64) -> Result<(), String> {
+        let conn = self.conn.lock().await;
+        conn.execute(
+            "UPDATE buddy_state SET overlay_hidden = ?, updated_at_ms = ? WHERE id = 1",
+            params![hidden as i32, now_ms],
+        ).map_err(|e| format!("buddy::set_overlay_hidden: update: {e}"))?;
+        Ok(())
+    }
+
+    pub async fn set_cap_total(&self, cap: f64, now_ms: i64) -> Result<(), String> {
+        if !(50.0..=100_000.0).contains(&cap) {
+            return Err(format!("buddy::set_cap_total: cap out of range: {cap}"));
+        }
+        let conn = self.conn.lock().await;
+        // Re-anchor last_drip_ms so the rate change applies from now forward, never destroying points.
+        conn.execute(
+            "UPDATE buddy_state SET cap_total = ?, last_drip_ms = ?, updated_at_ms = ? WHERE id = 1",
+            params![cap, now_ms, now_ms],
+        ).map_err(|e| format!("buddy::set_cap_total: update: {e}"))?;
+        Ok(())
+    }
+
     /// Returns the migration set. Apply at boot via `to_latest(&mut conn)`.
     pub fn migrations() -> Migrations<'static> {
         Migrations::new(vec![
@@ -954,5 +1056,72 @@ mod tests {
         // Charm should dominate due to +50% bias
         assert!(totals.2 > totals.0, "charm {} > power {}", totals.2, totals.0);
         assert!(totals.2 > totals.1, "charm {} > speed {}", totals.2, totals.1);
+    }
+
+    #[tokio::test]
+    async fn switch_active_buddy_validates_ownership() {
+        let conn = Arc::new(Mutex::new(setup()));
+        let mgr = BuddyManager::new(conn);
+        let err = mgr.switch_active_buddy("hover-wings", 0).await.unwrap_err();
+        assert!(err.contains("not unlocked"), "got {err}");
+    }
+
+    #[tokio::test]
+    async fn switch_active_buddy_succeeds_for_unlocked() {
+        let conn = Arc::new(Mutex::new(setup()));
+        let mgr = BuddyManager::new(conn);
+        mgr.tick_milestone("notes-50", 50, 100).await.unwrap();
+        mgr.switch_active_buddy("glide-wings", 200).await.expect("switch");
+        let s = mgr.get_state(200).await.expect("get");
+        assert_eq!(s.active_buddy_id, "glide-wings");
+    }
+
+    #[tokio::test]
+    async fn equip_unequips_prior_owner_of_same_gear() {
+        let conn = Arc::new(Mutex::new(setup()));
+        let mgr = BuddyManager::new(conn.clone());
+        mgr.tick_milestone("notes-50", 50, 100).await.unwrap();
+        let gear_id = "test-hat-1";
+        {
+            let c = conn.lock().await;
+            c.execute(
+                "INSERT INTO buddy_inventory (gear_id, slot, species, rarity, power_bonus, speed_bonus, charm_bonus, acquired_at_ms)
+                 VALUES (?, 'hat', 'top-hat', 'common', 1, 1, 8, 0)",
+                [gear_id],
+            ).unwrap();
+            c.execute("UPDATE buddy_unlocks SET equipped_hat_id = ? WHERE buddy_id = 'scout-wings'", [gear_id]).unwrap();
+        }
+        mgr.equip_gear(gear_id, "hat", "glide-wings").await.expect("equip");
+        let s = mgr.get_state(0).await.expect("get");
+        let scout = s.roster.iter().find(|b| b.buddy_id == "scout-wings").unwrap();
+        let glide = s.roster.iter().find(|b| b.buddy_id == "glide-wings").unwrap();
+        assert!(scout.equipped_hat_id.is_none());
+        assert_eq!(glide.equipped_hat_id.as_deref(), Some(gear_id));
+    }
+
+    #[tokio::test]
+    async fn equip_rejects_slot_mismatch() {
+        let conn = Arc::new(Mutex::new(setup()));
+        let mgr = BuddyManager::new(conn.clone());
+        {
+            let c = conn.lock().await;
+            c.execute(
+                "INSERT INTO buddy_inventory (gear_id, slot, species, rarity, power_bonus, speed_bonus, charm_bonus, acquired_at_ms)
+                 VALUES ('charm-piece', 'charm', 'tiny-charm', 'common', 1, 8, 1, 0)",
+                [],
+            ).unwrap();
+        }
+        let err = mgr.equip_gear("charm-piece", "hat", "scout-wings").await.unwrap_err();
+        assert!(err.contains("slot"), "expected slot-mismatch error, got {err}");
+    }
+
+    #[tokio::test]
+    async fn set_overlay_position_persists() {
+        let conn = Arc::new(Mutex::new(setup()));
+        let mgr = BuddyManager::new(conn);
+        mgr.set_overlay_position(0.1, 0.5, "tl", 0).await.expect("set");
+        let s = mgr.get_state(0).await.expect("get");
+        assert_eq!(s.overlay.x, 0.1);
+        assert_eq!(s.overlay.anchor, "tl");
     }
 }
