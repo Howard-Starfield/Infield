@@ -28,9 +28,11 @@ use tauri::{AppHandle, Emitter};
 use tokio::sync::Notify;
 use zerocopy::IntoBytes;
 
+use crate::managers::buddy::BuddyManager;
 use crate::managers::chunking::ChunkPipeline;
 use crate::managers::embedding_ort::InferenceHandle;
 use crate::managers::transcription::transcription_session_holds_model;
+use tauri::Manager;
 
 /// Max rows pulled from `embed_backfill_queue` per drain iteration.
 const BATCH_SIZE: usize = 10;
@@ -363,6 +365,30 @@ impl EmbeddingWorker {
             Ok(()) => {
                 if let Err(e) = self.drop_queue_row(node_id).await {
                     warn!("drop_queue_row after success for {node_id}: {e}");
+                }
+                // B1.12 — advance buddy embedding milestones. Failures here
+                // MUST NOT crash the worker or fail the embed op; just log.
+                // BuddyManager is registered via app_handle.manage(...) in
+                // lib.rs after EmbeddingWorker::new returns, so we look it
+                // up at tick time rather than constructor-injecting (the
+                // manager doesn't exist yet at construction).
+                if let Some(buddy_mgr) = self
+                    .app_handle
+                    .try_state::<Arc<BuddyManager>>()
+                {
+                    let now_ms = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_millis() as i64)
+                        .unwrap_or(0);
+                    let delta = chunk_count as i64;
+                    for milestone in ["embeddings-100", "embeddings-1000"] {
+                        if let Err(e) = buddy_mgr
+                            .tick_milestone(milestone, delta, now_ms)
+                            .await
+                        {
+                            warn!("buddy::tick_milestone({milestone}): {e}");
+                        }
+                    }
                 }
                 emit_embedding_event(
                     &self.app_handle,
