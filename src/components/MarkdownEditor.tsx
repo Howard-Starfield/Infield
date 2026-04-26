@@ -32,6 +32,7 @@ import { Breadcrumb } from './Breadcrumb'
 import { EditorTitleBar } from './EditorTitleBar'
 import { PropertiesPanel } from './PropertiesPanel'
 import { clearAncestorsCache } from '../editor/ancestors'
+import { emitBuddyEvent } from '../buddy/events'
 
 interface MarkdownEditorProps {
   nodeId: string
@@ -112,6 +113,7 @@ export function MarkdownEditor({
       )
       if (res.status === 'ok') {
         dispatch({ type: 'SAVE_OK', updatedAt: res.data.updated_at })
+        emitBuddyEvent('buddy:note-saved', { nodeId })
         return
       }
       if (isVaultConflictError(res.error)) {

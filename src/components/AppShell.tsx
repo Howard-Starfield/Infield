@@ -23,6 +23,7 @@ import { BuddyView } from './BuddyView';
 import { HerOSBackground } from './HerOS';
 
 import { AboutView } from './AboutView';
+import { emitBuddyEvent } from '../buddy/events';
 
 interface AppShellProps {
   currentPage: string;
@@ -43,6 +44,7 @@ export default function AppShell({ currentPage, onNavigate }: AppShellProps) {
         try {
           const res = await commands.createNode(null, 'document', 'Untitled')
           if (res.status === 'ok') {
+            emitBuddyEvent('buddy:note-created', { nodeId: res.data.id })
             window.dispatchEvent(new CustomEvent('notes:open', { detail: res.data.id }))
           } else {
             toast.error('Could not create document', { description: res.error })

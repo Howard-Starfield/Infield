@@ -17,6 +17,7 @@ import type {
   WebMediaImportOpts,
 } from '../bindings';
 import '../styles/import.css';
+import { emitBuddyEvent } from '../buddy/events';
 
 const TERMINAL_STATES = new Set<ImportJobDto['state']>(['done', 'error', 'cancelled']);
 const PLAYLIST_RE = /[?&]list=|playlist\?list=/;
@@ -123,6 +124,17 @@ export function ImportUrlTab() {
   const [activePlaylistUrl, setActivePlaylistUrl] = useState<string | null>(null);
 
   const urls = detectUrls(text);
+
+  // Emit buddy:url-imported once per job transitioning into `done`.
+  const reportedDoneRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    for (const job of jobs) {
+      if (job.state === 'done' && !reportedDoneRef.current.has(job.id)) {
+        reportedDoneRef.current.add(job.id);
+        emitBuddyEvent('buddy:url-imported', { jobId: job.id });
+      }
+    }
+  }, [jobs]);
 
   async function fetchAll() {
     if (urls.length === 0) return;
