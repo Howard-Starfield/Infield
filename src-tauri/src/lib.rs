@@ -906,6 +906,7 @@ pub fn run(cli_args: CliArgs) {
             commands::database::delete_select_option,
             commands::database::create_row_in_group,
             commands::database::create_date_field,
+            commands::database::create_field,
             commands::database::update_row_date,
             commands::database::export_database_template,
             commands::database::save_database_template,

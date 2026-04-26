@@ -631,6 +631,25 @@ pub async fn create_date_field(
     db_mgr.create_date_field(&database_id, &field_name).await.map_err(|e| e.to_string())
 }
 
+/// Generic add-column command. Creates a field of any supported type with
+/// sensible default options (empty options list for selects, MM/dd/yyyy +
+/// 12h for date / datetime, "none" format for numbers, etc.). The W4
+/// "+ Add column" UI calls this; cell-type-specific configuration lives
+/// in a future field-options editor (post-W4 polish).
+#[tauri::command]
+#[specta::specta]
+pub async fn create_field(
+    db_mgr: State<'_, Arc<DatabaseManager>>,
+    database_id: String,
+    field_name: String,
+    field_type: FieldType,
+) -> Result<crate::managers::database::field::Field, String> {
+    db_mgr
+        .create_field(&database_id, &field_name, field_type)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn update_row_date(

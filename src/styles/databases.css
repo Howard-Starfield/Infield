@@ -172,6 +172,98 @@
   text-decoration: underline;
 }
 
+/* Add-column header cell + button (Tier 1 schema editor entry point) */
+.db-table__add-col-cell {
+  position: relative;
+  width: 36px;
+  padding: 0;
+  background: transparent;
+}
+.db-table__add-col-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: transparent;
+  color: var(--heros-text-secondary);
+  border: 1px dashed var(--card-deep-rim);
+  border-radius: var(--radius-container);
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+.db-table__add-col-btn:hover {
+  background: var(--row-hover-fill);
+  color: var(--heros-text-premium);
+  border-color: var(--heros-rim-bright);
+}
+.db-table__add-col-spacer {
+  width: 36px;
+  padding: 0;
+  border-bottom: 1px solid var(--card-deep-rim);
+  background: transparent;
+}
+
+/* Popover anchored under the "+" header button. */
+.db-add-col-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  min-width: 220px;
+  background: var(--surface-container);
+  border: 1px solid var(--heros-rim-bright);
+  border-radius: var(--radius-container);
+  box-shadow: var(--shadow-lg);
+}
+.db-add-col-popover__input,
+.db-add-col-popover__type {
+  font: inherit;
+  padding: 6px 8px;
+  background: var(--input-fill);
+  color: var(--heros-text-premium);
+  border: 1px solid var(--card-deep-rim);
+  border-radius: var(--compact-button-radius);
+  outline: none;
+}
+.db-add-col-popover__input:focus,
+.db-add-col-popover__type:focus {
+  border-color: var(--heros-brand);
+}
+.db-add-col-popover__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+.db-add-col-popover__cancel,
+.db-add-col-popover__submit {
+  font: inherit;
+  padding: 4px 10px;
+  border-radius: var(--compact-button-radius);
+  cursor: pointer;
+  border: 1px solid var(--card-deep-rim);
+  background: transparent;
+  color: var(--heros-text-secondary);
+}
+.db-add-col-popover__submit {
+  background: var(--heros-brand);
+  color: var(--heros-text-on-brand);
+  border-color: var(--heros-brand);
+}
+.db-add-col-popover__submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.db-add-col-popover__cancel:hover {
+  background: var(--row-hover-fill);
+  color: var(--heros-text-premium);
+}
+
 /* ── Cells ───────────────────────────────────────────────────────────── */
 
 .db-cell-text {

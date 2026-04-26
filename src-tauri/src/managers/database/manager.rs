@@ -8,7 +8,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
-use super::field::{CellData, Field, FieldType, TypeOption};
+use super::field::{default_type_option_for, CellData, Field, FieldType, TypeOption};
 
 // ------------------------------------------------------------------ //
 //  Schema migrations
@@ -541,6 +541,49 @@ impl DatabaseManager {
             super::field::DbViewLayout::Board    => "Board",
         };
         self.create_db_view(database_id, name, layout).await
+    }
+
+    /// Creates a field of any type on a database with a sensible default
+    /// `TypeOption` for that type (empty options list for select fields,
+    /// `MM/dd/yyyy` + `12h` for date / datetime, `none` format for numbers,
+    /// etc.). Position appended at end. The W4 schema editor calls this from
+    /// the "+ Add column" UI; existing `create_date_field` stays as a thin
+    /// shortcut for the date-specific flow.
+    pub async fn create_field(
+        &self,
+        database_id: &str,
+        field_name: &str,
+        field_type: FieldType,
+    ) -> Result<Field> {
+        let type_option = default_type_option_for(&field_type);
+        let conn = self.conn.lock().await;
+        let field_id = Uuid::new_v4().to_string();
+        let type_option_json =
+            serde_json::to_string(&type_option).map_err(|e| anyhow!("{}", e))?;
+        let max_pos: i64 = conn.query_row(
+            "SELECT COALESCE(MAX(position), -1) FROM db_fields WHERE database_id = ?1",
+            [database_id],
+            |r| r.get(0),
+        )?;
+        let position = max_pos + 1;
+        conn.execute(
+            "INSERT INTO db_fields (id, database_id, name, field_type, is_primary, type_option, position)
+             VALUES (?1, ?2, ?3, ?4, 0, ?5, ?6)",
+            params![field_id, database_id, field_name, field_type.to_int(), type_option_json, position],
+        )?;
+        debug!(
+            "Created field id={} name={} type={:?} db={}",
+            field_id, field_name, field_type, database_id
+        );
+        Ok(Field {
+            id: field_id,
+            database_id: database_id.to_string(),
+            name: field_name.to_string(),
+            field_type,
+            is_primary: false,
+            type_option,
+            position,
+        })
     }
 
     /// Creates a date field on a database.

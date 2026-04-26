@@ -215,6 +215,37 @@ impl DbViewLayout {
     }
 }
 
+/// Default `TypeOption` payload for a freshly-created field. Used by the
+/// generic `DatabaseManager::create_field` so callers don't have to spell
+/// out type-option JSON when adding a column. Pickers / formatters can be
+/// edited later via a (future) field-options UI.
+pub fn default_type_option_for(ft: &FieldType) -> TypeOption {
+    match ft {
+        FieldType::RichText => TypeOption::RichText,
+        FieldType::Number => TypeOption::Number { format: "none".to_string() },
+        FieldType::DateTime => TypeOption::DateTime {
+            date_format: "MM/dd/yyyy".to_string(),
+            time_format: "12h".to_string(),
+            include_time: true,
+        },
+        FieldType::SingleSelect => TypeOption::SingleSelect { options: Vec::new() },
+        FieldType::MultiSelect => TypeOption::MultiSelect { options: Vec::new() },
+        FieldType::Checkbox => TypeOption::Checkbox,
+        FieldType::Url => TypeOption::Url,
+        FieldType::Checklist => TypeOption::Checklist,
+        FieldType::LastEditedTime => TypeOption::LastEditedTime,
+        FieldType::CreatedTime => TypeOption::CreatedTime,
+        FieldType::Time => TypeOption::Time,
+        FieldType::Media => TypeOption::Media,
+        FieldType::Date => TypeOption::Date {
+            date_format: "MM/dd/yyyy".to_string(),
+            time_format: "12h".to_string(),
+            include_time: false,
+        },
+        FieldType::Protected => TypeOption::Protected,
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, Type)]
 pub struct DatabaseView {
     pub id: String,

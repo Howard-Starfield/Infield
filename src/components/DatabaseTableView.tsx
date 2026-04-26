@@ -16,6 +16,7 @@ import {
   type ColumnDef,
 } from '@tanstack/react-table'
 import { useVirtualizer } from '@tanstack/react-virtual'
+import { Plus } from 'lucide-react'
 import {
   CheckboxCell,
   DateCell,
@@ -25,7 +26,23 @@ import {
   UnsupportedCell,
 } from '../database/cellRenderers'
 import { useDatabase, type MutationKind, type RowMeta } from '../database/useDatabase'
-import type { CellData, Field } from '../bindings'
+import type { CellData, Field, FieldType } from '../bindings'
+
+/// Field types the "+ Add column" picker offers. Mirrors backend FieldType
+/// minus auto-only / specialised types (Protected, Media, Time-of-day, plus
+/// the auto-fill timestamps LastEditedTime / CreatedTime, which the backend
+/// populates without user-typed values). Order optimised for typical use.
+const ADD_COLUMN_TYPES: { value: FieldType; label: string }[] = [
+  { value: 'rich_text', label: 'Text' },
+  { value: 'number', label: 'Number' },
+  { value: 'single_select', label: 'Single select' },
+  { value: 'multi_select', label: 'Multi-select' },
+  { value: 'checkbox', label: 'Checkbox' },
+  { value: 'date', label: 'Date' },
+  { value: 'date_time', label: 'Date + time' },
+  { value: 'url', label: 'URL' },
+  { value: 'checklist', label: 'Checklist' },
+]
 
 interface Props {
   dbId: string
@@ -50,10 +67,37 @@ export function DatabaseTableView({ dbId, onOpenRow }: Props) {
     mutateCell,
     createRow,
     deleteRow,
+    createField,
   } = useDatabase(dbId)
 
   const [menu, setMenu] = useState<ContextMenuState | null>(null)
+  const [addColOpen, setAddColOpen] = useState(false)
+  const [addColName, setAddColName] = useState('')
+  const [addColType, setAddColType] = useState<FieldType>('rich_text')
   const scrollRef = useRef<HTMLDivElement | null>(null)
+  const addColInputRef = useRef<HTMLInputElement | null>(null)
+
+  // Reset popover state whenever dbId changes — stale name/type from a
+  // previous database would otherwise leak across the navigation.
+  useEffect(() => {
+    setAddColOpen(false)
+    setAddColName('')
+    setAddColType('rich_text')
+  }, [dbId])
+
+  // Auto-focus the name input when the popover opens.
+  useEffect(() => {
+    if (addColOpen) addColInputRef.current?.focus()
+  }, [addColOpen])
+
+  const handleAddColumnSubmit = useCallback(async () => {
+    const name = addColName.trim()
+    if (!name) return
+    await createField(name, addColType)
+    setAddColOpen(false)
+    setAddColName('')
+    setAddColType('rich_text')
+  }, [addColName, addColType, createField])
 
   // Refs so the (stable) columns array can reach the latest cells map +
   // mutateCell at cell-render time without rebuilding every keystroke.
@@ -197,13 +241,70 @@ export function DatabaseTableView({ dbId, onOpenRow }: Props) {
                       : flexRender(header.column.columnDef.header, header.getContext())}
                   </th>
                 ))}
+                <th className="db-table__add-col-cell">
+                  <button
+                    type="button"
+                    className="db-table__add-col-btn"
+                    title="Add column"
+                    onClick={() => setAddColOpen(prev => !prev)}
+                  >
+                    <Plus size={14} />
+                  </button>
+                  {addColOpen && (
+                    <div
+                      className="db-add-col-popover"
+                      onClick={e => e.stopPropagation()}
+                    >
+                      <input
+                        ref={addColInputRef}
+                        type="text"
+                        className="db-add-col-popover__input"
+                        placeholder="Column name"
+                        value={addColName}
+                        onChange={e => setAddColName(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') void handleAddColumnSubmit()
+                          else if (e.key === 'Escape') setAddColOpen(false)
+                        }}
+                      />
+                      <select
+                        className="db-add-col-popover__type"
+                        value={addColType}
+                        onChange={e => setAddColType(e.target.value as FieldType)}
+                      >
+                        {ADD_COLUMN_TYPES.map(t => (
+                          <option key={t.value} value={t.value}>
+                            {t.label}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="db-add-col-popover__actions">
+                        <button
+                          type="button"
+                          className="db-add-col-popover__cancel"
+                          onClick={() => setAddColOpen(false)}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          className="db-add-col-popover__submit"
+                          onClick={() => void handleAddColumnSubmit()}
+                          disabled={!addColName.trim()}
+                        >
+                          Add
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </th>
               </tr>
             ))}
           </thead>
           <tbody>
             {paddingTop > 0 && (
               <tr style={{ height: paddingTop }} aria-hidden="true">
-                <td colSpan={columns.length} />
+                <td colSpan={columns.length + 1} />
               </tr>
             )}
             {virtualItems.map(virtualRow => {
@@ -219,12 +320,14 @@ export function DatabaseTableView({ dbId, onOpenRow }: Props) {
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </td>
                   ))}
+                  {/* Trailing cell aligned with the "+ Add column" header. */}
+                  <td className="db-table__add-col-spacer" />
                 </tr>
               )
             })}
             {paddingBottom > 0 && (
               <tr style={{ height: paddingBottom }} aria-hidden="true">
-                <td colSpan={columns.length} />
+                <td colSpan={columns.length + 1} />
               </tr>
             )}
           </tbody>

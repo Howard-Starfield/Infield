@@ -1449,9 +1449,25 @@ async createRow(databaseId: string) : Promise<Result<Row, string>> {
     else return { status: "error", error: e  as any };
 }
 },
-async updateCell(rowId: string, fieldId: string, fieldType: FieldType, data: CellData) : Promise<Result<null, string>> {
+async deleteRow(rowId: string) : Promise<Result<null, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("update_cell", { rowId, fieldId, fieldType, data }) };
+    return { status: "ok", data: await TAURI_INVOKE("delete_row", { rowId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async deleteDatabase(databaseId: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("delete_database", { databaseId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async updateCell(databaseId: string, rowId: string, fieldId: string, fieldType: FieldType, data: CellData, lastSeenMtimeSecs: number | null) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("update_cell", { databaseId, rowId, fieldId, fieldType, data, lastSeenMtimeSecs }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -1521,9 +1537,24 @@ async createDateField(databaseId: string, fieldName: string) : Promise<Result<Fi
     else return { status: "error", error: e  as any };
 }
 },
-async updateRowDate(rowId: string, fieldId: string, timestamp: number | null) : Promise<Result<null, string>> {
+/**
+ * Generic add-column command. Creates a field of any supported type with
+ * sensible default options (empty options list for selects, MM/dd/yyyy +
+ * 12h for date / datetime, "none" format for numbers, etc.). The W4
+ * "+ Add column" UI calls this; cell-type-specific configuration lives
+ * in a future field-options editor (post-W4 polish).
+ */
+async createField(databaseId: string, fieldName: string, fieldType: FieldType) : Promise<Result<Field, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("update_row_date", { rowId, fieldId, timestamp }) };
+    return { status: "ok", data: await TAURI_INVOKE("create_field", { databaseId, fieldName, fieldType }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async updateRowDate(databaseId: string, rowId: string, fieldId: string, timestamp: number | null, lastSeenMtimeSecs: number | null) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("update_row_date", { databaseId, rowId, fieldId, timestamp, lastSeenMtimeSecs }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -1564,6 +1595,22 @@ async listDatabaseTemplates(databaseId: string) : Promise<Result<TemplateEntry[]
 async runWorkspaceMigration() : Promise<Result<number, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("run_workspace_migration") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async listDatabases(prefix: string | null) : Promise<Result<DatabaseSummary[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("list_databases", { prefix }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async getCellsForRows(databaseId: string, rowIds: string[]) : Promise<Result<RowCellsBatch[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_cells_for_rows", { databaseId, rowIds }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -2247,6 +2294,10 @@ export type CustomSounds = { start: boolean; stop: boolean }
  * Lightweight metadata returned when a database is created.
  */
 export type DatabaseMeta = { id: string; name: string }
+/**
+ * Lightweight database listing entry returned by list_databases.
+ */
+export type DatabaseSummary = { id: string; title: string; icon: string; row_count: number }
 export type DatabaseView = { id: string; database_id: string; name: string; layout: DbViewLayout; position: number }
 export type DbViewLayout = "board" | "grid" | "calendar" | "chart" | "list"
 /**
@@ -2450,6 +2501,14 @@ export type RerankerStatus = { model_info: RerankerModelInfo; is_available: bool
  * A database row, returned by get_rows / create_row.
  */
 export type Row = { id: string; database_id: string }
+/**
+ * Per-row cells batch returned by `get_cells_for_rows`. `last_modified_secs`
+ * carries the row's vault-file mtime (seconds since UNIX epoch) so the
+ * frontend can populate `lastSeenMtimeSecs` and feed the Rule 13 conflict
+ * guard on subsequent `update_cell` calls. `None` when the vault file does
+ * not yet exist (e.g. row created in this session, no cells written).
+ */
+export type RowCellsBatch = { row_id: string; cells: ([string, CellData])[]; last_modified_secs: number | null }
 export type SecretMap = Partial<{ [key in string]: string }>
 export type SelectColor = "purple" | "pink" | "light_pink" | "orange" | "yellow" | "lime" | "green" | "aqua" | "blue"
 export type SelectOption = { id: string; name: string; color: SelectColor }
@@ -2538,8 +2597,8 @@ politeness_sleep_max?: number;
  * When true, yt-dlp binary is checked for updates on each queue run.
  */
 yt_dlp_auto_check_updates?: boolean }
-export type WebMediaFormat = { kind: "mp3_audio" } | { kind: "mp4_video"; max_height: number }
-export type WebMediaImportOpts = { keep_media: boolean; format: WebMediaFormat; parent_folder_node_id: string | null; playlist_source: PlaylistSource | null }
+export type WebMediaFormat = { kind: "mp_3_audio" } | { kind: "mp_4_video"; max_height: number }
+export type WebMediaImportOpts = { keep_media: boolean; format: WebMediaFormat; transcribe: boolean; parent_folder_node_id: string | null; playlist_source: PlaylistSource | null }
 export type WebMediaMetadata = { url: string; source_id: string; title: string; thumbnail_url?: string | null; duration_seconds?: number | null; channel?: string | null; platform: string; published_at?: string | null; available_video_heights: number[]; is_live: boolean }
 export type WhisperAcceleratorSetting = "auto" | "cpu" | "gpu"
 export type WindowsMicrophonePermissionStatus = { supported: boolean; overall_access: PermissionAccess; device_access: PermissionAccess; app_access: PermissionAccess; desktop_app_access: PermissionAccess }

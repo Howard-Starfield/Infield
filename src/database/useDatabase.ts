@@ -51,6 +51,7 @@ export interface UseDatabaseResult {
   createRowInGroup: (fieldId: string, optionId: string) => Promise<void>
   moveRowGroup: (rowId: string, fieldId: string, optionId: string) => Promise<void>
   deleteRow: (rowId: string) => Promise<void>
+  createField: (name: string, fieldType: FieldType) => Promise<void>
 }
 
 const EMPTY_CELLS: Map<string, Map<string, CellData>> = new Map()
@@ -427,6 +428,29 @@ export function useDatabase(dbId: string | null): UseDatabaseResult {
     [mutateCell],
   )
 
+  const createField = useCallback<UseDatabaseResult['createField']>(
+    async (name, fieldType) => {
+      if (!dbId) return
+      const capturedDbId = dbId
+      const trimmed = name.trim()
+      if (!trimmed) {
+        toast.error('Column name required')
+        return
+      }
+      try {
+        const res = await commands.createField(capturedDbId, trimmed, fieldType)
+        if (dbIdRef.current !== capturedDbId) return
+        if (res.status !== 'ok') throw new Error(res.error)
+        setFields(prev => [...prev, res.data])
+      } catch (err) {
+        if (dbIdRef.current === capturedDbId) toast.error('Failed to add column')
+        // eslint-disable-next-line no-console
+        console.error('[useDatabase] createField failed', err)
+      }
+    },
+    [dbId],
+  )
+
   const deleteRow = useCallback<UseDatabaseResult['deleteRow']>(async rowId => {
     const capturedDbId = dbIdRef.current
     try {
@@ -464,6 +488,7 @@ export function useDatabase(dbId: string | null): UseDatabaseResult {
     createRowInGroup,
     moveRowGroup,
     deleteRow,
+    createField,
   }
 }
 
