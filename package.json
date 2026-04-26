@@ -44,6 +44,7 @@
     "@schedule-x/react": "^4.1.0",
     "@schedule-x/theme-default": "^4.4.0",
     "@tailwindcss/vite": "^4.1.16",
+    "@tanstack/react-table": "^8.21.3",
     "@tanstack/react-virtual": "^3.13.24",
     "@tauri-apps/api": "^2.10.0",
     "@tauri-apps/plugin-autostart": "~2.5.1",
