@@ -206,6 +206,12 @@ mod tests {
     }
 
     #[test]
+    fn video_format_arg_uses_max_height() {
+        assert_eq!(build_video_format_arg(720), "bv*[height<=720]+ba/b[height<=720]");
+        assert_eq!(build_video_format_arg(1080), "bv*[height<=1080]+ba/b[height<=1080]");
+    }
+
+    #[test]
     fn error_serializes_with_kind_tag() {
         let e = WebMediaError::AuthRequired;
         let json = serde_json::to_string(&e).unwrap();
@@ -265,6 +271,10 @@ pub enum WebMediaFormat {
 
 impl Default for WebMediaFormat {
     fn default() -> Self { WebMediaFormat::Mp3Audio }
+}
+
+pub fn build_video_format_arg(max_height: u32) -> String {
+    format!("bv*[height<={h}]+ba/b[height<={h}]", h = max_height)
 }
 
 // ── Task 15: Import opts types ───────────────────────────────────────────────
@@ -459,6 +469,88 @@ impl YtDlpHandle {
         let audio_path = find_one_with_prefix(target_dir, "audio.")?;
         let thumbnail_path = find_one_with_prefix(target_dir, "thumbnail.").ok();
         Ok(MediaArtefacts { audio_path: Some(audio_path), video_path: None, thumbnail_path })
+    }
+}
+
+impl YtDlpHandle {
+    pub async fn download_video(
+        &self, url: &str, target_dir: &Path, max_height: u32,
+        on_progress: impl Fn(DownloadProgress) + Send + Sync + 'static,
+        cancel: Arc<AtomicBool>,
+    ) -> Result<MediaArtefacts, WebMediaError> {
+        if !self.is_available() { return Err(WebMediaError::YtDlpNotFound); }
+        std::fs::create_dir_all(target_dir).map_err(|e| WebMediaError::FfmpegFailed(e.to_string()))?;
+
+        let out_template = target_dir.join("video.%(ext)s");
+        let thumb_template = target_dir.join("thumbnail.%(ext)s");
+        let format_arg = build_video_format_arg(max_height);
+
+        let mut cmd = tokio::process::Command::new(&self.binary);
+        cmd.args([
+            "-f", &format_arg,
+            "--merge-output-format", "mp4",
+            "--write-thumbnail", "--convert-thumbnails", "jpg",
+            "--no-playlist", "--newline",
+            "--sleep-interval", "1", "--max-sleep-interval", "3",
+            "-o", out_template.to_str().unwrap(),
+            "-o", &format!("thumbnail:{}", thumb_template.display()),
+            url,
+        ]);
+        cmd.stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());
+
+        configure_process_group(&mut cmd);
+
+        let mut child = cmd.spawn().map_err(|e| WebMediaError::YtDlpCrashed {
+            exit_code: -1, stderr_tail: e.to_string()
+        })?;
+        let pid = child.id();
+
+        let stdout = child.stdout.take().unwrap();
+        let mut reader = BufReader::new(stdout).lines();
+        let mut stderr_buf = String::new();
+
+        let cancel_clone = cancel.clone();
+        let progress_task = tokio::spawn(async move {
+            while let Ok(Some(line)) = reader.next_line().await {
+                if cancel_clone.load(Ordering::Relaxed) { break; }
+                if let Some(p) = parse_progress_line(&line) { on_progress(p); }
+            }
+        });
+
+        let cancel_watch = cancel.clone();
+        let cancel_kill = tokio::spawn(async move {
+            while !cancel_watch.load(Ordering::Relaxed) {
+                tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+            }
+            kill_process_group(pid);
+        });
+
+        let status = child.wait().await.map_err(|e| WebMediaError::YtDlpCrashed {
+            exit_code: -1, stderr_tail: e.to_string()
+        })?;
+        let _ = progress_task.await;
+        cancel_kill.abort();
+
+        if let Some(mut e) = child.stderr.take() {
+            use tokio::io::AsyncReadExt;
+            let _ = e.read_to_string(&mut stderr_buf).await;
+        }
+
+        if cancel.load(Ordering::Relaxed) {
+            return Err(WebMediaError::IntegrityCheckFailed);
+        }
+        if !status.success() {
+            return Err(classify_stderr(&stderr_buf, status.code().unwrap_or(-1)));
+        }
+
+        let video_path = target_dir.join("video.mp4");
+        let final_video = if video_path.exists() {
+            video_path
+        } else {
+            find_one_with_prefix(target_dir, "video.")?
+        };
+        let thumbnail_path = find_one_with_prefix(target_dir, "thumbnail.").ok();
+        Ok(MediaArtefacts { audio_path: None, video_path: Some(final_video), thumbnail_path })
     }
 }
 
