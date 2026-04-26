@@ -775,14 +775,20 @@ function CompletedPanel({ jobs }: { jobs: ImportJobDto[] }) {
       className="heros-glass-card"
       style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}
     >
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => setManualExpanded(v => !v)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setManualExpanded(v => !v);
+          }
+        }}
         style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           paddingBottom: 8, borderBottom: '1px solid rgba(255,255,255,0.05)',
-          background: 'transparent', border: 'none', borderRadius: 0,
-          color: 'inherit', cursor: 'pointer', font: 'inherit', textAlign: 'left', width: '100%',
+          cursor: 'pointer', width: '100%',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '13px', fontWeight: 600 }}>
@@ -792,8 +798,19 @@ function CompletedPanel({ jobs }: { jobs: ImportJobDto[] }) {
             {jobs.length}
           </span>
         </div>
-        {manualExpanded ? <ChevronUp size={14} color="rgba(255,255,255,0.4)" /> : <ChevronDown size={14} color="rgba(255,255,255,0.4)" />}
-      </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); commands.clearCompletedImports(); }}
+            className="heros-btn"
+            style={{ fontSize: 10, padding: '3px 10px', borderRadius: 6, opacity: 0.7 }}
+            title="Clear completed history"
+          >
+            Clear
+          </button>
+          {manualExpanded ? <ChevronUp size={14} color="rgba(255,255,255,0.4)" /> : <ChevronDown size={14} color="rgba(255,255,255,0.4)" />}
+        </div>
+      </div>
 
       <AnimatePresence initial={false}>
         {expanded && (
