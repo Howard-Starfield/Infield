@@ -181,8 +181,77 @@ pub async fn update_node(
     body: String,
     last_seen_mtime_secs: Option<i64>,
 ) -> Result<WorkspaceNode, String> {
-    let node = state.workspace_manager.update_node(&id, &name, &icon, &properties, &body).await?;
-    // P0-5: board card write-back for row nodes
+    // W4: row vault-first write — fire BEFORE the SQLite update so a
+    // VAULT_CONFLICT bubbles up to the frontend without persisting any change.
+    // Capture the new vault path + old rel_path so we can sync vault_rel_path
+    // and delete the stale file after a rename (mirrors the move_node row branch).
+    let mut row_vault_sync: Option<(String, Option<String>)> = None;
+    if let Some(existing) = state.workspace_manager.get_node(&id).await? {
+        if existing.node_type == "row" && existing.deleted_at.is_none() {
+            if let Some(parent_db_id) = existing.parent_id.as_deref() {
+                // Body is being mutated to `body` here but hasn't yet hit
+                // SQLite — pass it as the pending override so the row file
+                // reflects the new body, not the stale one.
+                let pending_body = if body != existing.body { Some(body.as_str()) } else { None };
+                let vm = crate::managers::workspace::VaultManager::new(resolve_vault_root(&app));
+                let new_abs = vm
+                    .export_row(
+                        parent_db_id,
+                        &existing.id,
+                        last_seen_mtime_secs,
+                        &[],
+                        pending_body,
+                        &state.workspace_manager,
+                        &state.database_manager,
+                    )
+                    .await?;
+                let vault_root = resolve_vault_root(&app);
+                let new_rel = new_abs
+                    .strip_prefix(&vault_root)
+                    .map(|p| p.to_string_lossy().replace('\\', "/"))
+                    .unwrap_or_else(|_| new_abs.to_string_lossy().replace('\\', "/"));
+                row_vault_sync = Some((new_rel, existing.vault_rel_path.clone()));
+            }
+        }
+    }
+
+    let node = match state.workspace_manager.update_node(&id, &name, &icon, &properties, &body).await {
+        Ok(n) => n,
+        Err(e) => {
+            if row_vault_sync.is_some() {
+                log::warn!(
+                    "vault-sqlite drift: row={} vault wrote new value but SQLite update_node failed: {}. \
+                     vault/import.rs will reconcile on next read.",
+                    id, e
+                );
+            }
+            return Err(e);
+        }
+    };
+
+    // Row rename: sync vault_rel_path + delete old row file if path changed.
+    // Mirrors the move_node row branch (around line 294-304).
+    if let Some((new_rel, old_rel_path)) = row_vault_sync {
+        let vault_root = resolve_vault_root(&app);
+        if let Some(old) = old_rel_path.as_deref() {
+            if old != new_rel {
+                let old_file = vault_root.join(old);
+                if old_file.exists() {
+                    if let Err(e) = fs::remove_file(&old_file) {
+                        log::warn!(
+                            "update_node: failed to delete old row vault file {}: {}",
+                            old_file.display(), e
+                        );
+                    }
+                }
+            }
+        }
+        if let Err(e) = state.workspace_manager.update_vault_rel_path(&node.id, &new_rel).await {
+            log::error!("Failed to update vault_rel_path for renamed row {}: {}", node.id, e);
+        }
+    }
+    // P0-5: board card write-back for row nodes (separate from rows/<slug>.md
+    // written above — the board.md aggregate file still uses cards/<id>.md).
     if node.node_type == "row" && node.deleted_at.is_none() {
         let vault_root = resolve_vault_root(&app);
         let vm = crate::managers::workspace::VaultManager::new(vault_root);
@@ -240,6 +309,45 @@ pub async fn move_node(
     position: f64,
 ) -> Result<WorkspaceNode, String> {
     let node = state.workspace_manager.move_node(&id, parent_id, position).await?;
+    // W4: row move — re-export to the new parent database's rows/<slug>.md path.
+    if node.node_type == "row" && node.deleted_at.is_none() {
+        let parent_db_id = node.parent_id.as_deref()
+            .ok_or("Row has no parent database")?;
+        let old_rel_path = node.vault_rel_path.clone();
+        let vm = crate::managers::workspace::VaultManager::new(resolve_vault_root(&app));
+        // Move doesn't change cells or body — just position. No pending overrides.
+        let new_abs = vm
+            .export_row(
+                parent_db_id,
+                &node.id,
+                None,
+                &[],
+                None,
+                &state.workspace_manager,
+                &state.database_manager,
+            )
+            .await?;
+        // Compute vault-rel for storage; new_abs may not strip cleanly on
+        // case-insensitive Windows paths, so fall back to the absolute string
+        // when strip_prefix fails (matches existing patterns elsewhere).
+        let vault_root = resolve_vault_root(&app);
+        let new_rel = new_abs
+            .strip_prefix(&vault_root)
+            .map(|p| p.to_string_lossy().replace('\\', "/"))
+            .unwrap_or_else(|_| new_abs.to_string_lossy().replace('\\', "/"));
+        if let Some(old) = old_rel_path.as_deref() {
+            if old != new_rel {
+                let old_file = vault_root.join(old);
+                if old_file.exists() {
+                    let _ = fs::remove_file(&old_file);
+                }
+            }
+        }
+        if let Err(e) = state.workspace_manager.update_vault_rel_path(&node.id, &new_rel).await {
+            log::error!("Failed to update vault_rel_path for moved row {}: {}", node.id, e);
+        }
+        return Ok(node);
+    }
     if node.node_type == "document" && node.deleted_at.is_none() {
         // node.vault_rel_path is still the OLD path here — move_node only touches parent_id/position
         let old_rel_path = node.vault_rel_path.clone();

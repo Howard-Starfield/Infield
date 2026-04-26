@@ -1,11 +1,14 @@
+use crate::app_identity::resolve_vault_root;
 use crate::managers::database::field::{CellData, Field, FieldType};
 use crate::managers::database::filter::Filter;
 use crate::managers::database::manager::DatabaseManager;
 use crate::managers::database::sort::Sort;
+use crate::managers::workspace::AppState;
+use crate::managers::workspace::VaultManager;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::sync::Arc;
-use tauri::State;
+use tauri::{AppHandle, State};
 
 // ------------------------------------------------------------------ //
 //  Extra types exposed to the frontend
@@ -108,25 +111,92 @@ pub async fn get_rows(
 #[tauri::command]
 #[specta::specta]
 pub async fn create_row(
-    db_mgr: State<'_, Arc<DatabaseManager>>,
+    app: AppHandle,
+    state: State<'_, Arc<AppState>>,
     database_id: String,
 ) -> Result<Row, String> {
-    create_row_inner(&db_mgr, database_id).await
+    // 1. SQLite first — we need a row id before we can write a vault file.
+    let row = create_row_inner(&state.database_manager, database_id.clone()).await?;
+
+    // 2. Vault-first ordering applies to *mutations*; for create we need the
+    //    row to exist in SQLite to know its slug. Write the row file
+    //    immediately after; on failure roll back via soft-delete to avoid an
+    //    orphan SQLite row with no vault counterpart.
+    let vm = VaultManager::new(resolve_vault_root(&app));
+    if let Err(e) = vm
+        .export_row(
+            &database_id,
+            &row.id,
+            None,
+            &[],
+            None,
+            &state.workspace_manager,
+            &state.database_manager,
+        )
+        .await
+    {
+        let row_id_for_log = row.id.clone();
+        if let Err(de) = state.workspace_manager.soft_delete_node(&row_id_for_log).await {
+            log::error!(
+                "create_row rollback failed: row={} vault export failed ({}), AND soft-delete also failed: {}. \
+                 Orphan row in SQLite — manual cleanup may be needed.",
+                row_id_for_log, e, de
+            );
+        } else {
+            log::warn!(
+                "create_row vault export failed for row {}: {}. Soft-deleted to avoid orphan.",
+                row_id_for_log, e
+            );
+        }
+        return Err(e);
+    }
+    Ok(row)
 }
 
 #[tauri::command]
 #[specta::specta]
 pub async fn update_cell(
-    db_mgr: State<'_, Arc<DatabaseManager>>,
+    app: AppHandle,
+    state: State<'_, Arc<AppState>>,
+    database_id: String,
     row_id: String,
     field_id: String,
     _field_type: FieldType,
     data: CellData,
+    last_seen_mtime_secs: Option<i64>,
 ) -> Result<(), String> {
-    db_mgr
+    // Vault-first: VAULT_CONFLICT returns before SQLite is ever touched.
+    // The pending cell override ensures the file written to disk reflects the
+    // *new* value, not the pre-mutation SQLite snapshot — fixing the lag bug
+    // where the last edit per row was lost on app close.
+    let vm = VaultManager::new(resolve_vault_root(&app));
+    let pending = [(field_id.clone(), data.clone())];
+    vm.export_row(
+        &database_id,
+        &row_id,
+        last_seen_mtime_secs,
+        &pending,
+        None,
+        &state.workspace_manager,
+        &state.database_manager,
+    )
+    .await?;
+
+    match state
+        .database_manager
         .update_cell(&row_id, &field_id, &data)
         .await
-        .map_err(|e| e.to_string())
+    {
+        Ok(()) => Ok(()),
+        Err(e) => {
+            log::warn!(
+                "vault-sqlite drift: row={} field={} vault wrote new value but SQLite update_cell failed: {}. \
+                 vault/import.rs will reconcile on next read.",
+                row_id, field_id, e
+            );
+            Err(e.to_string())
+        }
+    }
 }
 
 #[tauri::command]
@@ -277,12 +347,49 @@ pub async fn delete_select_option(
 #[tauri::command]
 #[specta::specta]
 pub async fn create_row_in_group(
-    db_mgr: State<'_, Arc<DatabaseManager>>,
+    app: AppHandle,
+    state: State<'_, Arc<AppState>>,
     database_id: String,
     field_id: String,
     option_id: String,
 ) -> Result<Row, String> {
-    let id = db_mgr.create_row_in_group(&database_id, &field_id, &option_id).await.map_err(|e| e.to_string())?;
+    let id = state
+        .database_manager
+        .create_row_in_group(&database_id, &field_id, &option_id)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    // db_mgr.create_row_in_group already inserts the SingleSelect cell into
+    // SQLite before returning, so export_row's SQLite read sees the right
+    // value — no pending override needed.
+    let vm = VaultManager::new(resolve_vault_root(&app));
+    if let Err(e) = vm
+        .export_row(
+            &database_id,
+            &id,
+            None,
+            &[],
+            None,
+            &state.workspace_manager,
+            &state.database_manager,
+        )
+        .await
+    {
+        let row_id_for_log = id.clone();
+        if let Err(de) = state.workspace_manager.soft_delete_node(&row_id_for_log).await {
+            log::error!(
+                "create_row_in_group rollback failed: row={} vault export failed ({}), AND soft-delete also failed: {}. \
+                 Orphan row in SQLite — manual cleanup may be needed.",
+                row_id_for_log, e, de
+            );
+        } else {
+            log::warn!(
+                "create_row_in_group vault export failed for row {}: {}. Soft-deleted to avoid orphan.",
+                row_id_for_log, e
+            );
+        }
+        return Err(e);
+    }
     Ok(Row { id, database_id })
 }
 
@@ -299,12 +406,42 @@ pub async fn create_date_field(
 #[tauri::command]
 #[specta::specta]
 pub async fn update_row_date(
-    db_mgr: State<'_, Arc<DatabaseManager>>,
+    app: AppHandle,
+    state: State<'_, Arc<AppState>>,
+    database_id: String,
     row_id: String,
     field_id: String,
     timestamp: Option<i64>,
+    last_seen_mtime_secs: Option<i64>,
 ) -> Result<(), String> {
-    db_mgr.update_row_date(&row_id, &field_id, timestamp).await.map_err(|e| e.to_string())
+    let vm = VaultManager::new(resolve_vault_root(&app));
+    let pending = [(field_id.clone(), CellData::Date(timestamp))];
+    vm.export_row(
+        &database_id,
+        &row_id,
+        last_seen_mtime_secs,
+        &pending,
+        None,
+        &state.workspace_manager,
+        &state.database_manager,
+    )
+    .await?;
+
+    match state
+        .database_manager
+        .update_row_date(&row_id, &field_id, timestamp)
+        .await
+    {
+        Ok(()) => Ok(()),
+        Err(e) => {
+            log::warn!(
+                "vault-sqlite drift: row={} field={} vault wrote new date value but SQLite update_row_date failed: {}. \
+                 vault/import.rs will reconcile on next read.",
+                row_id, field_id, e
+            );
+            Err(e.to_string())
+        }
+    }
 }
 
 // ------------------------------------------------------------------ //
