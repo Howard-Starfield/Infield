@@ -736,9 +736,12 @@ async fn run_import_media(
             if let Err(e) = write_segments_json(&mdir, &[]) {
                 warn!("write_segments_json for job {job_id}: {e}");
             }
-            // Cleanup: remove audio.mp3 when keep_media=false; thumbnail + segments.json stay.
+            // Cleanup: remove audio.mp3 / video.mp4 when keep_media=false;
+            // thumbnail + segments.json stay so the ::web_clip directive
+            // still has its preview image.
             if !keep_media {
                 let _ = std::fs::remove_file(mdir.join("audio.mp3"));
+                let _ = std::fs::remove_file(mdir.join("video.mp4"));
             }
         }
     }
@@ -1108,17 +1111,130 @@ async fn handle_downloading(inner: &ImportQueueInner, job_id: &str) -> Result<()
     }
 }
 
-/// Hand a downloaded WebMedia job off to the existing Audio import pipeline.
-/// Reads `local_audio_path` and `web_meta.title` from the job, creates a
-/// temporary work dir, then delegates to `run_import_media`.
+/// Compose the imported note title with a local-time stamp so repeated
+/// imports of the same source on the same day don't collide on slug.
+fn web_media_title(meta: Option<&web_media::WebMediaMetadata>) -> String {
+    let stamp = chrono::Local::now().format("%Y-%m-%d %H:%M").to_string();
+    let base = meta
+        .map(|m| m.title.clone())
+        .unwrap_or_else(|| "Imported Media".to_string());
+    format!("{} — {}", base, stamp)
+}
+
+/// Finalize a WebMedia job whose options say `transcribe = false`. Creates
+/// the draft note with the `::web_clip` directive only (no transcript body),
+/// stores web metadata in properties, writes empty segments.json sidecar,
+/// honours `keep_media = false` cleanup, and transitions to Done.
+async fn finalize_web_media_no_transcript(
+    inner: &ImportQueueInner,
+    job_id: &str,
+    title: &str,
+) -> Result<(), String> {
+    let (web_meta, web_opts, draft_node_id, media_dir) = {
+        let jobs = inner.jobs.lock().await;
+        let Some(job) = jobs.iter().find(|j| j.id == job_id) else { return Ok(()); };
+        let Some(meta) = job.web_meta.clone() else {
+            drop(jobs);
+            transition_web_job(
+                inner, job_id, ImportJobState::Error,
+                Some("WebMedia job missing metadata".into()),
+            ).await;
+            return Ok(());
+        };
+        let opts = job.web_opts.clone().unwrap_or_default();
+        let Some(node_id) = job.draft_node_id.clone() else {
+            drop(jobs);
+            transition_web_job(
+                inner, job_id, ImportJobState::Error,
+                Some("WebMedia job missing draft node id".into()),
+            ).await;
+            return Ok(());
+        };
+        let media_dir = job.media_dir.clone();
+        (meta, opts, node_id, media_dir)
+    };
+
+    patch_job(inner, job_id, |j| {
+        j.state = ImportJobState::Finalizing;
+        j.current_step = Some("Saving note…".into());
+        j.progress = 0.95;
+    }).await;
+
+    let folder_id = ensure_file_import_folder(inner).await?;
+    let draft = inner
+        .workspace
+        .create_document_child(&folder_id, title, "🎙️", "")
+        .await
+        .map_err(|e| format!("create_workspace_document: {e}"))?;
+    let note_id = draft.id.clone();
+
+    {
+        let note_id_for_patch = note_id.clone();
+        patch_job(inner, job_id, |j| { j.note_id = Some(note_id_for_patch); }).await;
+    }
+    emit_workspace_import_synced(inner, &note_id).await;
+
+    let (props_json, body) = build_web_media_document(
+        job_id, &web_meta, &web_opts, &draft_node_id, &[],
+    )?;
+
+    let finalized_node = match inner
+        .workspace
+        .update_node_body_persist_only(&note_id, &body)
+        .await
+    {
+        Ok(n) => n,
+        Err(e) => {
+            update_job_state(inner, job_id, ImportJobState::Error, Some(format!("{e}"))).await;
+            emit_workspace_import_synced(inner, &note_id).await;
+            return Ok(());
+        }
+    };
+
+    if let Err(e) = inner.workspace.update_node_properties(&note_id, &props_json).await {
+        warn!("update_node_properties for WebMedia job {job_id}: {e}");
+    }
+
+    if let Some(mdir) = media_dir.as_ref() {
+        if let Err(e) = write_segments_json(mdir, &[]) {
+            warn!("write_segments_json for job {job_id}: {e}");
+        }
+        if !web_opts.keep_media {
+            let _ = std::fs::remove_file(mdir.join("audio.mp3"));
+            let _ = std::fs::remove_file(mdir.join("video.mp4"));
+        }
+    }
+
+    emit_workspace_node_body_updated_immediate(&inner.app, &finalized_node);
+    if let Err(e) = inner.workspace.finalize_node_search_index(&note_id).await {
+        update_job_state(inner, job_id, ImportJobState::Error, Some(e)).await;
+        emit_workspace_import_synced(inner, &note_id).await;
+        return Ok(());
+    }
+    sync_workspace_document_to_vault(inner, &finalized_node).await;
+
+    patch_job(inner, job_id, |j| {
+        j.state = ImportJobState::Done;
+        j.message = None;
+        j.progress = 1.0;
+        j.current_step = None;
+    }).await;
+    emit_workspace_import_synced(inner, &note_id).await;
+    Ok(())
+}
+
+/// Hand a downloaded WebMedia job off to the appropriate finalizer. When the
+/// user opted in to transcription (`web_opts.transcribe = true`, the default
+/// for mp3) it delegates to `run_import_media`; otherwise it calls
+/// `finalize_web_media_no_transcript` to write the directive-only note.
 async fn handle_preparing_web_media(inner: &ImportQueueInner, job_id: &str) -> Result<(), String> {
-    let (audio_path, title, cancel) = {
+    let (media_path, title, cancel, transcribe, kind) = {
         let jobs = inner.jobs.lock().await;
         let job = match jobs.iter().find(|j| j.id == job_id) {
             Some(j) => j,
             None => return Ok(()),
         };
-        let audio_path = match &job.local_audio_path {
+        let media_path = match &job.local_audio_path {
             Some(p) => p.clone(),
             None => {
                 drop(jobs);
@@ -1126,21 +1242,25 @@ async fn handle_preparing_web_media(inner: &ImportQueueInner, job_id: &str) -> R
                     inner,
                     job_id,
                     ImportJobState::Error,
-                    Some("WebMedia job missing downloaded audio path".into()),
+                    Some("WebMedia job missing downloaded media path".into()),
                 )
                 .await;
                 return Ok(());
             }
         };
-        let title = job
-            .web_meta
-            .as_ref()
-            .map(|m| m.title.clone())
-            .unwrap_or_else(|| "Imported Media".to_string());
-        (audio_path, title, job.cancel_requested.clone())
+        let opts = job.web_opts.clone().unwrap_or_default();
+        let title = web_media_title(job.web_meta.as_ref());
+        let kind = match opts.format {
+            web_media::WebMediaFormat::Mp3Audio => ImportJobKind::Audio,
+            web_media::WebMediaFormat::Mp4Video { .. } => ImportJobKind::Video,
+        };
+        (media_path, title, job.cancel_requested.clone(), opts.transcribe, kind)
     };
 
-    // Create a temporary work directory for WAV conversion and segment files.
+    if !transcribe {
+        return finalize_web_media_no_transcript(inner, job_id, &title).await;
+    }
+
     let app_data = match crate::portable::app_data_dir(&inner.app)
         .or_else(|_| inner.app.path().app_data_dir())
     {
@@ -1169,13 +1289,11 @@ async fn handle_preparing_web_media(inner: &ImportQueueInner, job_id: &str) -> R
         return Ok(());
     }
 
-    // Delegate to the same Audio pipeline used for local file imports.
-    // It will create the draft note, transcribe, post-process, and finalize.
     let r = run_import_media(
         inner,
         job_id,
-        &audio_path,
-        ImportJobKind::Audio,
+        &media_path,
+        kind,
         &title,
         &tmp_dir,
         cancel,
