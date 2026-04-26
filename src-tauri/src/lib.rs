@@ -869,6 +869,8 @@ pub fn run(cli_args: CliArgs) {
             commands::database::delete_database_template,
             commands::database::list_database_templates,
             commands::database::run_workspace_migration,
+            commands::database::list_databases,
+            commands::database::get_cells_for_rows,
             commands::onboarding::get_onboarding_state,
             commands::onboarding::update_onboarding_state,
             commands::onboarding::reset_onboarding,

@@ -277,6 +277,71 @@ impl DatabaseManager {
         Ok(ids)
     }
 
+    /// Returns all non-deleted databases (workspace_nodes WHERE node_type='database')
+    /// sorted alphabetically by LOWER(name) with optional case-insensitive prefix filter.
+    /// Each tuple is (id, name, icon, row_count) where row_count counts non-deleted
+    /// child workspace_nodes with node_type='row'.
+    ///
+    /// Takes the workspace.db connection — list_databases queries `workspace_nodes`,
+    /// which lives in WorkspaceManager's connection, not DatabaseManager's `database.db`.
+    pub fn list_databases(
+        &self,
+        workspace_conn: &rusqlite::Connection,
+        prefix: Option<String>,
+    ) -> Result<Vec<(String, String, String, i64)>> {
+        let sql = if prefix.is_some() {
+            r#"
+            SELECT w.id, w.name, w.icon,
+                   (SELECT COUNT(*) FROM workspace_nodes r
+                    WHERE r.parent_id = w.id
+                      AND r.node_type = 'row'
+                      AND r.deleted_at IS NULL) AS row_count
+            FROM workspace_nodes w
+            WHERE w.node_type = 'database'
+              AND w.deleted_at IS NULL
+              AND LOWER(w.name) LIKE LOWER(?1) ESCAPE '\'
+            ORDER BY LOWER(w.name)
+            "#
+        } else {
+            r#"
+            SELECT w.id, w.name, w.icon,
+                   (SELECT COUNT(*) FROM workspace_nodes r
+                    WHERE r.parent_id = w.id
+                      AND r.node_type = 'row'
+                      AND r.deleted_at IS NULL) AS row_count
+            FROM workspace_nodes w
+            WHERE w.node_type = 'database'
+              AND w.deleted_at IS NULL
+            ORDER BY LOWER(w.name)
+            "#
+        };
+        let mut stmt = workspace_conn.prepare(sql)?;
+        // Escape LIKE wildcards (\, %, _) in the user-supplied prefix so
+        // titles containing literal '%' or '_' don't act as wildcards.
+        let pattern = prefix.map(|p| {
+            let escaped: String = p
+                .chars()
+                .flat_map(|c| match c {
+                    '%' | '_' | '\\' => vec!['\\', c],
+                    _ => vec![c],
+                })
+                .collect();
+            format!("{escaped}%")
+        });
+        let rows: Vec<(String, String, String, i64)> = if let Some(ref pat) = pattern {
+            stmt.query_map([pat], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?
+        } else {
+            stmt.query_map([], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?
+        };
+        Ok(rows)
+    }
+
     // ------------------------------------------------------------------ //
     //  Cells
     // ------------------------------------------------------------------ //
@@ -339,6 +404,22 @@ impl DatabaseManager {
             .collect();
 
         Ok(pairs)
+    }
+
+    /// Batched cells fetch for a slice of row IDs.
+    /// Returns Vec<(row_id, Vec<(field_id, CellData)>)> in the same order as `row_ids`.
+    /// Rows with no cells return an empty inner Vec (not an error).
+    pub async fn get_cells_for_rows(
+        &self,
+        _db_id: &str,
+        row_ids: &[String],
+    ) -> Result<Vec<(String, Vec<(String, CellData)>)>> {
+        let mut result = Vec::with_capacity(row_ids.len());
+        for row_id in row_ids {
+            let cells = self.get_all_cells_for_row(row_id).await?;
+            result.push((row_id.clone(), cells));
+        }
+        Ok(result)
     }
 
     // ------------------------------------------------------------------ //
@@ -1187,6 +1268,182 @@ mod tests {
         let views = mgr.get_db_views(&db_id).await.unwrap();
         assert_eq!(views[0].id, v2.id);
         assert_eq!(views[1].id, v1.id);
+    }
+
+    /// Build a minimal in-memory workspace_nodes table for list_databases tests.
+    fn make_workspace_conn_with_nodes(rows: &[(&str, &str, &str, &str, Option<&str>)]) -> rusqlite::Connection {
+        // rows: (id, name, icon, node_type, parent_id)
+        let conn = rusqlite::Connection::open_in_memory().expect("open_in_memory");
+        conn.execute_batch(
+            r#"
+            CREATE TABLE workspace_nodes (
+                id         TEXT PRIMARY KEY,
+                parent_id  TEXT,
+                node_type  TEXT NOT NULL,
+                name       TEXT NOT NULL,
+                icon       TEXT NOT NULL DEFAULT '📄',
+                position   REAL NOT NULL DEFAULT 0.0,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL,
+                deleted_at INTEGER,
+                properties TEXT NOT NULL DEFAULT '{}',
+                body       TEXT NOT NULL DEFAULT ''
+            );
+            "#,
+        ).expect("create table");
+        for (id, name, icon, node_type, parent_id) in rows {
+            conn.execute(
+                "INSERT INTO workspace_nodes (id, parent_id, node_type, name, icon, position, created_at, updated_at, deleted_at, properties, body)
+                 VALUES (?1, ?2, ?3, ?4, ?5, 0.0, 0, 0, NULL, '{}', '')",
+                rusqlite::params![id, parent_id, node_type, name, icon],
+            ).expect("insert");
+        }
+        conn
+    }
+
+    #[tokio::test]
+    async fn list_databases_returns_alphabetical() {
+        let mgr = make_manager().await;
+        // Insert two databases out of order: "Zebra" then "Apple"
+        let ws_conn = make_workspace_conn_with_nodes(&[
+            ("z-id", "Zebra", "🦓", "database", None),
+            ("a-id", "Apple", "🍎", "database", None),
+        ]);
+
+        let rows = mgr.list_databases(&ws_conn, None).expect("list_databases");
+        assert_eq!(rows.len(), 2);
+        // Sorted by LOWER(name): Apple, Zebra
+        assert_eq!(rows[0].1, "Apple");
+        assert_eq!(rows[1].1, "Zebra");
+        // row_count should be 0 for both (no row children)
+        assert_eq!(rows[0].3, 0);
+        assert_eq!(rows[1].3, 0);
+    }
+
+    #[tokio::test]
+    async fn list_databases_counts_rows() {
+        let mgr = make_manager().await;
+        let ws_conn = make_workspace_conn_with_nodes(&[
+            ("db-1", "Tasks", "✅", "database", None),
+            ("r-1", "Row 1", "📋", "row", Some("db-1")),
+            ("r-2", "Row 2", "📋", "row", Some("db-1")),
+        ]);
+        let rows = mgr.list_databases(&ws_conn, None).expect("list_databases");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].3, 2, "Tasks should have 2 rows");
+    }
+
+    #[tokio::test]
+    async fn list_databases_prefix_filter_case_insensitive() {
+        let mgr = make_manager().await;
+        let ws_conn = make_workspace_conn_with_nodes(&[
+            ("a", "Apple", "🍎", "database", None),
+            ("b", "Banana", "🍌", "database", None),
+            ("c", "apricot", "🥭", "database", None),
+        ]);
+        // Prefix "ap" should match "Apple" and "apricot" (case-insensitive)
+        let rows = mgr.list_databases(&ws_conn, Some("ap".to_string())).expect("list_databases");
+        assert_eq!(rows.len(), 2);
+        // sorted alphabetically: apricot < Apple under LOWER ordering both = "ap..."
+        // "apple" vs "apricot" — apple < apricot
+        assert_eq!(rows[0].1, "Apple");
+        assert_eq!(rows[1].1, "apricot");
+    }
+
+    #[tokio::test]
+    async fn list_databases_prefix_no_match_returns_empty() {
+        let mgr = make_manager().await;
+        let ws_conn = make_workspace_conn_with_nodes(&[
+            ("a", "Apple", "🍎", "database", None),
+            ("b", "Banana", "🍌", "database", None),
+        ]);
+        let rows = mgr
+            .list_databases(&ws_conn, Some("zzz".to_string()))
+            .expect("list_databases");
+        assert!(rows.is_empty());
+    }
+
+    #[tokio::test]
+    async fn list_databases_excludes_soft_deleted() {
+        let mgr = make_manager().await;
+        let ws_conn = make_workspace_conn_with_nodes(&[
+            ("a", "Apple", "🍎", "database", None),
+            ("b", "Banana", "🍌", "database", None),
+        ]);
+        // Soft-delete "Apple" by setting deleted_at to a non-NULL UNIX timestamp.
+        ws_conn
+            .execute(
+                "UPDATE workspace_nodes SET deleted_at = ?1 WHERE id = 'a'",
+                rusqlite::params![1_700_000_000_i64],
+            )
+            .expect("soft delete");
+
+        let rows = mgr.list_databases(&ws_conn, None).expect("list_databases");
+        assert_eq!(rows.len(), 1, "expected only the non-deleted database");
+        assert_eq!(rows[0].1, "Banana");
+    }
+
+    #[tokio::test]
+    async fn list_databases_prefix_escapes_wildcards() {
+        let mgr = make_manager().await;
+        let ws_conn = make_workspace_conn_with_nodes(&[
+            ("a", "100% Real", "💯", "database", None),
+            ("b", "100X Fake", "🚫", "database", None),
+            ("c", "foo", "📁", "database", None),
+        ]);
+        // Plain prefix "100" matches both "100% Real" and "100X Fake" (literal "100" prefix).
+        let rows = mgr
+            .list_databases(&ws_conn, Some("100".to_string()))
+            .expect("list_databases");
+        assert_eq!(rows.len(), 2);
+
+        // Prefix "100%" — without escaping, the '%' would still match "100X Fake"
+        // (since '%' is a SQL wildcard). With escaping, only the literal "100%" prefix
+        // matches, i.e. only "100% Real".
+        let rows = mgr
+            .list_databases(&ws_conn, Some("100%".to_string()))
+            .expect("list_databases");
+        assert_eq!(rows.len(), 1, "expected only '100% Real' to match literal '100%' prefix");
+        assert_eq!(rows[0].1, "100% Real");
+    }
+
+    #[tokio::test]
+    async fn get_cells_for_rows_preserves_order() {
+        let mgr = make_manager().await;
+        let db_id = mgr.create_database("DB".to_string()).await.unwrap();
+        let fields = mgr.get_fields(&db_id).await.unwrap();
+        let primary_field_id = fields[0].id.clone();
+
+        let row_a = mgr.create_row(&db_id).await.unwrap();
+        let row_b = mgr.create_row(&db_id).await.unwrap();
+
+        mgr.update_cell(&row_a, &primary_field_id, &CellData::RichText("A".to_string())).await.unwrap();
+        mgr.update_cell(&row_b, &primary_field_id, &CellData::RichText("B".to_string())).await.unwrap();
+
+        // Call with row_ids in REVERSE insertion order
+        let row_ids = vec![row_b.clone(), row_a.clone()];
+        let result = mgr.get_cells_for_rows(&db_id, &row_ids).await.expect("get_cells_for_rows");
+
+        assert_eq!(result.len(), 2);
+        // First entry corresponds to row_b
+        assert_eq!(result[0].0, row_b);
+        match &result[0].1[0].1 {
+            CellData::RichText(s) => assert_eq!(s, "B"),
+            other => panic!("expected RichText('B'), got {:?}", other),
+        }
+        // Second entry corresponds to row_a
+        assert_eq!(result[1].0, row_a);
+        match &result[1].1[0].1 {
+            CellData::RichText(s) => assert_eq!(s, "A"),
+            other => panic!("expected RichText('A'), got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn get_cells_for_rows_empty_input() {
+        let mgr = make_manager().await;
+        let result = mgr.get_cells_for_rows("any-db", &[]).await.expect("get_cells_for_rows");
+        assert!(result.is_empty());
     }
 
     #[tokio::test]

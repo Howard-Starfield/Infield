@@ -25,6 +25,15 @@ pub struct Row {
     pub database_id: String,
 }
 
+/// Lightweight database listing entry returned by list_databases.
+#[derive(Clone, Debug, Serialize, Deserialize, Type)]
+pub struct DatabaseSummary {
+    pub id: String,
+    pub title: String,
+    pub icon: String,
+    pub row_count: i64,
+}
+
 // ------------------------------------------------------------------ //
 //  Inner (testable without Tauri State)
 // ------------------------------------------------------------------ //
@@ -426,6 +435,43 @@ pub async fn run_workspace_migration(
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+// ------------------------------------------------------------------ //
+//  W4 Databases — listing + batched cells
+// ------------------------------------------------------------------ //
+
+#[tauri::command]
+#[specta::specta]
+pub async fn list_databases(
+    state: State<'_, Arc<crate::managers::workspace::AppState>>,
+    prefix: Option<String>,
+) -> Result<Vec<DatabaseSummary>, String> {
+    let db_mgr = state.database_manager.clone();
+    let ws_conn = state.workspace_manager.conn().clone();
+    let rows = tokio::task::spawn_blocking(move || -> Result<_, String> {
+        let conn = ws_conn.blocking_lock();
+        db_mgr.list_databases(&conn, prefix).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+    Ok(rows
+        .into_iter()
+        .map(|(id, title, icon, row_count)| DatabaseSummary { id, title, icon, row_count })
+        .collect())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn get_cells_for_rows(
+    db_mgr: State<'_, Arc<DatabaseManager>>,
+    database_id: String,
+    row_ids: Vec<String>,
+) -> Result<Vec<(String, Vec<(String, CellData)>)>, String> {
+    db_mgr
+        .get_cells_for_rows(&database_id, &row_ids)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 // ------------------------------------------------------------------ //
