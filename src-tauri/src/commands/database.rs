@@ -130,6 +130,65 @@ pub async fn create_row_inner(
     Ok(Row { id, database_id })
 }
 
+/// Full create_row orchestration: db_rows insert + workspace_nodes mirror.
+/// Does NOT write the vault file — empty rows have no meaningful body to
+/// serialize, and the file is written on the first cell edit when
+/// `update_cell` calls `export_row`. On mirror failure, rolls back the
+/// db_rows insert via `delete_row_hard`.
+pub async fn create_row_inner_with_vault(
+    db_mgr: &Arc<DatabaseManager>,
+    ws_mgr: &Arc<WorkspaceManager>,
+    database_id: String,
+) -> Result<Row, String> {
+    // 1. db_rows insert.
+    let row_id = db_mgr
+        .create_row(&database_id)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    // 2. Look up parent database mirror to compute vault_rel_path. Commit C
+    //    guarantees the mirror exists for any database created via
+    //    create_database_inner_with_vault. Legacy databases get backfilled by
+    //    the boot migration in Commit G; if a row is created against a
+    //    not-yet-backfilled database, we surface the error rather than write
+    //    a row file under an unknown slug.
+    let db_node = ws_mgr
+        .get_node(&database_id)
+        .await
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!(
+            "Database '{database_id}' has no workspace_nodes mirror. \
+             Restart the app to run the boot migration, then retry."
+        ))?;
+
+    let db_slug = crate::managers::workspace::vault::format::slugify(&db_node.name);
+    let row_slug = &row_id[..row_id.len().min(8)];
+    let vault_rel_path = format!("databases/{db_slug}/rows/{row_slug}.md");
+
+    // 3. Position: append at end. db_rows uses i64 position; mirror uses f64.
+    //    Use the row count after insert as a stable monotonic value.
+    let position = db_mgr
+        .get_rows(&database_id)
+        .await
+        .map_err(|e| e.to_string())?
+        .len() as f64;
+
+    // 4. Mirror upsert. Empty name + empty icon — name will be set on first
+    //    primary-cell edit (Commit E wires that propagation).
+    if let Err(e) = ws_mgr
+        .upsert_workspace_mirror_node(
+            &row_id, Some(&database_id), "row", "", "", position, "{}", &vault_rel_path,
+        )
+        .await
+    {
+        log::warn!("Row mirror failed for '{row_id}'; rolling back db_rows row: {e}");
+        let _ = db_mgr.delete_row_hard(&row_id).await;
+        return Err(format!("Failed to mirror row into workspace_nodes: {e}"));
+    }
+
+    Ok(Row { id: row_id, database_id })
+}
+
 // ------------------------------------------------------------------ //
 //  Tauri commands
 // ------------------------------------------------------------------ //
@@ -185,46 +244,15 @@ pub async fn get_rows(
 #[tauri::command]
 #[specta::specta]
 pub async fn create_row(
-    app: AppHandle,
     state: State<'_, Arc<AppState>>,
     database_id: String,
 ) -> Result<Row, String> {
-    // 1. SQLite first — we need a row id before we can write a vault file.
-    let row = create_row_inner(&state.database_manager, database_id.clone()).await?;
-
-    // 2. Vault-first ordering applies to *mutations*; for create we need the
-    //    row to exist in SQLite to know its slug. Write the row file
-    //    immediately after; on failure roll back via soft-delete to avoid an
-    //    orphan SQLite row with no vault counterpart.
-    let vm = VaultManager::new(resolve_vault_root(&app));
-    if let Err(e) = vm
-        .export_row(
-            &database_id,
-            &row.id,
-            None,
-            &[],
-            None,
-            &state.workspace_manager,
-            &state.database_manager,
-        )
-        .await
-    {
-        let row_id_for_log = row.id.clone();
-        if let Err(de) = state.workspace_manager.soft_delete_node(&row_id_for_log).await {
-            log::error!(
-                "create_row rollback failed: row={} vault export failed ({}), AND soft-delete also failed: {}. \
-                 Orphan row in SQLite — manual cleanup may be needed.",
-                row_id_for_log, e, de
-            );
-        } else {
-            log::warn!(
-                "create_row vault export failed for row {}: {}. Soft-deleted to avoid orphan.",
-                row_id_for_log, e
-            );
-        }
-        return Err(e);
-    }
-    Ok(row)
+    create_row_inner_with_vault(
+        &state.database_manager,
+        &state.workspace_manager,
+        database_id,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -421,26 +449,60 @@ pub async fn delete_select_option(
 #[tauri::command]
 #[specta::specta]
 pub async fn create_row_in_group(
-    app: AppHandle,
     state: State<'_, Arc<AppState>>,
+    vm: State<'_, Arc<VaultManager>>,
     database_id: String,
     field_id: String,
     option_id: String,
 ) -> Result<Row, String> {
-    let id = state
+    // 1. db_rows + db_cells insert (the group cell goes in atomically).
+    let row_id = state
         .database_manager
         .create_row_in_group(&database_id, &field_id, &option_id)
         .await
         .map_err(|e| e.to_string())?;
 
-    // db_mgr.create_row_in_group already inserts the SingleSelect cell into
-    // SQLite before returning, so export_row's SQLite read sees the right
-    // value — no pending override needed.
-    let vm = VaultManager::new(resolve_vault_root(&app));
+    // 2. Look up parent for vault path + mirror.
+    let db_node = state
+        .workspace_manager
+        .get_node(&database_id)
+        .await
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!(
+            "Database '{database_id}' has no workspace_nodes mirror. \
+             Restart the app to run the boot migration, then retry."
+        ))?;
+    let db_slug = crate::managers::workspace::vault::format::slugify(&db_node.name);
+    let row_slug = &row_id[..row_id.len().min(8)];
+    let vault_rel_path = format!("databases/{db_slug}/rows/{row_slug}.md");
+
+    let position = state
+        .database_manager
+        .get_rows(&database_id)
+        .await
+        .map_err(|e| e.to_string())?
+        .len() as f64;
+
+    // 3. Mirror upsert. Roll back db_rows on failure.
+    if let Err(e) = state
+        .workspace_manager
+        .upsert_workspace_mirror_node(
+            &row_id, Some(&database_id), "row", "", "", position, "{}", &vault_rel_path,
+        )
+        .await
+    {
+        log::warn!("Row mirror failed for '{row_id}'; rolling back db_rows row: {e}");
+        let _ = state.database_manager.delete_row_hard(&row_id).await;
+        return Err(format!("Failed to mirror row into workspace_nodes: {e}"));
+    }
+
+    // 4. Vault export. The group cell is already in db.db so export_row
+    //    reads it without a pending override. On failure, fully roll back
+    //    (mirror soft-delete cascades + cleans FTS/embeddings; db_rows hard-delete).
     if let Err(e) = vm
         .export_row(
             &database_id,
-            &id,
+            &row_id,
             None,
             &[],
             None,
@@ -449,22 +511,15 @@ pub async fn create_row_in_group(
         )
         .await
     {
-        let row_id_for_log = id.clone();
-        if let Err(de) = state.workspace_manager.soft_delete_node(&row_id_for_log).await {
-            log::error!(
-                "create_row_in_group rollback failed: row={} vault export failed ({}), AND soft-delete also failed: {}. \
-                 Orphan row in SQLite — manual cleanup may be needed.",
-                row_id_for_log, e, de
-            );
-        } else {
-            log::warn!(
-                "create_row_in_group vault export failed for row {}: {}. Soft-deleted to avoid orphan.",
-                row_id_for_log, e
-            );
-        }
+        let _ = state.workspace_manager.soft_delete_node(&row_id).await;
+        let _ = state.database_manager.delete_row_hard(&row_id).await;
+        log::warn!(
+            "create_row_in_group vault export failed for row {row_id}: {e}. Rolled back."
+        );
         return Err(e);
     }
-    Ok(Row { id, database_id })
+
+    Ok(Row { id: row_id, database_id })
 }
 
 #[tauri::command]

@@ -163,6 +163,14 @@ impl DatabaseManager {
         Ok(())
     }
 
+    /// Hard-delete a single row from `db_rows`. Used only by row-create rollback
+    /// when the workspace_nodes mirror insert fails. CASCADE removes db_cells.
+    pub async fn delete_row_hard(&self, row_id: &str) -> Result<()> {
+        let conn = self.conn.lock().await;
+        conn.execute("DELETE FROM db_rows WHERE id = ?1", params![row_id])?;
+        Ok(())
+    }
+
     /// Gets or creates a database with the given ID. Idempotent — safe to call multiple times.
     /// Used when opening a grid/board note to lazily create the backing database record.
     pub async fn get_or_create_database(&self, id: String, name: String) -> Result<String> {
