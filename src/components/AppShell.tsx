@@ -149,7 +149,7 @@ export default function AppShell({ currentPage, onNavigate }: AppShellProps) {
               {currentPage === 'audio' && <AudioView />}
               {currentPage === 'system-audio' && <SystemAudioView />}
               {currentPage === 'notes' && <NotesView />}
-              {currentPage === 'databases' && <DatabasesView />}
+              {currentPage === 'databases' && <DatabasesView onNavigate={onNavigate} />}
               {currentPage === 'inbox' && <InboxView onNavigate={onNavigate} />}
               {currentPage === 'activity' && <ActivityView onNavigate={onNavigate} />}
               {currentPage === 'security' && <SecurityView onNavigate={onNavigate} />}
