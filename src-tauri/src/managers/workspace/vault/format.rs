@@ -38,6 +38,7 @@ pub enum VaultType {
     Table,
     Board,
     Calendar,
+    Database,
 }
 
 impl VaultType {
@@ -46,6 +47,7 @@ impl VaultType {
             VaultType::Table => "table",
             VaultType::Board => "board",
             VaultType::Calendar => "calendar",
+            VaultType::Database => "database",
         }
     }
 }

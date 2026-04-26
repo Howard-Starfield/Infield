@@ -1,5 +1,6 @@
 pub mod board;
 pub mod calendar;
+pub mod database_md;
 pub mod format;
 pub mod import;
 pub mod table;
@@ -300,6 +301,27 @@ impl VaultManager {
 
         // 10. Return absolute file path (caller can convert to vault-rel as needed).
         Ok(file_path)
+    }
+
+    /// Write `databases/<db-slug>/database.md` for a database. Reads the database
+    /// node from WorkspaceManager and the field schema from DatabaseManager,
+    /// then calls the pure `database_md::export_database_md` helper. Errors if
+    /// the node is missing or has the wrong `node_type`.
+    pub async fn export_database_md(
+        &self,
+        db_id: &str,
+        workspace_manager: &WorkspaceManager,
+        db_mgr: &crate::managers::database::manager::DatabaseManager,
+    ) -> Result<std::path::PathBuf, String> {
+        let db = workspace_manager
+            .get_node(db_id)
+            .await?
+            .ok_or_else(|| format!("Database '{db_id}' not found in workspace_nodes"))?;
+        let fields = db_mgr
+            .get_fields(db_id)
+            .await
+            .map_err(|e| format!("get_fields failed: {e}"))?;
+        database_md::export_database_md(&self.vault_root, &db, &fields)
     }
 
     /// Import one database from its vault file into SQLite via upsert.
