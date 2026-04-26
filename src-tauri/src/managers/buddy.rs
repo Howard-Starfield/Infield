@@ -531,6 +531,15 @@ impl BuddyManager {
             return Err(format!("buddy::equip_gear: gear {gear_id} is slot '{actual_slot}' but requested slot '{slot}'"));
         }
 
+        // Validate target buddy is unlocked, else the unequip-from-prior step would orphan the gear.
+        let target_count: i64 = conn.query_row(
+            "SELECT count(*) FROM buddy_unlocks WHERE buddy_id = ?",
+            [target_buddy_id], |r| r.get(0),
+        ).map_err(|e| format!("buddy::equip_gear: check target: {e}"))?;
+        if target_count == 0 {
+            return Err(format!("buddy::equip_gear: target buddy {target_buddy_id} is not unlocked"));
+        }
+
         let tx = conn.transaction().map_err(|e| format!("buddy::equip_gear: begin tx: {e}"))?;
         // Unequip from any prior buddy
         tx.execute(
@@ -565,6 +574,15 @@ impl BuddyManager {
     }
 
     pub async fn set_overlay_position(&self, x: f64, y: f64, anchor: &str, now_ms: i64) -> Result<(), String> {
+        if !["tl", "tr", "bl", "br"].contains(&anchor) {
+            return Err(format!("buddy::set_overlay_position: invalid anchor '{anchor}' (must be tl/tr/bl/br)"));
+        }
+        if !x.is_finite() || !y.is_finite() {
+            return Err(format!("buddy::set_overlay_position: x and y must be finite (got x={x}, y={y})"));
+        }
+        if !(0.0..=1.0).contains(&x) || !(0.0..=1.0).contains(&y) {
+            return Err(format!("buddy::set_overlay_position: x and y must be in [0.0, 1.0] (got x={x}, y={y})"));
+        }
         let conn = self.conn.lock().await;
         conn.execute(
             "UPDATE buddy_state SET overlay_x = ?, overlay_y = ?, overlay_anchor = ?, updated_at_ms = ?
@@ -1123,5 +1141,43 @@ mod tests {
         let s = mgr.get_state(0).await.expect("get");
         assert_eq!(s.overlay.x, 0.1);
         assert_eq!(s.overlay.anchor, "tl");
+    }
+
+    #[tokio::test]
+    async fn equip_rejects_unknown_target_buddy() {
+        let conn = Arc::new(Mutex::new(setup()));
+        let mgr = BuddyManager::new(conn.clone());
+        {
+            let c = conn.lock().await;
+            c.execute(
+                "INSERT INTO buddy_inventory (gear_id, slot, species, rarity, power_bonus, speed_bonus, charm_bonus, acquired_at_ms)
+                 VALUES ('h1', 'hat', 'top-hat', 'common', 1, 1, 8, 0)",
+                [],
+            ).unwrap();
+        }
+        let err = mgr.equip_gear("h1", "hat", "hover-wings").await.unwrap_err();
+        assert!(err.contains("not unlocked"), "got {err}");
+        // Verify gear is still equipped on nobody (or whoever it was on); critical: scout's hat still NULL
+        let s = mgr.get_state(0).await.expect("get");
+        let scout = s.roster.iter().find(|b| b.buddy_id == "scout-wings").unwrap();
+        assert!(scout.equipped_hat_id.is_none(), "scout's hat should be unchanged");
+    }
+
+    #[tokio::test]
+    async fn set_overlay_position_rejects_bad_anchor() {
+        let conn = Arc::new(Mutex::new(setup()));
+        let mgr = BuddyManager::new(conn);
+        let err = mgr.set_overlay_position(0.5, 0.5, "middle", 0).await.unwrap_err();
+        assert!(err.contains("invalid anchor"), "got {err}");
+    }
+
+    #[tokio::test]
+    async fn set_overlay_position_rejects_out_of_range_or_non_finite() {
+        let conn = Arc::new(Mutex::new(setup()));
+        let mgr = BuddyManager::new(conn);
+        let err = mgr.set_overlay_position(1.5, 0.5, "br", 0).await.unwrap_err();
+        assert!(err.contains("[0.0, 1.0]"), "got {err}");
+        let err = mgr.set_overlay_position(f64::NAN, 0.5, "br", 0).await.unwrap_err();
+        assert!(err.contains("finite"), "got {err}");
     }
 }
