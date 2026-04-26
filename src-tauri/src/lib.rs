@@ -288,6 +288,10 @@ fn initialize_core_logic(app_handle: &AppHandle) {
         .to_latest(&mut ws_conn)
         .expect("Failed to run workspace migrations");
 
+    crate::managers::buddy::BuddyManager::migrations()
+        .to_latest(&mut ws_conn)
+        .expect("Failed to run buddy migrations");
+
     // Rule 19: compare the current model.onnx hash (cached in a side-file
     // keyed by mtime) against the row in `embedding_model_info`. Mismatch
     // wipes `vec_embeddings` + requeues every embeddable node via

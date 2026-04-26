@@ -1,4 +1,5 @@
 pub mod audio;
+pub mod buddy;
 pub mod chat_manager;
 pub mod chat_document_extract;
 pub mod chat_memory;
