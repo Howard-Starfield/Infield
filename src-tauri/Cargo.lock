@@ -2782,6 +2782,7 @@ dependencies = [
  "once_cell",
  "ort",
  "pdf-extract",
+ "rand 0.8.5",
  "rdev 0.5.0-2",
  "regex",
  "reqwest 0.12.28",

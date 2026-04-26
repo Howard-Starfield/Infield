@@ -6,6 +6,7 @@
 
 use std::sync::Arc;
 
+use rand::Rng;
 use rusqlite::{params, Connection};
 use rusqlite_migration::{M, Migrations};
 use tokio::sync::Mutex;
@@ -390,6 +391,101 @@ fn base_stats_table() -> std::collections::HashMap<&'static str, (i32, i32, i32)
     .collect()
 }
 
+/// Spec §6.5 — shift rarity table by +3% per percentage point of total bonus,
+/// taken from Common and redistributed proportionally to Rare/Epic/Legendary.
+pub fn shift_rarity_table(base: [f64; 4], total_bonus_pct: i32) -> [f64; 4] {
+    let drop_pct = (3 * total_bonus_pct) as f64 / 100.0;
+    let new_common = (base[0] - drop_pct).max(0.0);
+    let removed = base[0] - new_common;
+    let upper_sum: f64 = base[1] + base[2] + base[3];
+    if upper_sum <= 0.0 {
+        return base;
+    }
+    let bonus = removed / upper_sum;
+    [
+        new_common,
+        base[1] + base[1] * bonus,
+        base[2] + base[2] * bonus,
+        base[3] + base[3] * bonus,
+    ]
+}
+
+/// Spec §6.5 — 1-in-512 shiny roll.
+pub fn roll_shiny<R: Rng>(rng: &mut R) -> bool {
+    rng.gen_range(0..512) == 0
+}
+
+/// Spec §6.5 — sample a rarity from a 4-bucket table.
+pub fn pick_rarity<R: Rng>(table: [f64; 4], rng: &mut R) -> &'static str {
+    let r: f64 = rng.gen();
+    let mut acc = 0.0;
+    for (i, p) in table.iter().enumerate() {
+        acc += p;
+        if r < acc {
+            return ["common", "rare", "epic", "legendary"][i];
+        }
+    }
+    "legendary"
+}
+
+fn rarity_budget(rarity: &str) -> (i32, f64) {
+    match rarity {
+        "common" => (10, 0.20),
+        "rare" => (25, 0.15),
+        "epic" => (60, 0.10),
+        "legendary" => (150, 0.05),
+        _ => (10, 0.20),
+    }
+}
+
+fn slot_bias(slot: &str) -> [f64; 3] {
+    // [power, speed, charm] weights; +50% to one stat.
+    match slot {
+        "hat" => [1.0, 1.0, 1.5],
+        "aura" => [1.5, 1.0, 1.0],
+        "charm" => [1.0, 1.5, 1.0],
+        _ => [1.0, 1.0, 1.0],
+    }
+}
+
+/// Spec §6.5 — generate a gear item with rarity budget + slot bias.
+pub fn generate_gear<R: Rng>(
+    rarity: &str,
+    slot: &str,
+    shiny: bool,
+    rng: &mut R,
+    now_ms: i64,
+) -> GearItem {
+    let (base, var) = rarity_budget(rarity);
+    let factor = 1.0 + rng.gen_range(-var..var);
+    let budget = (base as f64 * factor).round() as i32;
+
+    let weights = slot_bias(slot);
+    let weight_sum: f64 = weights.iter().sum();
+    let mut alloc = [0i32; 3];
+    let mut remaining = budget;
+    for i in 0..2 {
+        let share = (budget as f64 * weights[i] / weight_sum * rng.gen_range(0.7..1.3)).round()
+            as i32;
+        let share = share.min(remaining).max(0);
+        alloc[i] = share;
+        remaining -= share;
+    }
+    alloc[2] = remaining.max(0);
+
+    GearItem {
+        gear_id: uuid::Uuid::new_v4().to_string(),
+        slot: slot.to_string(),
+        species: format!("{rarity}-{slot}"), // placeholder species naming; B3 polishes
+        rarity: rarity.to_string(),
+        shiny,
+        power_bonus: alloc[0],
+        speed_bonus: alloc[1],
+        charm_bonus: alloc[2],
+        acquired_at_ms: now_ms,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -523,5 +619,52 @@ mod tests {
         let scout = s.roster.iter().find(|b| b.buddy_id == "scout-wings").unwrap();
         assert_eq!(scout.level, 2, "L1→L2 threshold is 100 XP; feeding 101 should bump to L2");
         assert_eq!(scout.xp_total, 101);
+    }
+
+    #[test]
+    fn rarity_table_shifts_proportionally() {
+        let base = [0.70, 0.22, 0.07, 0.01];
+        let shifted = shift_rarity_table(base, 30);
+        // Common reduced by 3×30 = 90 percentage points (clamped to 0)
+        assert!((shifted[0] - (0.70_f64 - 0.90).max(0.0)).abs() < 0.01);
+        // Sum still ≈ 1
+        let sum: f64 = shifted.iter().sum();
+        assert!((sum - 1.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn shiny_rate_is_one_in_five_twelve() {
+        use rand::SeedableRng;
+        let mut shinies = 0;
+        let n = 100_000;
+        for seed in 0..n {
+            let mut rng = rand::rngs::StdRng::seed_from_u64(seed);
+            if roll_shiny(&mut rng) {
+                shinies += 1;
+            }
+        }
+        let observed = shinies as f64 / n as f64;
+        let expected = 1.0 / 512.0;
+        // ±20% tolerance
+        assert!(
+            (observed - expected).abs() < expected * 0.2,
+            "observed {observed} expected {expected}"
+        );
+    }
+
+    #[test]
+    fn legendary_hat_legendary_budget_biased_to_charm() {
+        use rand::SeedableRng;
+        let mut totals = (0i64, 0i64, 0i64); // power, speed, charm
+        for seed in 0..1000 {
+            let mut rng = rand::rngs::StdRng::seed_from_u64(seed);
+            let g = generate_gear("legendary", "hat", false, &mut rng, 0);
+            totals.0 += g.power_bonus as i64;
+            totals.1 += g.speed_bonus as i64;
+            totals.2 += g.charm_bonus as i64;
+        }
+        // Charm should dominate due to +50% bias
+        assert!(totals.2 > totals.0, "charm {} > power {}", totals.2, totals.0);
+        assert!(totals.2 > totals.1, "charm {} > speed {}", totals.2, totals.1);
     }
 }
