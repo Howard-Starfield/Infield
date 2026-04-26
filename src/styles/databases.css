@@ -60,7 +60,7 @@
   cursor: pointer;
   color: var(--heros-text-muted);
   font-size: var(--text-sm);
-  transition: background 0.15s ease;
+  transition: background var(--motion-medium) ease;
   background: none;
   border: none;
   text-align: left;
@@ -101,7 +101,7 @@
   cursor: pointer;
   border: none;
   background: transparent;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background var(--motion-medium) ease, color var(--motion-medium) ease;
 }
 .db-chrome__tab:hover {
   background: var(--row-hover-fill);
@@ -122,7 +122,7 @@
   color: var(--heros-text-muted);
   cursor: pointer;
   border: 1px solid var(--card-mid-rim);
-  transition: background 0.15s ease;
+  transition: background var(--motion-medium) ease;
 }
 .db-pill:hover {
   background: var(--row-hover-fill);
@@ -261,7 +261,7 @@
   gap: var(--space-1);
   cursor: pointer;
   color: var(--heros-text-muted);
-  transition: color 0.15s ease;
+  transition: color var(--motion-medium) ease;
   background: none;
   border: none;
   font-size: var(--text-xs);
@@ -275,7 +275,7 @@
 
 .db-context-menu {
   position: fixed;
-  z-index: 100;
+  z-index: var(--z-context-menu);
   background: var(--card-overlay-fill);
   backdrop-filter: blur(var(--card-overlay-blur));
   -webkit-backdrop-filter: blur(var(--card-overlay-blur));
@@ -298,11 +298,152 @@
   border: none;
   width: 100%;
   text-align: left;
-  transition: background 0.1s ease;
+  transition: background var(--motion-fast) ease;
 }
 .db-context-menu__item:hover {
   background: var(--row-hover-fill);
 }
 .db-context-menu__item--danger {
   color: var(--heros-danger);
+}
+
+/* ── Board ───────────────────────────────────────────────────────────── */
+
+.db-board {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  overflow-x: auto;
+  height: 100%;
+  align-items: flex-start;
+}
+
+.db-board__col {
+  flex-shrink: 0;
+  width: var(--db-board-col-width);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.db-board__col-dot {
+  width: var(--space-2);
+  height: var(--space-2);
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.db-board__col-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--heros-text-premium);
+}
+
+.db-board__col-count {
+  font-size: var(--text-xs);
+  color: var(--heros-text-dim);
+  font-weight: 400;
+}
+
+.db-board__col-add {
+  margin-left: auto;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--heros-text-muted);
+  padding: var(--space-1);
+  border-radius: var(--radius-pill);
+  transition: background var(--motion-fast) ease;
+}
+
+.db-board__col-add:hover {
+  background: var(--row-hover-fill);
+  color: var(--heros-text-premium);
+}
+
+.db-board__cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-height: var(--db-board-empty-drop-min);
+}
+
+.db-board__card {
+  background: var(--card-mid-fill);
+  backdrop-filter: blur(var(--card-mid-blur)) saturate(var(--card-mid-saturate));
+  -webkit-backdrop-filter: blur(var(--card-mid-blur)) saturate(var(--card-mid-saturate));
+  border: 1px solid var(--card-mid-rim);
+  border-radius: var(--radius-container);
+  padding: var(--space-2) var(--space-3);
+  cursor: grab;
+  transition: background var(--motion-fast) ease, box-shadow var(--motion-fast) ease;
+}
+
+.db-board__card:hover {
+  background: var(--row-hover-fill);
+}
+
+.db-board__card--dragging {
+  opacity: 0.5;
+  cursor: grabbing;
+}
+
+.db-board__card-title {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--heros-text-premium);
+  cursor: pointer;
+}
+
+.db-board__card-title:hover {
+  text-decoration: underline;
+}
+
+/* ── Select Popover ───────────────────────────────────────────────────── */
+
+.db-select-popover {
+  background: var(--card-overlay-fill);
+  backdrop-filter: blur(var(--card-overlay-blur)) saturate(var(--card-overlay-saturate));
+  -webkit-backdrop-filter: blur(var(--card-overlay-blur)) saturate(var(--card-overlay-saturate));
+  border: 1px solid var(--card-overlay-rim);
+  border-radius: var(--radius-container);
+  padding: var(--space-2);
+  min-width: var(--db-popover-min-width);
+  box-shadow: var(--heros-panel-shadow);
+  z-index: var(--z-popover);
+}
+
+.db-select-popover__option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  transition: background var(--motion-fast) ease;
+  color: var(--heros-text-premium);
+  background: none;
+  border: none;
+  width: 100%;
+  text-align: left;
+}
+
+.db-select-popover__option:hover {
+  background: var(--row-hover-fill);
+}
+
+.db-select-popover__option--selected {
+  font-weight: 600;
+}
+
+.db-select-popover__dot {
+  width: var(--space-2);
+  height: var(--space-2);
+  border-radius: 50%;
+  flex-shrink: 0;
 }

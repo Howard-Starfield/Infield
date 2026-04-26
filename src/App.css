@@ -39,6 +39,8 @@ html, body {
   --surface-hover:   rgba(255, 255, 255, 0.08);   /* hover highlight */
   --surface-active:  color-mix(in srgb, var(--heros-brand) 15%, transparent);
   --border-subtle:   rgba(255, 255, 255, 0.08);   /* card / divider borders */
+  --border-hairline: 1px;          /* hairline rules (hr, strike-thru thickness) */
+  --border-thick:    3px;          /* blockquote bar, accent bars */
 
   /* Primary — HerOS Terracotta accent */
   --primary:            #cc4c2b;
@@ -195,6 +197,28 @@ html, body {
   --heros-text-brand:    #FFD2C7;
   --heros-text-shadow:   0 2px 10px rgba(0, 0, 0, 0.3);
   --heros-danger:        #f87171;
+
+  /* SelectOption swatches — used by .db-cell-select-pill, .db-select-popover__dot, .db-board__col-head dot */
+  --select-color-purple:      #b794f4;
+  --select-color-pink:        #f687b3;
+  --select-color-light_pink:  #fbb6ce;
+  --select-color-orange:      #f6ad55;
+  --select-color-yellow:      #f6e05e;
+  --select-color-lime:        #c6f6a5;
+  --select-color-green:       #68d391;
+  --select-color-aqua:        #76e4f7;
+  --select-color-blue:        #63b3ed;
+
+  /* W4 Database surface tokens */
+  --db-board-col-width:     280px;
+  --db-board-empty-drop-min: 40px;
+  --db-popover-min-width:   180px;
+  --z-context-menu:         100;
+  --z-popover:              200;
+
+  /* Motion tokens — short transitions for hover/active affordances */
+  --motion-fast:   0.1s;
+  --motion-medium: 0.15s;
 
   --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.5);
 

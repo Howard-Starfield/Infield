@@ -17,6 +17,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type { CellData, Field, SelectOption } from '../bindings'
+import { DatabaseSelectPopover } from '../components/DatabaseSelectPopover'
 import type { MutationKind } from './useDatabase'
 
 interface BaseCellProps {
@@ -161,39 +162,66 @@ function optionsFor(field: Field): SelectOption[] {
 }
 
 /**
- * Stub pill display + a placeholder button. The DatabaseSelectPopover wired
- * via `onChange` lands in Commit E-3; for C we render a non-functional
- * trigger so the surface compiles and the value is visible.
+ * Renders selected option pills inline; clicking the trigger opens
+ * `DatabaseSelectPopover` anchored to the trigger element. Single-select
+ * mode emits a string; multi-select emits a string[]. The popover closes
+ * itself in single mode after pick, and on outside click in multi mode.
  */
-export function SelectCell({ value, field, readOnly }: SelectCellProps) {
+export function SelectCell({ value, field, onChange, readOnly }: SelectCellProps) {
+  const triggerRef = useRef<HTMLButtonElement | null>(null)
+  const [open, setOpen] = useState(false)
   const options = optionsFor(field)
+  const isMulti = field.field_type === 'multi_select'
   const selectedIds: string[] = Array.isArray(value) ? value : value ? [value] : []
   const selected = selectedIds
     .map(id => options.find(o => o.id === id))
     .filter((o): o is SelectOption => Boolean(o))
 
   return (
-    <button
-      type="button"
-      className="db-cell-select-trigger"
-      disabled={readOnly}
-      aria-label={field.name}
-    >
-      {selected.length === 0 ? (
-        <span className="db-cell-select-empty">Select…</span>
-      ) : (
-        selected.map(o => (
-          <span
-            key={o.id}
-            className="db-cell-select-pill"
-            // Color is data-driven, not a design constant — Rule 12 carve-out.
-            style={{ background: `var(--select-color-${o.color})` }}
-          >
-            {o.name}
-          </span>
-        ))
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        className="db-cell-select-trigger"
+        disabled={readOnly}
+        aria-label={field.name}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => {
+          if (readOnly) return
+          setOpen(o => !o)
+        }}
+      >
+        {selected.length === 0 ? (
+          <span className="db-cell-select-empty">Select…</span>
+        ) : (
+          selected.map(o => (
+            <span
+              key={o.id}
+              className="db-cell-select-pill"
+              // Color is data-driven, not a design constant — Rule 12 carve-out.
+              style={{ background: `var(--select-color-${o.color})` }}
+            >
+              {o.name}
+            </span>
+          ))
+        )}
+      </button>
+      {open && !readOnly && (
+        <DatabaseSelectPopover
+          options={options}
+          value={isMulti ? selectedIds : selectedIds[0] ?? ''}
+          multi={isMulti}
+          onChange={next => {
+            // Pass the value back in the same shape the dispatcher expects:
+            // string for single_select, string[] for multi_select.
+            onChange(next, 'immediate')
+          }}
+          onClose={() => setOpen(false)}
+          referenceElement={triggerRef.current}
+        />
       )}
-    </button>
+    </>
   )
 }
 
