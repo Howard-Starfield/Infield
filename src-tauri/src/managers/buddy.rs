@@ -6,7 +6,7 @@
 
 use std::sync::Arc;
 
-use rusqlite::Connection;
+use rusqlite::{params, Connection};
 use rusqlite_migration::{M, Migrations};
 use tokio::sync::Mutex;
 
@@ -59,6 +59,12 @@ pub struct Milestone {
     pub target: i64,
     pub completed_at_ms: Option<i64>,
     pub reward_buddy_id: Option<String>,
+}
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, specta::Type)]
+pub struct ActivityEvent {
+    pub kind: String,
+    pub weight: i64,
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, specta::Type)]
@@ -228,6 +234,51 @@ impl BuddyManager {
         total
     }
 
+    pub async fn record_activity(
+        &self,
+        events: &[ActivityEvent],
+        now_ms: i64,
+    ) -> Result<(), String> {
+        let trimmed = &events[..events.len().min(50)];
+        let total: i64 = trimmed.iter().map(|e| e.weight).sum();
+        if total <= 0 {
+            return Ok(());
+        }
+
+        let conn = self.conn.lock().await;
+        let active: String = conn
+            .query_row(
+                "SELECT active_buddy_id FROM buddy_state WHERE id = 1",
+                [],
+                |r| r.get(0),
+            )
+            .map_err(|e| e.to_string())?;
+        conn.execute(
+            "UPDATE buddy_state SET points_overflow = points_overflow + ?, updated_at_ms = ? WHERE id = 1",
+            params![total as f64, now_ms],
+        )
+        .map_err(|e| e.to_string())?;
+        conn.execute(
+            "UPDATE buddy_unlocks SET xp_total = xp_total + ? WHERE buddy_id = ?",
+            params![total, active.clone()],
+        )
+        .map_err(|e| e.to_string())?;
+        // Recompute level after increment
+        let new_xp: i64 = conn
+            .query_row(
+                "SELECT xp_total FROM buddy_unlocks WHERE buddy_id = ?",
+                [&active],
+                |r| r.get(0),
+            )
+            .map_err(|e| e.to_string())?;
+        conn.execute(
+            "UPDATE buddy_unlocks SET level = ? WHERE buddy_id = ?",
+            params![level_from_xp(new_xp), active],
+        )
+        .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
     /// Returns the migration set. Apply at boot via `to_latest(&mut conn)`.
     pub fn migrations() -> Migrations<'static> {
         Migrations::new(vec![
@@ -303,6 +354,19 @@ impl BuddyManager {
             ),
         ])
     }
+}
+
+/// Spec §6.3 — inverse of `floor(100 × level^1.4)`.
+pub fn level_from_xp(xp: i64) -> i32 {
+    let mut cumulative: i64 = 0;
+    for level in 1..=10_000 {
+        let needed = ((level as f64).powf(1.4) * 100.0).floor() as i64;
+        if cumulative + needed > xp {
+            return level;
+        }
+        cumulative += needed;
+    }
+    10_000
 }
 
 /// Spec §6.4
@@ -413,5 +477,31 @@ mod tests {
         // now < last_drip_ms → no growth, no destruction
         let s = mgr.get_state(1_000_000).await.expect("get");
         assert_eq!(s.points_balance, 500.0);
+    }
+
+    #[tokio::test]
+    async fn record_activity_bumps_overflow_and_xp() {
+        let conn = Arc::new(Mutex::new(setup()));
+        let mgr = BuddyManager::new(conn);
+        mgr.record_activity(&[
+            ActivityEvent { kind: "buddy:note-saved".into(), weight: 5 },
+            ActivityEvent { kind: "buddy:voice-memo-recorded".into(), weight: 50 },
+        ], 9_999_999).await.expect("record");
+        let s = mgr.get_state(9_999_999).await.expect("get");
+        assert_eq!(s.points_overflow, 55.0);
+        let active = s.roster.iter().find(|b| b.buddy_id == "scout-wings").unwrap();
+        assert_eq!(active.xp_total, 55);
+    }
+
+    #[tokio::test]
+    async fn record_activity_caps_batch_at_50_events() {
+        let conn = Arc::new(Mutex::new(setup()));
+        let mgr = BuddyManager::new(conn);
+        let events: Vec<_> = (0..100)
+            .map(|_| ActivityEvent { kind: "buddy:note-saved".into(), weight: 1 })
+            .collect();
+        mgr.record_activity(&events, 0).await.expect("record");
+        let s = mgr.get_state(0).await.expect("get");
+        assert_eq!(s.points_overflow, 50.0); // first 50 only
     }
 }
