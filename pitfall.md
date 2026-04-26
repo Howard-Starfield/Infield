@@ -225,4 +225,94 @@ when that ships.
 
 ---
 
-*Last updated: 2026-04-22 — embedding pooling convention + Windows CRT mismatch in ORT/tokenizers stack (both Phase A spike findings).*
+---
+
+## Tree drag-and-drop — nesting detection and animation
+
+Four gotchas encountered wiring dnd-kit to the note tree in W7 polish.
+
+### 1 — `verticalListSortingStrategy` makes items shift during drag
+
+**Trap**: the default `verticalListSortingStrategy` applies CSS `transform` to sibling items to open a gap showing where the dragged item will land. In a tree this looks broken — the entire list shuffles around as you hover.
+
+**Fix**: replace the sorting strategy with a noop:
+
+```typescript
+const noopSortingStrategy = () => null
+// ...
+<SortableContext items={ids} strategy={noopSortingStrategy}>
+```
+
+The drop indicator (a 2px line) communicates placement without moving any items. The **board view deliberately keeps `verticalListSortingStrategy`** — shifting cards to open a gap is the correct kanban affordance.
+
+### 2 — `DragOverlay` default `dropAnimation` causes a bounce
+
+**Trap**: when the user drops, the overlay item animates (250ms snap-back) to the sorted position before disappearing. In the tree this looks like the note snapping back to its original slot.
+
+**Fix**: `<DragOverlay dropAnimation={null}>`. Set this on any `DragOverlay` where the snap-back is distracting. Remove `transition` from the sortable row style too:
+
+```typescript
+// in useSortable — don't spread transform or transition
+style={{ paddingLeft: 'var(--space-2)' }} // only what you need
+```
+
+### 3 — Middle-zone nesting detection misfires constantly
+
+**Trap**: using "top 25% → before, middle 50% → inside, bottom 25% → after" means hovering anywhere near the center of a row triggers a nest. Users complain nesting is a "hit or miss."
+
+**Fix**: remove the automatic middle-zone entirely. Nest only when the pointer is in the **bottom half AND the user has dragged rightward ≥32px** from the drag origin. Top half always inserts before; bottom half with no rightward movement inserts after.
+
+```typescript
+const inBottomHalf = currentY >= rect.top + rect.height * 0.5
+const movedRight = e.delta.x > 32
+if (!inBottomHalf) {
+  mode = 'before'
+} else if (movedRight) {
+  mode = 'inside'
+} else {
+  mode = 'after'
+}
+```
+
+The `delta.x` threshold of 32px is intentionally large — it prevents accidental nesting from minor horizontal drift on a trackpad.
+
+### 4 — TDZ crash: `useCallback` referencing a `const` declared later
+
+**Trap**: placing a `useCallback` that references `const rows = useMemo(...)` *before* the `useMemo` line compiles fine but crashes at runtime — `const` bindings in the same function body are in the Temporal Dead Zone before their declaration.
+
+**Fix**: always declare `const rows = useMemo(...)` (and any other state/ref/memo a callback needs) **before** the `useCallback` that references it. The same applies to `useEffect` — placing `useEffect(() => { loadTrash() }, [loadTrash])` before `const loadTrash = useCallback(...)` causes an identical runtime crash.
+
+**Checklist for the next person (tree DnD):**
+
+- [ ] Nesting = bottom half + `delta.x > 32` (not a middle zone).
+- [ ] Use `noopSortingStrategy` for tree; keep `verticalListSortingStrategy` for kanban board.
+- [ ] Set `<DragOverlay dropAnimation={null}>` and remove `transition` from sortable row style to eliminate bounce.
+- [ ] Order `const rows = useMemo(...)` and `const loadX = useCallback(...)` **before** any hook that references them.
+- [ ] Use `pointerWithin` + `closestCenter` fallback for collision detection to prevent phantom `over` events in the gaps between rows.
+
+---
+
+*Last updated: 2026-04-25 — tree DnD nesting + animation pitfalls (W7 polish findings).*
+
+---
+
+## Windows test runner: instantiating `WorkspaceManager` in unit tests fails to load (`STATUS_ENTRYPOINT_NOT_FOUND`)
+
+**Symptom.** Adding a `#[cfg(test)] pub fn new_in_memory()` constructor to `WorkspaceManager` and calling it from a `#[test]` (or `#[tokio::test]`) inside the same crate causes the test binary to fail at load time on Windows MSVC — `cargo test --lib` aborts with `process didn't exit successfully: ... (exit code: 0xc0000139, STATUS_ENTRYPOINT_NOT_FOUND)`. Both the lib and the test exe compile cleanly; the failure is only when the OS loader resolves imports for the test exe.
+
+**Bisect.** The trigger is **value instantiation of `Option<Arc<EmbeddingWorker>>`** (or `Arc<EmbeddingWorker>`) inside test code. A test that only references the *type* (`let _x: Option<&Option<Arc<EmbeddingWorker>>> = None;`) passes. A test that instantiates the value (`let _x: Option<Arc<EmbeddingWorker>> = None;`) breaks. `EmbeddingWorker` transitively contains `tauri::AppHandle`; constructing `Option<Arc<EW>>` forces monomorphization of the type's drop glue, which references tauri runtime symbols that don't resolve in the bare `cargo test` exe.
+
+**What we tried that didn't help.**
+
+1. `cargo clean -p handy` + full rebuild (32GB removed, all artefacts regenerated). Same failure.
+2. `#[test]` synchronous + manual `tokio::runtime::Builder::new_current_thread().build().block_on(...)` instead of `#[tokio::test]`. Same failure — the macro is not the cause.
+3. `std::mem::forget(mgr)` to skip the drop entirely. Still fails — the drop glue is monomorphized whether we call it or not.
+4. Wrapping the embedding worker as `Option<Arc<EmbeddingWorker>>` and passing `None` from a test ctor. The mere existence of `Some` in the field type forces monomorphization.
+
+**What we did instead.** Test the helper bodies (`upsert_database_node`, `upsert_row_node`, `mark_node_deleted`) by re-running the same SQL directly against an in-memory `rusqlite::Connection` inside the existing `migration_tests` module. The helpers' bodies are single `conn.execute("INSERT … ON CONFLICT …")` / `UPDATE` calls — exercising the same SQL gives equivalent coverage without instantiating `WorkspaceManager`. See `upsert_database_node_sql_creates_workspace_nodes_row` etc. in `src-tauri/src/managers/workspace/workspace_manager.rs`.
+
+**Production code still uses the methods.** `commands::database::*` and import paths call `ws_mgr.upsert_database_node(...)` etc. as designed — Rule 16 still satisfied because production never hits the broken code path.
+
+**Future fix.** If unit tests *must* instantiate `WorkspaceManager`, options are: (a) make `embedding_worker` an `Option<Arc<dyn EmbeddingWorkerTrait>>` so test code can pass a no-op trait impl that doesn't pull in tauri; (b) move the helpers to free functions taking `&Mutex<Connection>` and keep `WorkspaceManager` methods as thin wrappers; (c) move the tests to an integration test crate where the tauri test-runner DLL is staged. We deferred all three to keep the W4 wiring change minimal — the SQL-direct tests cover the same behaviour.
+
+**Diagnosis took ~45 minutes** (clean rebuild churn dominated). Document this loudly so the next person doesn't repeat it.
