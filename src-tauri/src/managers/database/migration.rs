@@ -39,9 +39,19 @@ pub async fn run_database_mirror_migration(
             .map_err(|e| e.to_string())?
             .is_none();
 
+        // Collision-aware slug. Computed once per database so the database
+        // mirror and any row mirrors below stay in the same folder. Multiple
+        // databases sharing a base slug (e.g. several "Untitled database"
+        // entries) each get their own `<slug>-<short_id>` directory.
+        let base_slug = slugify(name);
+        let final_slug = crate::managers::workspace::vault::database_md::resolve_db_slug(
+            vm.vault_root_path(),
+            &base_slug,
+            id,
+        );
+
         if need_mirror {
-            let slug = slugify(name);
-            let vault_rel_path = format!("databases/{slug}/database.md");
+            let vault_rel_path = format!("databases/{final_slug}/database.md");
             ws_mgr
                 .upsert_workspace_mirror_node(
                     id, None, "database", name, "", 1.0, "{}", &vault_rel_path,
@@ -69,9 +79,8 @@ pub async fn run_database_mirror_migration(
                 .is_none();
 
             if need_row_mirror {
-                let slug = slugify(name);
                 let row_slug = &row_id[..row_id.len().min(8)];
-                let vault_rel_path = format!("databases/{slug}/rows/{row_slug}.md");
+                let vault_rel_path = format!("databases/{final_slug}/rows/{row_slug}.md");
                 ws_mgr
                     .upsert_workspace_mirror_node(
                         row_id, Some(id), "row", "", "", idx as f64, "{}", &vault_rel_path,

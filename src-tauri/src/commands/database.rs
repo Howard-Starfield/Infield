@@ -87,8 +87,15 @@ pub async fn create_database_inner_with_vault(
         .map_err(|e| e.to_string())?;
 
     // 2. Compute canonical vault_rel_path. slugify is deterministic +
-    //    Unicode-NFC + Windows-safe.
-    let slug = crate::managers::workspace::vault::format::slugify(&name);
+    //    Unicode-NFC + Windows-safe; resolve_db_slug then probes the vault
+    //    for a slug collision (e.g. several "Untitled database" entries) and
+    //    appends a short-id suffix so each database gets its own folder.
+    let base_slug = crate::managers::workspace::vault::format::slugify(&name);
+    let slug = crate::managers::workspace::vault::database_md::resolve_db_slug(
+        vm.vault_root_path(),
+        &base_slug,
+        &id,
+    );
     let vault_rel_path = format!("databases/{slug}/database.md");
 
     // 3. Mirror into workspace_nodes. Empty icon for now (icon picker not

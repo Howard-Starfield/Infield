@@ -14,8 +14,60 @@ use super::format::{
 use crate::managers::database::field::Field;
 use crate::managers::workspace::node_types::WorkspaceNode;
 
+/// Resolve a unique on-disk slug for a database. If `<vault_root>/databases/
+/// <base_slug>/database.md` does not exist, returns `base_slug`. If it exists
+/// and belongs to the same `db_id`, also returns `base_slug`. If it exists and
+/// belongs to a different database (slug collision — typical when the user
+/// creates several databases with the default "Untitled database" name),
+/// returns `<base_slug>-<first 8 chars of db_id>`. Mirrors the document-side
+/// collision policy in `WorkspaceManager::write_node_to_vault`.
+///
+/// Pure: no SQLite, no async, no manager. Caller persists the resolved slug
+/// in `workspace_nodes.vault_rel_path` and uses it for `export_database_md`.
+pub fn resolve_db_slug(vault_root: &Path, base_slug: &str, db_id: &str) -> String {
+    let candidate = vault_root
+        .join("databases")
+        .join(base_slug)
+        .join("database.md");
+    if !candidate.exists() {
+        return base_slug.to_string();
+    }
+    let existing = read_db_id_from_md(&candidate);
+    match existing.as_deref() {
+        Some(id) if id == db_id => base_slug.to_string(),
+        _ => {
+            let short = &db_id[..db_id.len().min(8)];
+            format!("{base_slug}-{short}")
+        }
+    }
+}
+
+/// Read the `id:` value from the YAML frontmatter of a `database.md` file.
+/// Strips surrounding quotes (the writer uses `yaml_str` which double-quotes).
+/// Returns `None` if the file is missing, unreadable, or has no frontmatter.
+fn read_db_id_from_md(path: &Path) -> Option<String> {
+    let content = std::fs::read_to_string(path).ok()?;
+    let content = content.trim_start();
+    if !content.starts_with("---") {
+        return None;
+    }
+    let end = content[3..].find("\n---")?;
+    let frontmatter = &content[3..3 + end];
+    for line in frontmatter.lines() {
+        if let Some(rest) = line.strip_prefix("id:") {
+            let trimmed = rest.trim();
+            // Strip surrounding double quotes if present.
+            return Some(trimmed.trim_matches('"').to_string());
+        }
+    }
+    None
+}
+
 /// Write `databases/<db-slug>/database.md` for a database node + its field
-/// schema. Returns the absolute file path on success.
+/// schema. Uses `db.vault_rel_path` to determine the directory when set
+/// (the command layer pre-resolves slugs with collision-handling), falling
+/// back to `slugify(db.name)` when the path is not yet persisted (e.g.
+/// during the first export inside a unit test). Returns the absolute path.
 pub fn export_database_md(
     vault_root: &Path,
     db: &WorkspaceNode,
@@ -28,8 +80,17 @@ pub fn export_database_md(
         ));
     }
 
-    let db_slug = slugify(&db.name);
-    let db_dir = vault_root.join("databases").join(&db_slug);
+    // Prefer the slug encoded in `vault_rel_path` (set by the command layer
+    // after running the collision check) so two databases with the same name
+    // don't stomp each other's database.md. Fallback to slugify(name) for
+    // call sites where vault_rel_path isn't yet set (tests, edge cases).
+    let db_dir_rel = db
+        .vault_rel_path
+        .as_deref()
+        .and_then(|p| p.strip_suffix("/database.md"))
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| format!("databases/{}", slugify(&db.name)));
+    let db_dir = vault_root.join(&db_dir_rel);
     std::fs::create_dir_all(&db_dir)
         .map_err(|e| format!("create_dir_all({db_dir:?}) failed: {e}"))?;
 
@@ -181,5 +242,52 @@ mod tests {
         assert!(result.is_err(), "must reject non-database node_type");
         let err = result.unwrap_err();
         assert!(err.contains("expected 'database'"), "error mentions expected type, got: {err}");
+    }
+
+    #[test]
+    fn resolve_db_slug_returns_base_when_no_collision() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let resolved = resolve_db_slug(temp.path(), "untitled-database", "db-aaaaaaaa");
+        assert_eq!(resolved, "untitled-database");
+    }
+
+    #[test]
+    fn resolve_db_slug_returns_base_when_existing_id_matches() {
+        // Already-written database.md with the same id → re-export, same slug.
+        let temp = tempfile::tempdir().expect("tempdir");
+        let db = make_db_node("db-aaaaaaaa", "Untitled database");
+        export_database_md(temp.path(), &db, &[]).expect("first write");
+
+        let resolved = resolve_db_slug(temp.path(), "untitled-database", "db-aaaaaaaa");
+        assert_eq!(resolved, "untitled-database");
+    }
+
+    #[test]
+    fn resolve_db_slug_appends_short_id_on_collision() {
+        // database.md exists with a DIFFERENT id → second database with same
+        // name must NOT overwrite it; gets `<slug>-<first8ofid>` instead.
+        let temp = tempfile::tempdir().expect("tempdir");
+        let first = make_db_node("db-firstidx", "Untitled database");
+        export_database_md(temp.path(), &first, &[]).expect("first write");
+
+        let resolved = resolve_db_slug(temp.path(), "untitled-database", "db-secondx");
+        assert_eq!(resolved, "untitled-database-db-secon");
+    }
+
+    #[test]
+    fn export_database_md_uses_vault_rel_path_when_set() {
+        // When the command layer pre-resolves the slug and persists it in
+        // vault_rel_path, export_database_md must write to that exact path
+        // rather than re-slugifying the name.
+        let temp = tempfile::tempdir().expect("tempdir");
+        let mut db = make_db_node("db-xxxxxxxx", "Untitled database");
+        db.vault_rel_path = Some(
+            "databases/untitled-database-db-xxxxx/database.md".to_string(),
+        );
+        let path = export_database_md(temp.path(), &db, &[]).expect("export");
+        assert!(
+            path.ends_with("databases/untitled-database-db-xxxxx/database.md"),
+            "wrote to vault_rel_path-derived dir, got {path:?}"
+        );
     }
 }
