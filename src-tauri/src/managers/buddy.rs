@@ -245,37 +245,43 @@ impl BuddyManager {
             return Ok(());
         }
 
-        let conn = self.conn.lock().await;
-        let active: String = conn
+        let mut conn = self.conn.lock().await;
+        let tx = conn
+            .transaction()
+            .map_err(|e| format!("buddy::record_activity: begin tx: {e}"))?;
+
+        let active: String = tx
             .query_row(
                 "SELECT active_buddy_id FROM buddy_state WHERE id = 1",
                 [],
                 |r| r.get(0),
             )
-            .map_err(|e| e.to_string())?;
-        conn.execute(
-            "UPDATE buddy_state SET points_overflow = points_overflow + ?, updated_at_ms = ? WHERE id = 1",
-            params![total as f64, now_ms],
-        )
-        .map_err(|e| e.to_string())?;
-        conn.execute(
-            "UPDATE buddy_unlocks SET xp_total = xp_total + ? WHERE buddy_id = ?",
-            params![total, active.clone()],
-        )
-        .map_err(|e| e.to_string())?;
-        // Recompute level after increment
-        let new_xp: i64 = conn
+            .map_err(|e| format!("buddy::record_activity: read active: {e}"))?;
+
+        let prev_xp: i64 = tx
             .query_row(
                 "SELECT xp_total FROM buddy_unlocks WHERE buddy_id = ?",
                 [&active],
                 |r| r.get(0),
             )
-            .map_err(|e| e.to_string())?;
-        conn.execute(
-            "UPDATE buddy_unlocks SET level = ? WHERE buddy_id = ?",
-            params![level_from_xp(new_xp), active],
+            .map_err(|e| format!("buddy::record_activity: read xp: {e}"))?;
+        let new_xp = prev_xp + total;
+        let new_level = level_from_xp(new_xp);
+
+        tx.execute(
+            "UPDATE buddy_state SET points_overflow = points_overflow + ?, updated_at_ms = ? WHERE id = 1",
+            params![total as f64, now_ms],
         )
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| format!("buddy::record_activity: bump overflow: {e}"))?;
+
+        tx.execute(
+            "UPDATE buddy_unlocks SET xp_total = ?, level = ? WHERE buddy_id = ?",
+            params![new_xp, new_level, &active],
+        )
+        .map_err(|e| format!("buddy::record_activity: bump xp/level: {e}"))?;
+
+        tx.commit()
+            .map_err(|e| format!("buddy::record_activity: commit: {e}"))?;
         Ok(())
     }
 
@@ -503,5 +509,19 @@ mod tests {
         mgr.record_activity(&events, 0).await.expect("record");
         let s = mgr.get_state(0).await.expect("get");
         assert_eq!(s.points_overflow, 50.0); // first 50 only
+    }
+
+    #[tokio::test]
+    async fn record_activity_advances_level_when_threshold_crossed() {
+        let conn = Arc::new(Mutex::new(setup()));
+        let mgr = BuddyManager::new(conn);
+        mgr.record_activity(
+            &[ActivityEvent { kind: "buddy:url-imported".into(), weight: 101 }],
+            0,
+        ).await.expect("record");
+        let s = mgr.get_state(0).await.expect("get");
+        let scout = s.roster.iter().find(|b| b.buddy_id == "scout-wings").unwrap();
+        assert_eq!(scout.level, 2, "L1→L2 threshold is 100 XP; feeding 101 should bump to L2");
+        assert_eq!(scout.xp_total, 101);
     }
 }
