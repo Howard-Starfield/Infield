@@ -77,6 +77,14 @@ pub struct OverlayState {
 }
 
 const DRIP_DURATION_SEC: f64 = 8.0 * 60.0 * 60.0; // 8 hours
+const CLAIM_MIN_POINTS: f64 = 50.0;
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, specta::Type)]
+pub struct ClaimResult {
+    pub points_claimed: f64,
+    pub xp_awarded: i64,
+    pub gear_dropped: Vec<GearItem>,
+}
 
 impl BuddyManager {
     pub fn new(conn: Arc<Mutex<Connection>>) -> Self {
@@ -284,6 +292,145 @@ impl BuddyManager {
         tx.commit()
             .map_err(|e| format!("buddy::record_activity: commit: {e}"))?;
         Ok(())
+    }
+
+    pub async fn claim_chest(
+        &self,
+        now_ms: i64,
+        seed: Option<u64>,
+    ) -> Result<ClaimResult, String> {
+        use rand::SeedableRng;
+        let mut conn = self.conn.lock().await;
+
+        // Re-read state inside the lock so we operate on the up-to-date row
+        let (mut balance, overflow, cap, last_drip, active): (f64, f64, f64, i64, String) = conn
+            .query_row(
+                "SELECT points_balance, points_overflow, cap_total, last_drip_ms, active_buddy_id
+                   FROM buddy_state WHERE id = 1",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
+            )
+            .map_err(|e| format!("buddy::claim_chest: read state: {e}"))?;
+
+        // Apply lazy drip up to now (same formula as get_state)
+        let elapsed_sec = ((now_ms - last_drip) as f64 / 1000.0).max(0.0);
+        let rate = cap / DRIP_DURATION_SEC;
+        balance = (balance + elapsed_sec * rate).min(cap);
+
+        let claimable = balance + overflow;
+        if claimable < CLAIM_MIN_POINTS {
+            return Err(format!(
+                "buddy::claim_chest: minimum claim is {CLAIM_MIN_POINTS} points; have {claimable:.0}"
+            ));
+        }
+
+        // Compute team_power for loot bonus
+        let roster = Self::read_roster(&conn)?;
+        let inv = Self::read_inventory(&conn)?;
+        let team_power = Self::compute_team_power(&roster, &inv);
+
+        let activity_bonus = (overflow / 100.0).floor().min(20.0) as i32;
+        let team_bonus = ((team_power + 1.0).log10() * 8.0).floor().clamp(0.0, 30.0) as i32;
+        let total_bonus = (activity_bonus + team_bonus).min(50);
+
+        let mut rng: rand::rngs::StdRng = match seed {
+            Some(s) => rand::rngs::StdRng::seed_from_u64(s),
+            None => rand::rngs::StdRng::from_entropy(),
+        };
+
+        // Drop count: 1 (60%), 2 (30%), 3 (10%)
+        let n = {
+            let r: f64 = rng.gen();
+            if r < 0.6 {
+                1
+            } else if r < 0.9 {
+                2
+            } else {
+                3
+            }
+        };
+        let table = shift_rarity_table([0.70, 0.22, 0.07, 0.01], total_bonus);
+
+        let mut drops = Vec::with_capacity(n);
+        let slots = ["hat", "aura", "charm"];
+        for _ in 0..n {
+            let rarity = pick_rarity(table, &mut rng);
+            let slot = slots[rng.gen_range(0..3)];
+            let shiny = roll_shiny(&mut rng);
+            drops.push(generate_gear(rarity, slot, shiny, &mut rng, now_ms));
+        }
+
+        let xp_awarded = claimable.floor() as i64;
+        // Spec/test expectation: chest balance only, NOT overflow. Overflow continues
+        // accumulating across claims as the activity bonus stream.
+        let points_claimed = balance;
+
+        let tx = conn
+            .transaction()
+            .map_err(|e| format!("buddy::claim_chest: begin tx: {e}"))?;
+
+        for g in &drops {
+            tx.execute(
+                "INSERT INTO buddy_inventory (gear_id, slot, species, rarity, shiny,
+                    power_bonus, speed_bonus, charm_bonus, acquired_at_ms)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                params![
+                    g.gear_id,
+                    g.slot,
+                    g.species,
+                    g.rarity,
+                    g.shiny as i32,
+                    g.power_bonus,
+                    g.speed_bonus,
+                    g.charm_bonus,
+                    g.acquired_at_ms
+                ],
+            )
+            .map_err(|e| format!("buddy::claim_chest: insert gear: {e}"))?;
+        }
+
+        tx.execute(
+            "UPDATE buddy_state SET points_balance = 0, last_drip_ms = ?, last_claim_ms = ?, updated_at_ms = ?
+               WHERE id = 1",
+            params![now_ms, now_ms, now_ms],
+        )
+        .map_err(|e| format!("buddy::claim_chest: reset balance: {e}"))?;
+
+        let prev_xp: i64 = tx
+            .query_row(
+                "SELECT xp_total FROM buddy_unlocks WHERE buddy_id = ?",
+                [&active],
+                |r| r.get(0),
+            )
+            .map_err(|e| format!("buddy::claim_chest: read xp: {e}"))?;
+        let new_xp = prev_xp + xp_awarded;
+        tx.execute(
+            "UPDATE buddy_unlocks SET xp_total = ?, level = ? WHERE buddy_id = ?",
+            params![new_xp, level_from_xp(new_xp), &active],
+        )
+        .map_err(|e| format!("buddy::claim_chest: update xp/level: {e}"))?;
+
+        let gear_ids: Vec<&str> = drops.iter().map(|g| g.gear_id.as_str()).collect();
+        tx.execute(
+            "INSERT INTO buddy_claim_log (claimed_at_ms, points_claimed, gear_dropped, xp_awarded)
+             VALUES (?, ?, ?, ?)",
+            params![
+                now_ms,
+                points_claimed,
+                serde_json::to_string(&gear_ids).map_err(|e| format!("serde: {e}"))?,
+                xp_awarded
+            ],
+        )
+        .map_err(|e| format!("buddy::claim_chest: insert log: {e}"))?;
+
+        tx.commit()
+            .map_err(|e| format!("buddy::claim_chest: commit: {e}"))?;
+
+        Ok(ClaimResult {
+            points_claimed,
+            xp_awarded,
+            gear_dropped: drops,
+        })
     }
 
     /// Returns the migration set. Apply at boot via `to_latest(&mut conn)`.
@@ -650,6 +797,55 @@ mod tests {
             (observed - expected).abs() < expected * 0.2,
             "observed {observed} expected {expected}"
         );
+    }
+
+    #[tokio::test]
+    async fn claim_at_full_cap_drops_gear_and_resets_balance() {
+        let conn = Arc::new(Mutex::new(setup()));
+        let mgr = BuddyManager::new(conn.clone());
+        {
+            let c = conn.lock().await;
+            c.execute(
+                "UPDATE buddy_state SET points_balance = 1000, points_overflow = 200, last_drip_ms = ?",
+                params![0i64],
+            ).unwrap();
+        }
+        let result = mgr.claim_chest(1_000_000, /*seed*/ Some(42)).await.expect("claim");
+        assert!(!result.gear_dropped.is_empty(), "should drop ≥1 piece");
+        assert_eq!(result.points_claimed, 1000.0);
+
+        let s = mgr.get_state(1_000_000).await.expect("get");
+        assert_eq!(s.points_balance, 0.0);
+        assert_eq!(s.points_overflow, 200.0);
+        assert_eq!(s.inventory.len(), result.gear_dropped.len());
+    }
+
+    #[tokio::test]
+    async fn claim_below_minimum_returns_error() {
+        let conn = Arc::new(Mutex::new(setup()));
+        let mgr = BuddyManager::new(conn.clone());
+        {
+            let c = conn.lock().await;
+            c.execute("UPDATE buddy_state SET points_balance = 30, points_overflow = 0", []).unwrap();
+        }
+        let err = mgr.claim_chest(0, None).await.unwrap_err();
+        assert!(err.contains("minimum"), "got {err}");
+    }
+
+    #[tokio::test]
+    async fn claim_log_records_each_drop() {
+        let conn = Arc::new(Mutex::new(setup()));
+        let mgr = BuddyManager::new(conn.clone());
+        {
+            let c = conn.lock().await;
+            c.execute("UPDATE buddy_state SET points_balance = 1000", []).unwrap();
+        }
+        mgr.claim_chest(0, Some(7)).await.expect("claim");
+        let log_count: i64 = {
+            let c = conn.lock().await;
+            c.query_row("SELECT count(*) FROM buddy_claim_log", [], |r| r.get(0)).unwrap()
+        };
+        assert_eq!(log_count, 1);
     }
 
     #[test]
