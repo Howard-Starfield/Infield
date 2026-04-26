@@ -5,6 +5,7 @@ use crate::managers::database::manager::DatabaseManager;
 use crate::managers::database::sort::Sort;
 use crate::managers::workspace::AppState;
 use crate::managers::workspace::VaultManager;
+use crate::managers::workspace::WorkspaceManager;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::sync::Arc;
@@ -53,6 +54,12 @@ pub struct RowCellsBatch {
 //  Inner (testable without Tauri State)
 // ------------------------------------------------------------------ //
 
+/// Database-layer-only create. Inserts a row into `database.db` and returns
+/// metadata. Does NOT mirror into `workspace_nodes` and does NOT write the
+/// vault file. Retained as the inner used by the existing unit test
+/// (`create_database_and_add_row`) which can't instantiate a
+/// `WorkspaceManager` on Windows MSVC due to a STATUS_ENTRYPOINT_NOT_FOUND
+/// in test builds. The Tauri-facing path is `create_database_inner_with_vault`.
 pub async fn create_database_inner(
     mgr: &Arc<DatabaseManager>,
     name: String,
@@ -61,6 +68,54 @@ pub async fn create_database_inner(
         .create_database(name.clone())
         .await
         .map_err(|e| e.to_string())?;
+    Ok(DatabaseMeta { id, name })
+}
+
+/// Full create_database orchestration: database.db row + workspace_nodes
+/// mirror + vault `database.md` file. SQLite is the source of truth on
+/// failure, vault drift is recoverable on next boot.
+pub async fn create_database_inner_with_vault(
+    db_mgr: &Arc<DatabaseManager>,
+    ws_mgr: &Arc<WorkspaceManager>,
+    vm: &Arc<VaultManager>,
+    name: String,
+) -> Result<DatabaseMeta, String> {
+    // 1. database.db insert (creates the databases row + primary "Name" field).
+    let id = db_mgr
+        .create_database(name.clone())
+        .await
+        .map_err(|e| e.to_string())?;
+
+    // 2. Compute canonical vault_rel_path. slugify is deterministic +
+    //    Unicode-NFC + Windows-safe.
+    let slug = crate::managers::workspace::vault::format::slugify(&name);
+    let vault_rel_path = format!("databases/{slug}/database.md");
+
+    // 3. Mirror into workspace_nodes. Empty icon for now (icon picker not
+    //    wired in W4). On failure, roll back the database.db row to avoid an
+    //    orphan with no FTS/vector index entry.
+    if let Err(e) = ws_mgr
+        .upsert_workspace_mirror_node(&id, None, "database", &name, "", 1.0, "{}", &vault_rel_path)
+        .await
+    {
+        log::warn!(
+            "Mirror upsert failed for db '{id}'; rolling back database.db row: {e}"
+        );
+        let _ = db_mgr.delete_database_hard(&id).await;
+        return Err(format!(
+            "Failed to mirror database into workspace_nodes: {e}"
+        ));
+    }
+
+    // 4. Write database.md vault-first. On failure, leave SQLite state intact
+    //    — the boot migration (Commit G) backfills missing vault files. Vault
+    //    drift is recoverable; SQLite drift isn't.
+    if let Err(e) = vm.export_database_md(&id, ws_mgr, db_mgr).await {
+        log::warn!(
+            "export_database_md failed for db '{id}': {e}. SQLite state retained; will retry on next boot."
+        );
+    }
+
     Ok(DatabaseMeta { id, name })
 }
 
@@ -82,11 +137,18 @@ pub async fn create_row_inner(
 #[tauri::command]
 #[specta::specta]
 pub async fn create_database(
-    db_mgr: State<'_, Arc<DatabaseManager>>,
+    state: State<'_, Arc<AppState>>,
+    vm: State<'_, Arc<VaultManager>>,
     name: String,
     _default_view_id: String,
 ) -> Result<DatabaseMeta, String> {
-    create_database_inner(&db_mgr, name).await
+    create_database_inner_with_vault(
+        &state.database_manager,
+        &state.workspace_manager,
+        &vm,
+        name,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -593,17 +655,13 @@ pub async fn run_workspace_migration(
 #[tauri::command]
 #[specta::specta]
 pub async fn list_databases(
-    state: State<'_, Arc<crate::managers::workspace::AppState>>,
+    db_mgr: State<'_, Arc<DatabaseManager>>,
     prefix: Option<String>,
 ) -> Result<Vec<DatabaseSummary>, String> {
-    let db_mgr = state.database_manager.clone();
-    let ws_conn = state.workspace_manager.conn().clone();
-    let rows = tokio::task::spawn_blocking(move || -> Result<_, String> {
-        let conn = ws_conn.blocking_lock();
-        db_mgr.list_databases(&conn, prefix).map_err(|e| e.to_string())
-    })
-    .await
-    .map_err(|e| e.to_string())??;
+    let rows = db_mgr
+        .list_databases(prefix)
+        .await
+        .map_err(|e| e.to_string())?;
     Ok(rows
         .into_iter()
         .map(|(id, title, icon, row_count)| DatabaseSummary { id, title, icon, row_count })

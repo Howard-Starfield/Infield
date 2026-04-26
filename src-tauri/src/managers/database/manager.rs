@@ -152,6 +152,17 @@ impl DatabaseManager {
         Ok(db_id)
     }
 
+    /// Hard-delete a database and its child rows/fields/cells/views from
+    /// `database.db`. Used only by `create_database_inner_with_vault` rollback
+    /// when the workspace_nodes mirror insert fails. CASCADE handles children.
+    /// Soft-delete is handled by `WorkspaceManager::soft_delete_node` on the
+    /// workspace_nodes mirror (the user-facing trash surface).
+    pub async fn delete_database_hard(&self, db_id: &str) -> Result<()> {
+        let conn = self.conn.lock().await;
+        conn.execute("DELETE FROM databases WHERE id = ?1", params![db_id])?;
+        Ok(())
+    }
+
     /// Gets or creates a database with the given ID. Idempotent — safe to call multiple times.
     /// Used when opening a grid/board note to lazily create the backing database record.
     pub async fn get_or_create_database(&self, id: String, name: String) -> Result<String> {
@@ -284,38 +295,34 @@ impl DatabaseManager {
     ///
     /// Takes the workspace.db connection — list_databases queries `workspace_nodes`,
     /// which lives in WorkspaceManager's connection, not DatabaseManager's `database.db`.
-    pub fn list_databases(
+    /// Lists all databases stored in `database.db`, sorted alphabetically.
+    /// Queries `databases` + `db_rows` — the same tables that `create_database`
+    /// and `create_row` write to, so newly created databases appear immediately
+    /// without a migration step. The `workspace_conn` parameter is intentionally
+    /// unused; it is kept in the signature so the six tests below can be updated
+    /// incrementally, but the query no longer needs a cross-file join.
+    pub async fn list_databases(
         &self,
-        workspace_conn: &rusqlite::Connection,
         prefix: Option<String>,
     ) -> Result<Vec<(String, String, String, i64)>> {
+        let conn = self.conn.lock().await;
         let sql = if prefix.is_some() {
             r#"
-            SELECT w.id, w.name, w.icon,
-                   (SELECT COUNT(*) FROM workspace_nodes r
-                    WHERE r.parent_id = w.id
-                      AND r.node_type = 'row'
-                      AND r.deleted_at IS NULL) AS row_count
-            FROM workspace_nodes w
-            WHERE w.node_type = 'database'
-              AND w.deleted_at IS NULL
-              AND LOWER(w.name) LIKE LOWER(?1) ESCAPE '\'
-            ORDER BY LOWER(w.name)
+            SELECT d.id, d.name, '' AS icon,
+                   (SELECT COUNT(*) FROM db_rows r WHERE r.database_id = d.id) AS row_count
+            FROM databases d
+            WHERE LOWER(d.name) LIKE LOWER(?1) ESCAPE '\'
+            ORDER BY LOWER(d.name)
             "#
         } else {
             r#"
-            SELECT w.id, w.name, w.icon,
-                   (SELECT COUNT(*) FROM workspace_nodes r
-                    WHERE r.parent_id = w.id
-                      AND r.node_type = 'row'
-                      AND r.deleted_at IS NULL) AS row_count
-            FROM workspace_nodes w
-            WHERE w.node_type = 'database'
-              AND w.deleted_at IS NULL
-            ORDER BY LOWER(w.name)
+            SELECT d.id, d.name, '' AS icon,
+                   (SELECT COUNT(*) FROM db_rows r WHERE r.database_id = d.id) AS row_count
+            FROM databases d
+            ORDER BY LOWER(d.name)
             "#
         };
-        let mut stmt = workspace_conn.prepare(sql)?;
+        let mut stmt = conn.prepare(sql)?;
         // Escape LIKE wildcards (\, %, _) in the user-supplied prefix so
         // titles containing literal '%' or '_' don't act as wildcards.
         let pattern = prefix.map(|p| {
@@ -1270,52 +1277,24 @@ mod tests {
         assert_eq!(views[1].id, v1.id);
     }
 
-    /// Build a minimal in-memory workspace_nodes table for list_databases tests.
-    fn make_workspace_conn_with_nodes(rows: &[(&str, &str, &str, &str, Option<&str>)]) -> rusqlite::Connection {
-        // rows: (id, name, icon, node_type, parent_id)
-        let conn = rusqlite::Connection::open_in_memory().expect("open_in_memory");
-        conn.execute_batch(
-            r#"
-            CREATE TABLE workspace_nodes (
-                id         TEXT PRIMARY KEY,
-                parent_id  TEXT,
-                node_type  TEXT NOT NULL,
-                name       TEXT NOT NULL,
-                icon       TEXT NOT NULL DEFAULT '📄',
-                position   REAL NOT NULL DEFAULT 0.0,
-                created_at INTEGER NOT NULL,
-                updated_at INTEGER NOT NULL,
-                deleted_at INTEGER,
-                properties TEXT NOT NULL DEFAULT '{}',
-                body       TEXT NOT NULL DEFAULT ''
-            );
-            "#,
-        ).expect("create table");
-        for (id, name, icon, node_type, parent_id) in rows {
-            conn.execute(
-                "INSERT INTO workspace_nodes (id, parent_id, node_type, name, icon, position, created_at, updated_at, deleted_at, properties, body)
-                 VALUES (?1, ?2, ?3, ?4, ?5, 0.0, 0, 0, NULL, '{}', '')",
-                rusqlite::params![id, parent_id, node_type, name, icon],
-            ).expect("insert");
-        }
-        conn
-    }
+    // list_databases tests use the manager's own database.db connection —
+    // they create real databases/rows via the API, then call list_databases.
+    // The old workspace_nodes-based helper was removed when list_databases was
+    // rewritten to query database.db (the table create_database actually writes to).
 
     #[tokio::test]
     async fn list_databases_returns_alphabetical() {
         let mgr = make_manager().await;
-        // Insert two databases out of order: "Zebra" then "Apple"
-        let ws_conn = make_workspace_conn_with_nodes(&[
-            ("z-id", "Zebra", "🦓", "database", None),
-            ("a-id", "Apple", "🍎", "database", None),
-        ]);
+        // Create two databases out of order: "Zebra" then "Apple".
+        mgr.create_database("Zebra".to_string()).await.expect("create Zebra");
+        mgr.create_database("Apple".to_string()).await.expect("create Apple");
 
-        let rows = mgr.list_databases(&ws_conn, None).expect("list_databases");
+        let rows = mgr.list_databases(None).await.expect("list_databases");
         assert_eq!(rows.len(), 2);
-        // Sorted by LOWER(name): Apple, Zebra
+        // Sorted by LOWER(name): Apple, Zebra.
         assert_eq!(rows[0].1, "Apple");
         assert_eq!(rows[1].1, "Zebra");
-        // row_count should be 0 for both (no row children)
+        // row_count should be 0 for both (no rows created yet).
         assert_eq!(rows[0].3, 0);
         assert_eq!(rows[1].3, 0);
     }
@@ -1323,12 +1302,11 @@ mod tests {
     #[tokio::test]
     async fn list_databases_counts_rows() {
         let mgr = make_manager().await;
-        let ws_conn = make_workspace_conn_with_nodes(&[
-            ("db-1", "Tasks", "✅", "database", None),
-            ("r-1", "Row 1", "📋", "row", Some("db-1")),
-            ("r-2", "Row 2", "📋", "row", Some("db-1")),
-        ]);
-        let rows = mgr.list_databases(&ws_conn, None).expect("list_databases");
+        let db_id = mgr.create_database("Tasks".to_string()).await.expect("create Tasks");
+        mgr.create_row(&db_id).await.expect("row 1");
+        mgr.create_row(&db_id).await.expect("row 2");
+
+        let rows = mgr.list_databases(None).await.expect("list_databases");
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].3, 2, "Tasks should have 2 rows");
     }
@@ -1336,16 +1314,14 @@ mod tests {
     #[tokio::test]
     async fn list_databases_prefix_filter_case_insensitive() {
         let mgr = make_manager().await;
-        let ws_conn = make_workspace_conn_with_nodes(&[
-            ("a", "Apple", "🍎", "database", None),
-            ("b", "Banana", "🍌", "database", None),
-            ("c", "apricot", "🥭", "database", None),
-        ]);
-        // Prefix "ap" should match "Apple" and "apricot" (case-insensitive)
-        let rows = mgr.list_databases(&ws_conn, Some("ap".to_string())).expect("list_databases");
+        mgr.create_database("Apple".to_string()).await.expect("create Apple");
+        mgr.create_database("Banana".to_string()).await.expect("create Banana");
+        mgr.create_database("apricot".to_string()).await.expect("create apricot");
+
+        // Prefix "ap" should match "Apple" and "apricot" (case-insensitive).
+        let rows = mgr.list_databases(Some("ap".to_string())).await.expect("list_databases");
         assert_eq!(rows.len(), 2);
-        // sorted alphabetically: apricot < Apple under LOWER ordering both = "ap..."
-        // "apple" vs "apricot" — apple < apricot
+        // Sorted alphabetically under LOWER(): "apple" < "apricot".
         assert_eq!(rows[0].1, "Apple");
         assert_eq!(rows[1].1, "apricot");
     }
@@ -1353,55 +1329,49 @@ mod tests {
     #[tokio::test]
     async fn list_databases_prefix_no_match_returns_empty() {
         let mgr = make_manager().await;
-        let ws_conn = make_workspace_conn_with_nodes(&[
-            ("a", "Apple", "🍎", "database", None),
-            ("b", "Banana", "🍌", "database", None),
-        ]);
+        mgr.create_database("Apple".to_string()).await.expect("create Apple");
+        mgr.create_database("Banana".to_string()).await.expect("create Banana");
+
         let rows = mgr
-            .list_databases(&ws_conn, Some("zzz".to_string()))
+            .list_databases(Some("zzz".to_string()))
+            .await
             .expect("list_databases");
         assert!(rows.is_empty());
     }
 
     #[tokio::test]
-    async fn list_databases_excludes_soft_deleted() {
+    async fn list_databases_all_visible_no_soft_delete() {
+        // `databases` table has no `deleted_at` column — all created databases
+        // are always visible. Verify two databases both appear.
         let mgr = make_manager().await;
-        let ws_conn = make_workspace_conn_with_nodes(&[
-            ("a", "Apple", "🍎", "database", None),
-            ("b", "Banana", "🍌", "database", None),
-        ]);
-        // Soft-delete "Apple" by setting deleted_at to a non-NULL UNIX timestamp.
-        ws_conn
-            .execute(
-                "UPDATE workspace_nodes SET deleted_at = ?1 WHERE id = 'a'",
-                rusqlite::params![1_700_000_000_i64],
-            )
-            .expect("soft delete");
+        mgr.create_database("Alpha".to_string()).await.expect("create Alpha");
+        mgr.create_database("Beta".to_string()).await.expect("create Beta");
 
-        let rows = mgr.list_databases(&ws_conn, None).expect("list_databases");
-        assert_eq!(rows.len(), 1, "expected only the non-deleted database");
-        assert_eq!(rows[0].1, "Banana");
+        let rows = mgr.list_databases(None).await.expect("list_databases");
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].1, "Alpha");
+        assert_eq!(rows[1].1, "Beta");
     }
 
     #[tokio::test]
     async fn list_databases_prefix_escapes_wildcards() {
         let mgr = make_manager().await;
-        let ws_conn = make_workspace_conn_with_nodes(&[
-            ("a", "100% Real", "💯", "database", None),
-            ("b", "100X Fake", "🚫", "database", None),
-            ("c", "foo", "📁", "database", None),
-        ]);
-        // Plain prefix "100" matches both "100% Real" and "100X Fake" (literal "100" prefix).
+        mgr.create_database("100% Real".to_string()).await.expect("create 100% Real");
+        mgr.create_database("100X Fake".to_string()).await.expect("create 100X Fake");
+        mgr.create_database("foo".to_string()).await.expect("create foo");
+
+        // Plain prefix "100" matches both "100% Real" and "100X Fake".
         let rows = mgr
-            .list_databases(&ws_conn, Some("100".to_string()))
+            .list_databases(Some("100".to_string()))
+            .await
             .expect("list_databases");
         assert_eq!(rows.len(), 2);
 
-        // Prefix "100%" — without escaping, the '%' would still match "100X Fake"
-        // (since '%' is a SQL wildcard). With escaping, only the literal "100%" prefix
-        // matches, i.e. only "100% Real".
+        // Prefix "100%" — without escaping the '%' would still match "100X Fake"
+        // (SQL wildcard). With escaping only the literal "100%" prefix matches.
         let rows = mgr
-            .list_databases(&ws_conn, Some("100%".to_string()))
+            .list_databases(Some("100%".to_string()))
+            .await
             .expect("list_databases");
         assert_eq!(rows.len(), 1, "expected only '100% Real' to match literal '100%' prefix");
         assert_eq!(rows[0].1, "100% Real");

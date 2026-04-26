@@ -48,7 +48,7 @@ use managers::search::SearchManager;
 use managers::system_audio::SystemAudioManager;
 use managers::transcription::TranscriptionManager;
 use managers::voice_session::VoiceSessionManager;
-use managers::workspace::{AppState, WorkspaceManager};
+use managers::workspace::{AppState, VaultManager, WorkspaceManager};
 #[cfg(unix)]
 use signal_hook::consts::{SIGUSR1, SIGUSR2};
 #[cfg(unix)]
@@ -492,6 +492,13 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     };
     app_handle.manage(database_manager);
     app_handle.manage(Arc::new(app_state));
+
+    // Managed VaultManager for commands that need it via Tauri State (e.g.
+    // create_database mirroring + database.md export). Other vault writers
+    // continue to instantiate ad-hoc via VaultManager::new(resolve_vault_root)
+    // — that pattern is unchanged.
+    let vault_manager = Arc::new(VaultManager::new(vault_dir.clone()));
+    app_handle.manage(vault_manager);
 
     // Note: Shortcuts are NOT initialized here.
     // The frontend is responsible for calling the `initialize_shortcuts` command
