@@ -838,6 +838,7 @@ pub fn run(cli_args: CliArgs) {
             commands::import_queue::enqueue_import_paths,
             commands::import_queue::get_import_queue,
             commands::import_queue::cancel_import_job,
+            commands::import_queue::clear_completed_imports,
             commands::history::update_history_limit,
             commands::history::update_recording_retention_period,
             helpers::clamshell::is_laptop,
@@ -978,6 +979,8 @@ pub fn run(cli_args: CliArgs) {
             commands::url_import::pause_import_queue,
             commands::url_import::resume_import_queue,
             commands::url_import::import_queue_pause_state,
+            commands::attachments::save_attachment,
+            commands::attachments::get_vault_root,
         ])
         .events(collect_events![
             managers::history::HistoryUpdatePayload,

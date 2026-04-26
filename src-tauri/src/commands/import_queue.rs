@@ -27,6 +27,14 @@ pub async fn cancel_import_job(
     service.cancel_job(job_id).await
 }
 
+#[tauri::command]
+#[specta::specta]
+pub async fn clear_completed_imports(
+    service: State<'_, ImportQueueService>,
+) -> Result<(), String> {
+    service.clear_completed_imports().await
+}
+
 // Import-recovery commands (get_import_recovery_candidates,
 // discard_import_recovery, resume_import_recovery) deleted in Phase A
 // Commit 3 — they were notes-scoped (imports produced Note records that

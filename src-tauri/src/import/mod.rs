@@ -1540,6 +1540,20 @@ impl ImportQueueService {
         Ok(())
     }
 
+    /// Remove all terminal-state jobs (Done / Error / Cancelled) from the
+    /// in-memory queue. Active jobs (Queued, Downloading, etc.) are retained.
+    pub async fn clear_completed_imports(&self) -> Result<(), String> {
+        {
+            let mut jobs = self.inner.jobs.lock().await;
+            jobs.retain(|j| !matches!(
+                j.state,
+                ImportJobState::Done | ImportJobState::Error | ImportJobState::Cancelled,
+            ));
+        }
+        emit_snapshot(&self.inner).await;
+        Ok(())
+    }
+
     /// Expose the underlying WorkspaceManager so Tauri commands (e.g.
     /// `fetch_url_metadata`) can call workspace queries without needing a
     /// separate `tauri::State<Arc<WorkspaceManager>>` parameter.
