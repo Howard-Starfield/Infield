@@ -3,14 +3,12 @@ use log::{debug, info};
 use rusqlite::{params, OptionalExtension};
 use rusqlite_migration::{Migrations, M};
 use serde_json;
-use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
 use super::field::{CellData, Field, FieldType, TypeOption};
-use super::json_store::{write_atomic, read as json_read, DatabaseSnapshot, FieldSnapshot, RowSnapshot, ViewSnapshot, TemplateEntry, TemplateColumn};
 
 // ------------------------------------------------------------------ //
 //  Schema migrations
@@ -148,7 +146,6 @@ impl DatabaseManager {
 
         debug!("Created database id={} name={}", db_id, name);
         drop(conn);
-        self.write_json(&db_id).await.ok(); // fire-and-forget, best effort
         Ok(db_id)
     }
 
@@ -281,7 +278,6 @@ impl DatabaseManager {
 
         debug!("Created row id={} in database {}", row_id, database_id);
         drop(conn);
-        self.write_json(database_id).await.ok();
         Ok(row_id)
     }
 
@@ -502,7 +498,6 @@ impl DatabaseManager {
             position,
         };
         drop(conn);
-        self.write_json(database_id).await.ok();
         Ok(result)
     }
 
@@ -512,7 +507,6 @@ impl DatabaseManager {
         conn.execute("DELETE FROM db_views WHERE id = ?1", [view_id])?;
         debug!("Deleted db_view id={}", view_id);
         drop(conn);
-        self.write_json(view_id).await.ok();
         Ok(())
     }
 
@@ -526,7 +520,6 @@ impl DatabaseManager {
             )?;
         }
         drop(conn);
-        self.write_json(database_id).await.ok();
         Ok(())
     }
 
@@ -673,8 +666,6 @@ impl DatabaseManager {
         };
         options.push(opt.clone());
         self.set_select_options(field_id, options).await?;
-        // Note: conn already released by set_select_options; write_json fires async
-        self.write_json(&opt.id).await.ok(); // fire-and-forget, best effort
         Ok(opt)
     }
 
@@ -687,7 +678,6 @@ impl DatabaseManager {
             return Err(anyhow!("option {} not found", option_id));
         }
         self.set_select_options(field_id, options).await?;
-        self.write_json(field_id).await.ok();
         Ok(())
     }
 
@@ -705,7 +695,6 @@ impl DatabaseManager {
             return Err(anyhow!("option {} not found", option_id));
         }
         self.set_select_options(field_id, options).await?;
-        self.write_json(field_id).await.ok();
         Ok(())
     }
 
@@ -722,7 +711,6 @@ impl DatabaseManager {
             params![field_id, target_json],
         )?;
         drop(conn);
-        self.write_json(field_id).await.ok();
         Ok(())
     }
 
@@ -737,114 +725,6 @@ impl DatabaseManager {
         let cell = CellData::SingleSelect(option_id.to_string());
         self.update_cell(&row_id, field_id, &cell).await?;
         Ok(row_id)
-    }
-
-    // ------------------------------------------------------------------ //
-    //  Vault JSON persistence
-    // ------------------------------------------------------------------ //
-
-    /// Writes the full database snapshot to vault JSON file (if vault is configured).
-    async fn write_json(&self, database_id: &str) -> Result<()> {
-        let vault_dir = match &self.vault_dir {
-            Some(v) => v,
-            None => return Ok(()),
-        };
-        let path = vault_dir.join(format!("{}.db.json", database_id));
-
-        // Read current DB state
-        let (name, fields, rows, cells, views) = self.snapshot_parts(database_id).await?;
-
-        let snapshot = DatabaseSnapshot {
-            version: super::json_store::FORMAT_VERSION,
-            id: database_id.to_string(),
-            name,
-            fields,
-            rows,
-            cells,
-            views,
-            templates: vec![], // templates are stored separately
-        };
-
-        write_atomic(&path, &snapshot)?;
-        debug!("Wrote vault JSON for database {}", database_id);
-        Ok(())
-    }
-
-    /// Returns the raw parts needed to build a snapshot.
-    async fn snapshot_parts(&self, database_id: &str) -> Result<(String, Vec<FieldSnapshot>, Vec<RowSnapshot>, HashMap<String, serde_json::Value>, Vec<ViewSnapshot>)> {
-        let conn = self.conn.lock().await;
-
-        let name: String = conn.query_row(
-            "SELECT name FROM databases WHERE id = ?1",
-            [database_id],
-            |r| r.get(0),
-        )?;
-
-        let mut stmt = conn.prepare("SELECT id, name, field_type, is_primary, position, type_option FROM db_fields WHERE database_id = ?1 ORDER BY position")?;
-        let fields: Vec<FieldSnapshot> = stmt.query_map([database_id], |row| {
-            let type_option_raw: String = row.get(5)?;
-            let type_option: serde_json::Value = serde_json::from_str(&type_option_raw).unwrap_or(serde_json::json!({}));
-            let field_type_int: i64 = row.get(2)?;
-            let field_type_str = format!("{:?}", FieldType::from_int(field_type_int)).to_lowercase();
-            Ok(FieldSnapshot {
-                id: row.get(0)?,
-                name: row.get(1)?,
-                field_type: field_type_str,
-                is_primary: row.get::<_, i64>(3)? != 0,
-                position: row.get(4)?,
-                type_option,
-            })
-        })?.collect::<std::result::Result<Vec<_>, _>>()?;
-
-        let mut stmt = conn.prepare("SELECT id, position FROM db_rows WHERE database_id = ?1")?;
-        let rows: Vec<RowSnapshot> = stmt.query_map([database_id], |r| {
-            Ok(RowSnapshot { id: r.get(0)?, position: r.get(1)? })
-        })?.collect::<std::result::Result<Vec<_>, _>>()?;
-
-        let cells: HashMap<String, serde_json::Value> = HashMap::new(); // skip cells for snapshot v1
-
-        let mut stmt = conn.prepare("SELECT id, name, layout, position FROM db_views WHERE database_id = ?1")?;
-        let views: Vec<ViewSnapshot> = stmt.query_map([database_id], |r| {
-            let layout_int: i64 = r.get(2)?;
-            let view_type = match layout_int {
-                0 => "board", 1 => "grid", 2 => "calendar", 3 => "chart", 4 => "grid",
-                _ => "board",
-            };
-            Ok(ViewSnapshot {
-                id: r.get(0)?,
-                name: r.get(1)?,
-                view_type: view_type.to_string(),
-                config: serde_json::json!({}),
-            })
-        })?.collect::<std::result::Result<Vec<_>, _>>()?;
-
-        Ok((name, fields, rows, cells, views))
-    }
-
-    /// Scans vault directory for `.db.json` files newer than their SQLite counterpart
-    /// and rebuilds SQLite from JSON when the file is newer.
-    pub async fn startup_scan(&self) -> Result<()> {
-        let vault_dir = match &self.vault_dir {
-            Some(v) => v,
-            None => return Ok(()),
-        };
-        if !vault_dir.is_dir() {
-            return Ok(());
-        }
-
-        for entry in std::fs::read_dir(vault_dir)? {
-            let entry = entry?;
-            let path = entry.path();
-            if path.extension().and_then(|s| s.to_str()) != Some("db.json") {
-                continue;
-            }
-            let json_mtime = std::fs::metadata(&path)?.modified()?;
-            // Compare to SQLite mtime would need a `json_synced_at` column — for now,
-            // just read the JSON and ensure DB is in sync (best-effort rebuild)
-            let snapshot = json_read(&path)?;
-            debug!("Vault scan: found {} with {} fields", snapshot.name, snapshot.fields.len());
-        }
-        Ok(())
     }
 
     // ------------------------------------------------------------------ //
