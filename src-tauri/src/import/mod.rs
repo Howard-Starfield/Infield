@@ -1003,7 +1003,7 @@ async fn handle_fetching_meta(inner: &ImportQueueInner, job_id: &str) -> Result<
 /// sidecar directory and transition to `Cancelled` / `Error`.
 async fn handle_downloading(inner: &ImportQueueInner, job_id: &str) -> Result<(), String> {
     // Snapshot the fields we need without holding the lock across await points.
-    let (url, draft_node_id, cancel) = {
+    let (url, draft_node_id, cancel, format) = {
         let mut jobs = inner.jobs.lock().await;
         let job = match jobs.iter_mut().find(|j| j.id == job_id) {
             Some(j) => j,
@@ -1015,10 +1015,16 @@ async fn handle_downloading(inner: &ImportQueueInner, job_id: &str) -> Result<()
             .clone()
             .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
         job.draft_node_id = Some(node_id.clone());
+        let format = job
+            .web_opts
+            .as_ref()
+            .map(|o| o.format.clone())
+            .unwrap_or(web_media::WebMediaFormat::Mp3Audio);
         (
             job.source_path.to_string_lossy().to_string(),
             node_id,
             job.cancel_requested.clone(),
+            format,
         )
     };
 
@@ -1055,9 +1061,14 @@ async fn handle_downloading(inner: &ImportQueueInner, job_id: &str) -> Result<()
         );
     };
 
-    let result = handle
-        .download_audio(&url, &media_dir, on_progress, cancel.clone())
-        .await;
+    let result = match &format {
+        web_media::WebMediaFormat::Mp3Audio => {
+            handle.download_audio(&url, &media_dir, on_progress, cancel.clone()).await
+        }
+        web_media::WebMediaFormat::Mp4Video { max_height } => {
+            handle.download_video(&url, &media_dir, *max_height, on_progress, cancel.clone()).await
+        }
+    };
 
     // Cancellation: clean up dir and mark Cancelled.
     if cancel.load(Ordering::Relaxed) {
@@ -1073,11 +1084,16 @@ async fn handle_downloading(inner: &ImportQueueInner, job_id: &str) -> Result<()
                 fail_web_job(inner, job_id, e).await;
                 return Ok(());
             }
-            // Stash paths on the job for the Preparing handler.
+            // Stash paths on the job for the Preparing handler. For mp4 we
+            // re-use `local_audio_path` as "the path to hand to ffmpeg" —
+            // `prepare_wav_for_transcription` handles video extensions.
             {
                 let mut jobs = inner.jobs.lock().await;
                 if let Some(job) = jobs.iter_mut().find(|j| j.id == job_id) {
-                    job.local_audio_path = artefacts.audio_path.clone();
+                    job.local_audio_path = artefacts
+                        .audio_path
+                        .clone()
+                        .or_else(|| artefacts.video_path.clone());
                     job.media_dir = Some(media_dir.clone());
                 }
             }
