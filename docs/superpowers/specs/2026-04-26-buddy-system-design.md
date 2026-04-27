@@ -1,7 +1,7 @@
 # Buddy System Design — AFK Arena × Tamagotchi × D&D
 
 **Date:** 2026-04-26
-**Status:** Spec — awaiting user review before implementation plan
+**Status:** B1 implemented (engine + MVP loop). B2/B3 deferred.
 **Topic:** Wire the dormant Buddy surface into a full idle-game companion system
 
 ---

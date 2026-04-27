@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Link2, FileText, Globe, Download } from 'lucide-react';
 import { commands } from '../bindings';
@@ -16,6 +16,7 @@ import type {
   WebMediaImportOpts,
 } from '../bindings';
 import '../styles/import.css';
+import { emitBuddyEvent } from '../buddy/events';
 
 const PLAYLIST_RE = /[?&]list=|playlist\?list=/;
 
@@ -75,6 +76,22 @@ export function ImportUrlTab() {
       playlist_source: null,
     };
   }
+
+  // Emit buddy:url-imported once per job transitioning into `done`.
+  // Prune ids no longer present in `jobs` so the Set doesn't grow forever.
+  const reportedDoneRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const liveIds = new Set(jobs.map(j => j.id));
+    for (const id of reportedDoneRef.current) {
+      if (!liveIds.has(id)) reportedDoneRef.current.delete(id);
+    }
+    for (const job of jobs) {
+      if (job.state === 'done' && !reportedDoneRef.current.has(job.id)) {
+        reportedDoneRef.current.add(job.id);
+        emitBuddyEvent('buddy:url-imported', { jobId: job.id });
+      }
+    }
+  }, [jobs]);
 
   async function fetchAll() {
     if (urls.length === 0) return;

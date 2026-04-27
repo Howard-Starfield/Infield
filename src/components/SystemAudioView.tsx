@@ -16,6 +16,7 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { toast } from 'sonner'
 import { commands, type AppSettings } from '../bindings'
 import { ScrollShadow } from './ScrollShadow'
+import { emitBuddyEvent } from '../buddy/events'
 
 type RecordMode = 'system' | 'interview'
 
@@ -447,6 +448,24 @@ export function SystemAudioView() {
     void load()
   }, [])
 
+  // Track paragraph counts per note to emit one buddy event per appended
+  // paragraph (the chunk payload always carries the full array). Capped so a
+  // long-lived component churning through many notes doesn't grow the Map
+  // unboundedly — oldest insertion wins eviction.
+  const lastParagraphCountRef = useRef<Map<string, number>>(new Map())
+  const PARAGRAPH_COUNT_CAP = 64
+
+  const bumpParagraphCount = (key: string, count: number) => {
+    const m = lastParagraphCountRef.current
+    if (m.has(key)) m.delete(key)
+    m.set(key, count)
+    while (m.size > PARAGRAPH_COUNT_CAP) {
+      const oldest = m.keys().next().value
+      if (oldest === undefined) break
+      m.delete(oldest)
+    }
+  }
+
   useEffect(() => {
     let unlistenSys: UnlistenFn | undefined
     let unlistenInterview: UnlistenFn | undefined
@@ -457,10 +476,27 @@ export function SystemAudioView() {
         if (mode !== 'system') return
         const { paragraphs, note_id } = event.payload
         setTranscript(paragraphsToLines(note_id, paragraphs))
+        const prev = lastParagraphCountRef.current.get(note_id) ?? 0
+        const delta = paragraphs.length - prev
+        if (delta > 0) {
+          bumpParagraphCount(note_id, paragraphs.length)
+          for (let i = 0; i < delta; i++) {
+            emitBuddyEvent('buddy:system-audio-segment', { nodeId: note_id })
+          }
+        }
       })
       const ui = await listen<InterviewChunkPayload>('interview-chunk', (event) => {
         if (mode !== 'interview') return
         setTranscript(interviewPayloadToLines(event.payload))
+        const note = event.payload.workspace_doc_id
+        const prev = lastParagraphCountRef.current.get(note) ?? 0
+        const delta = event.payload.paragraphs.length - prev
+        if (delta > 0) {
+          bumpParagraphCount(note, event.payload.paragraphs.length)
+          for (let i = 0; i < delta; i++) {
+            emitBuddyEvent('buddy:system-audio-segment', { nodeId: note })
+          }
+        }
       })
       if (cancelled) {
         us()

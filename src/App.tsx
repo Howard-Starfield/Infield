@@ -6,6 +6,7 @@ import { Toaster } from 'sonner';
 import { celebrationService } from './services/CelebrationService';
 import { commands } from '@/bindings';
 import { platform } from '@tauri-apps/plugin-os';
+import { BuddyProvider } from './contexts/BuddyContext';
 
 import { Lock as LockIcon, Key, ArrowRight, Eye, EyeOff, Fingerprint, Loader } from 'lucide-react';
 
@@ -348,7 +349,9 @@ export default function App() {
   return (
     <LayoutProvider>
       <VaultProvider>
-        <AppContent />
+        <BuddyProvider>
+          <AppContent />
+        </BuddyProvider>
       </VaultProvider>
     </LayoutProvider>
   );

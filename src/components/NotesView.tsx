@@ -13,6 +13,7 @@ import {
   type TabsState,
 } from '../editor/tabsReducer'
 import { clearAncestorsCache } from '../editor/ancestors'
+import { emitBuddyEvent } from '../buddy/events'
 
 // Bind the reducer to crypto.randomUUID in production; the pure reducer
 // is injectable for tests.
@@ -85,6 +86,7 @@ export function NotesView() {
         toast.error('Could not create document', { description: res.error })
         return
       }
+      emitBuddyEvent('buddy:note-created', { nodeId: res.data.id })
       autoFocusNodeIds.current.add(res.data.id)
       dispatch({ type: 'OPEN_IN_NEW_TAB', nodeId: res.data.id })
       bumpRefresh()
@@ -106,6 +108,7 @@ export function NotesView() {
         res.data.id, res.data.name, '📁',
         res.data.properties, res.data.body, res.data.updated_at,
       )
+      emitBuddyEvent('buddy:note-created', { nodeId: res.data.id })
       autoFocusNodeIds.current.add(res.data.id)
       dispatch({ type: 'OPEN_IN_NEW_TAB', nodeId: res.data.id })
       bumpRefresh()
@@ -124,6 +127,7 @@ export function NotesView() {
           toast.error('Could not create child document', { description: res.error })
           return
         }
+        emitBuddyEvent('buddy:note-created', { nodeId: res.data.id })
         autoFocusNodeIds.current.add(res.data.id)
         dispatch({ type: 'OPEN_IN_NEW_TAB', nodeId: res.data.id })
         bumpRefresh()

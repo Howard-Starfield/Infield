@@ -288,6 +288,10 @@ fn initialize_core_logic(app_handle: &AppHandle) {
         .to_latest(&mut ws_conn)
         .expect("Failed to run workspace migrations");
 
+    crate::managers::buddy::BuddyManager::migrations()
+        .to_latest(&mut ws_conn)
+        .expect("Failed to run buddy migrations");
+
     // Rule 19: compare the current model.onnx hash (cached in a side-file
     // keyed by mtime) against the row in `embedding_model_info`. Mismatch
     // wipes `vec_embeddings` + requeues every embeddable node via
@@ -493,6 +497,13 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     let database_manager_for_migration = database_manager.clone();
     app_handle.manage(database_manager);
     app_handle.manage(Arc::new(app_state));
+
+    // BuddyManager — owns its own Mutex<Connection> internally; share the
+    // workspace.db connection from WorkspaceManager so buddy tables sit in
+    // the same DB the migrations were applied to (B1.1 / B1.8).
+    app_handle.manage(Arc::new(crate::managers::buddy::BuddyManager::new(
+        workspace_manager.conn().clone(),
+    )));
 
     // Managed VaultManager for commands that need it via Tauri State (e.g.
     // create_database mirroring + database.md export). Other vault writers
@@ -918,6 +929,16 @@ pub fn run(cli_args: CliArgs) {
             commands::onboarding::get_onboarding_state,
             commands::onboarding::update_onboarding_state,
             commands::onboarding::reset_onboarding,
+            commands::buddy::claim_chest,
+            commands::buddy::equip_gear,
+            commands::buddy::get_buddy_state,
+            commands::buddy::record_activity_batch,
+            commands::buddy::set_cap_total,
+            commands::buddy::set_overlay_hidden,
+            commands::buddy::set_overlay_position,
+            commands::buddy::switch_active_buddy,
+            commands::buddy::tick_milestone,
+            commands::buddy::unequip_gear,
             commands::workspace_nodes::create_node,
             commands::workspace_nodes::get_node,
             commands::workspace_nodes::get_node_children,

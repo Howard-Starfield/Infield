@@ -20,6 +20,7 @@ import { toast } from 'sonner'
 import { commands } from '../bindings'
 import { ScrollShadow } from './ScrollShadow'
 import { pathsExist } from '../utils/pathsExist'
+import { emitBuddyEvent } from '../buddy/events'
 
 interface BodyUpdatedPayload {
   node_id: string
@@ -458,6 +459,7 @@ export function AudioView() {
       unlisteners.push(
         await listen<TranscriptionSyncedPayload>('workspace-transcription-synced', async (event) => {
           if (event.payload.source !== 'voice_memo') return
+          emitBuddyEvent('buddy:voice-memo-recorded', { nodeId: event.payload.node_id })
           if (isViewingToday) {
             // Adopt the doc id if we didn't have one (first memo of the day).
             if (!selectedNodeId) setSelectedNodeId(event.payload.node_id)
