@@ -54,7 +54,9 @@ const ADD_COLUMN_TYPES: { value: FieldType; label: string }[] = [
   { value: 'date', label: 'Date' },
   { value: 'date_time', label: 'Date + time' },
   { value: 'url', label: 'URL' },
-  { value: 'checklist', label: 'Checklist' },
+  // TODO: re-add 'checklist' once a real ChecklistCell renderer ships.
+  // Today CellDispatcher falls through to UnsupportedCell for checklist
+  // because TypeOption::Checklist has no item-storage shape and no UI.
 ]
 
 interface Props {
