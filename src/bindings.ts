@@ -1652,6 +1652,86 @@ async resetOnboarding() : Promise<Result<null, string>> {
     else return { status: "error", error: e  as any };
 }
 },
+async claimChest() : Promise<Result<ClaimResult, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("claim_chest") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async equipGear(gearId: string, slot: string, buddyId: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("equip_gear", { gearId, slot, buddyId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async getBuddyState() : Promise<Result<BuddyState, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_buddy_state") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async recordActivityBatch(events: ActivityEvent[]) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("record_activity_batch", { events }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async setCapTotal(cap: number) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("set_cap_total", { cap }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async setOverlayHidden(hidden: boolean) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("set_overlay_hidden", { hidden }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async setOverlayPosition(x: number, y: number, anchor: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("set_overlay_position", { x, y, anchor }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async switchActiveBuddy(buddyId: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("switch_active_buddy", { buddyId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async tickMilestone(milestoneId: string, delta: number) : Promise<Result<MilestoneTickResult, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("tick_milestone", { milestoneId, delta }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async unequipGear(slot: string, buddyId: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("unequip_gear", { slot, buddyId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async createNode(parentId: string | null, nodeType: string, name: string) : Promise<Result<WorkspaceNode, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("create_node", { parentId, nodeType, name }) };
@@ -2212,6 +2292,7 @@ historyUpdatePayload: "history-update-payload"
 
 /** user-defined types **/
 
+export type ActivityEvent = { kind: string; weight: number }
 export type AlreadyImportedHit = { node_id: string; imported_at: string; vault_path: string }
 export type AppSettings = { bindings: Partial<{ [key in string]: ShortcutBinding }>; push_to_talk: boolean; audio_feedback: boolean; audio_feedback_volume?: number; sound_theme?: SoundTheme; start_hidden?: boolean; autostart_enabled?: boolean; update_checks_enabled?: boolean; selected_model?: string; always_on_microphone?: boolean; selected_microphone?: string | null; clamshell_microphone?: string | null; selected_output_device?: string | null; translate_to_english?: boolean; selected_language?: string; overlay_position?: OverlayPosition; debug_mode?: boolean; log_level?: LogLevel; custom_words?: string[]; model_unload_timeout?: ModelUnloadTimeout; word_correction_threshold?: number; history_limit?: number; recording_retention_period?: RecordingRetentionPeriod; paste_method?: PasteMethod; clipboard_handling?: ClipboardHandling; auto_submit?: boolean; auto_submit_key?: AutoSubmitKey; auto_create_note?: boolean; post_process_enabled?: boolean; post_process_provider_id?: string; post_process_providers?: PostProcessProvider[]; post_process_api_keys?: SecretMap; post_process_models?: Partial<{ [key in string]: string }>; post_process_prompts?: LLMPrompt[]; post_process_selected_prompt_id?: string | null; import_post_process_prompt_id?: string | null; local_llm_num_ctx?: number; note_prompts?: LLMPrompt[]; llm_model_path?: string | null; llm_gpu_enabled?: boolean; auto_tag_enabled?: boolean; mute_while_recording?: boolean; append_trailing_space?: boolean; app_language?: string; experimental_enabled?: boolean; lazy_stream_close?: boolean; keyboard_implementation?: KeyboardImplementation; show_tray_icon?: boolean; paste_delay_ms?: number; typing_tool?: TypingTool; external_script_path: string | null; custom_filler_words?: string[] | null; whisper_accelerator?: WhisperAcceleratorSetting; ort_accelerator?: OrtAcceleratorSetting; embedding_model?: EmbeddingModel; whisper_gpu_device?: number; extra_recording_buffer_ms?: number; capture_mode?: CaptureMode; loopback_device?: string | null; loopback_audio_source?: LoopbackAudioSource; system_audio_max_chunk_secs?: number; 
 /**
@@ -2251,6 +2332,8 @@ export type AudioDevice = { index: string; name: string; is_default: boolean }
 export type AutoSubmitKey = "enter" | "ctrl_enter" | "cmd_enter"
 export type AvailableAccelerators = { whisper: string[]; ort: string[]; gpu_devices: GpuDeviceOption[] }
 export type BindingResponse = { success: boolean; binding: ShortcutBinding | null; error: string | null }
+export type BuddyState = { points_balance: number; points_overflow: number; cap_total: number; active_buddy_id: string; roster: BuddyUnlock[]; inventory: GearItem[]; milestones: Milestone[]; overlay: OverlayState; team_power: number }
+export type BuddyUnlock = { buddy_id: string; unlocked_at_ms: number; xp_total: number; level: number; shiny: boolean; equipped_hat_id: string | null; equipped_aura_id: string | null; equipped_charm_id: string | null }
 export type CaptureMode = "microphone" | "system_audio"
 /**
  * Strongly-typed cell content. The `type` tag is used in JSON so the
@@ -2322,6 +2405,7 @@ export type ChatSystemPromptMode =
  * Only the user's instructions are used as the system prompt (no default Handy template).
  */
 "replace"
+export type ClaimResult = { points_claimed: number; xp_awarded: number; gear_dropped: GearItem[] }
 export type ClipboardHandling = "dont_modify" | "copy_to_clipboard"
 export type CustomSounds = { start: boolean; stop: boolean }
 /**
@@ -2416,6 +2500,7 @@ export type FilterInner = { kind: "data"; field_id: string; field_type: FieldTyp
  * health probing ever lands, add `workspace_db_healthy` alongside.
  */
 export type FooterSystemStatus = { embedding_available: boolean; embedding_summary: string | null }
+export type GearItem = { gear_id: string; slot: string; species: string; rarity: string; shiny: boolean; power_bonus: number; speed_bonus: number; charm_bonus: number; acquired_at_ms: number }
 export type GpuDeviceOption = { id: number; name: string; total_vram_mb: number }
 export type HistoryEntry = { id: number; file_name: string; timestamp: number; saved: boolean; title: string; transcription_text: string; post_processed_text: string | null; post_process_prompt: string | null; post_process_requested: boolean }
 export type HistoryUpdatePayload = { action: "added"; entry: HistoryEntry } | { action: "updated"; entry: HistoryEntry } | { action: "deleted"; id: number } | { action: "toggled"; id: number }
@@ -2439,6 +2524,8 @@ export type LogLevel = "trace" | "debug" | "info" | "warn" | "error"
 export type LoopbackAudioSource = "system_only"
 export type Memory = { id: string; content: string; category: string; source: string; importance: number; created_at: number; last_accessed: number }
 export type MemoryChunk = { id: string; session_id: string; content: string; created_at: number; distance: number }
+export type Milestone = { milestone_id: string; progress: number; target: number; completed_at_ms: number | null; reward_buddy_id: string | null }
+export type MilestoneTickResult = { progress: number; target: number; completed: boolean; unlocked_buddy_id: string | null }
 export type ModelCategory = "Transcription" | "Embedding" | "Llm"
 export type ModelInfo = { id: string; name: string; description: string; 
 /**
@@ -2476,6 +2563,7 @@ export type OnboardingStatePatch = { current_step: OnboardingStep | null; mic_pe
 export type OnboardingStep = "mic" | "accessibility" | "models" | "vault" | "extensions" | "done"
 export type OrtAcceleratorSetting = "auto" | "cpu" | "cuda" | "directml" | "rocm"
 export type OverlayPosition = "none" | "top" | "bottom"
+export type OverlayState = { x: number; y: number; anchor: string; hidden: boolean }
 export type PaginatedHistory = { entries: HistoryEntry[]; has_more: boolean }
 export type PasteMethod = "ctrl_v" | "direct" | "none" | "shift_insert" | "ctrl_shift_v" | "external_script"
 export type PermissionAccess = "allowed" | "denied" | "unknown"
@@ -2723,20 +2811,3 @@ function __makeEvents__<T extends Record<string, any>>(
 		},
 	);
 }
-
-// ---------------------------------------------------------------------------
-// Buddy System types — manually appended at merge time because regenerating
-// via `bun run tauri dev` was blocked by a transient Windows linker lock on
-// C:\ht\debug\deps\cxxbridge_macro-*.dll. These shapes mirror specta output
-// from src-tauri/src/managers/buddy.rs exactly. Next successful tauri dev
-// run will rewrite this whole file and these duplicates will go away.
-// ---------------------------------------------------------------------------
-
-export type ActivityEvent = { kind: string; weight: number }
-export type BuddyState = { points_balance: number; points_overflow: number; cap_total: number; active_buddy_id: string; roster: BuddyUnlock[]; inventory: GearItem[]; milestones: Milestone[]; overlay: OverlayState; team_power: number }
-export type BuddyUnlock = { buddy_id: string; unlocked_at_ms: number; xp_total: number; level: number; shiny: boolean; equipped_hat_id: string | null; equipped_aura_id: string | null; equipped_charm_id: string | null }
-export type ClaimResult = { points_claimed: number; xp_awarded: number; gear_dropped: GearItem[] }
-export type GearItem = { gear_id: string; slot: string; species: string; rarity: string; shiny: boolean; power_bonus: number; speed_bonus: number; charm_bonus: number; acquired_at_ms: number }
-export type Milestone = { milestone_id: string; progress: number; target: number; completed_at_ms: number | null; reward_buddy_id: string | null }
-export type MilestoneTickResult = { progress: number; target: number; completed: boolean; unlocked_buddy_id: string | null }
-export type OverlayState = { x: number; y: number; anchor: string; hidden: boolean }
