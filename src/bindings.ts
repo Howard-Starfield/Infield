@@ -906,7 +906,7 @@ async retryHistoryEntryTranscription(id: number) : Promise<Result<null, string>>
     else return { status: "error", error: e  as any };
 }
 },
-async enqueueImportPaths(paths: string[]) : Promise<Result<string[], string>> {
+async enqueueImportPaths(paths: string[]) : Promise<Result<EnqueuePathsResult, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("enqueue_import_paths", { paths }) };
 } catch (e) {
@@ -2408,6 +2408,18 @@ export type EmbeddingModel = "nomic_embed_text" | "bge_m3"
 export type EmbeddingModelInfo = { model_id: string; model_name: string; dimension: number }
 export type EmbeddingModelStatus = { model_id: string; info: EmbeddingModelInfo; is_available: boolean; unavailable_reason: string | null }
 export type EngineType = "Whisper" | "Parakeet" | "Moonshine" | "MoonshineStreaming" | "SenseVoice" | "GigaAM" | "Canary"
+export type EnqueuePathRejection = { path: string; reason: string }
+export type EnqueuePathsResult = { 
+/**
+ * Job IDs for files that successfully entered the queue.
+ */
+accepted: string[]; 
+/**
+ * Files rejected before being queued (unsupported type, cloud-sync placeholder,
+ * duplicate of an in-flight import, missing file). Each entry has the original
+ * path string and a user-readable reason for the toast.
+ */
+rejected: EnqueuePathRejection[] }
 export type ExportedDatabase = { id: string; name: string; paths: string[]; error: string | null }
 export type ExtractChatDocumentResult = { filename: string; mime: string; text: string; truncated: boolean; error: string | null }
 export type Field = { id: string; database_id: string; name: string; field_type: FieldType; is_primary: boolean; type_option: TypeOption; 
