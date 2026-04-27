@@ -259,28 +259,38 @@
   cursor: not-allowed;
 }
 
-/* ── Active cell + fill handle (Tier 3) ──────────────────────────────────
-   `activeCell` gets a brand-coloured outline and a tiny square at its
-   bottom-right that the user grabs to fill values down the column. */
-.db-table__cell--active {
+/* ── Fill handle (Tier 3) ────────────────────────────────────────────────
+   Excel-style hover-only affordance: every fillable cell has an invisible
+   12×12 hit zone in its bottom-right corner. Hovering the cell reveals an
+   8×8 brand-coloured square inside the hit zone — that's the grab target
+   for the fill drag. Plain clicks on the cell pass straight through to
+   the cell's editor (no activation, no re-render). */
+.db-table td {
   position: relative;
-  outline: 2px solid var(--heros-brand);
-  outline-offset: -2px;
 }
 .db-fill-handle {
   position: absolute;
-  right: -3px;
-  bottom: -3px;
+  right: 0;
+  bottom: 0;
+  width: 12px;
+  height: 12px;
+  cursor: crosshair;
+  z-index: 4;
+  opacity: 0;
+}
+.db-fill-handle::after {
+  content: '';
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
   width: 8px;
   height: 8px;
   background: var(--heros-brand);
   border: 1px solid var(--surface-container);
-  cursor: crosshair;
-  z-index: 4;
 }
+.db-table td:hover > .db-fill-handle,
 .db-fill-handle:hover {
-  /* Slight grow so the affordance reads as interactive. */
-  transform: scale(1.2);
+  opacity: 1;
 }
 
 /* Preview band — rows in (activeRow, dragEndRow] highlighted while the
