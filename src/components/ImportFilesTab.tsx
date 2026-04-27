@@ -37,7 +37,7 @@ interface ImportFilesTabProps {
 }
 
 export function ImportFilesTab({ onNavigate }: ImportFilesTabProps) {
-  const { jobs } = useImportQueue();
+  const { jobs, cancel } = useImportQueue();
   const [isDragging, setIsDragging] = useState(false);
 
   // Filter to non-WebMedia jobs (URL imports live in the Downloader tab).
@@ -94,7 +94,11 @@ export function ImportFilesTab({ onNavigate }: ImportFilesTabProps) {
 
   async function enqueuePaths(paths: string[]) {
     if (paths.length === 0) return;
-    const res = await commands.enqueueImportPaths(paths);
+    // Tauri drag-drop sometimes delivers the same path twice in one event;
+    // dedupe before calling the backend so users don't see spurious "Already
+    // in queue" toasts for files dropped in the same gesture.
+    const unique = Array.from(new Set(paths));
+    const res = await commands.enqueueImportPaths(unique);
     if (res.status === 'error') {
       toast.error(res.error);
       return;
@@ -284,7 +288,7 @@ export function ImportFilesTab({ onNavigate }: ImportFilesTabProps) {
 
         {/* Right: Real queue lists */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 5, minHeight: 0 }}>
-          <ImportProcessingList jobs={processing} renderThumb={renderFileThumb} />
+          <ImportProcessingList jobs={processing} renderThumb={renderFileThumb} onCancel={cancel} />
           <ImportCompletedList
             jobs={completed}
             renderThumb={renderFileThumb}

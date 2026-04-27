@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Clock, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Clock, CheckCircle2, ChevronDown, ChevronUp, X } from 'lucide-react';
 import type { ImportJobDto } from '../bindings';
 import { ScrollShadow } from './ScrollShadow';
 import { jobProgress, jobStatusLine, jobTitle } from '../utils/importJobs';
@@ -10,7 +10,11 @@ interface ListBaseProps {
   renderThumb: (job: ImportJobDto) => React.ReactNode;
 }
 
-export function ImportProcessingList({ jobs, renderThumb }: ListBaseProps) {
+interface ProcessingListProps extends ListBaseProps {
+  onCancel?: (jobId: string) => void;
+}
+
+export function ImportProcessingList({ jobs, renderThumb, onCancel }: ProcessingListProps) {
   if (jobs.length === 0) return null;
   return (
     <section
@@ -97,6 +101,40 @@ export function ImportProcessingList({ jobs, renderThumb }: ListBaseProps) {
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  {onCancel && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onCancel(job.id);
+                      }}
+                      title="Cancel"
+                      style={{
+                        width: 22,
+                        height: 22,
+                        borderRadius: 6,
+                        background: 'rgba(255,255,255,0.05)',
+                        border: '1px solid rgba(255,255,255,0.08)',
+                        color: 'rgba(255,255,255,0.55)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: 0,
+                        transition: 'background 150ms ease, color 150ms ease',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = 'rgba(239, 68, 68, 0.15)';
+                        e.currentTarget.style.color = '#ffb4b4';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
+                        e.currentTarget.style.color = 'rgba(255,255,255,0.55)';
+                      }}
+                    >
+                      <X size={12} />
+                    </button>
+                  )}
                   <div
                     style={{
                       width: 80,

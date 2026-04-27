@@ -40,7 +40,7 @@ type Format = 'mp3' | 'mp4';
 
 // ── Tab root (ReClip-style single-column layout) ───────────────
 export function ImportUrlTab() {
-  const { jobs } = useImportQueue();
+  const { jobs, cancel } = useImportQueue();
   const plugin = useYtDlpPlugin();
   const [text, setText] = useState('');
   const [format, setFormat] = useState<Format>('mp3');
@@ -380,7 +380,7 @@ export function ImportUrlTab() {
         }
 
         {/* Live progress + recent imports */}
-        <ImportProcessingList jobs={processing} renderThumb={renderUrlThumb} />
+        <ImportProcessingList jobs={processing} renderThumb={renderUrlThumb} onCancel={cancel} />
         <ImportCompletedList
           jobs={completed}
           renderThumb={renderUrlThumb}

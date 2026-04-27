@@ -252,7 +252,7 @@ pub(super) fn classify_for_enqueue(
     }
     let canonical = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
     if active.contains(&canonical) {
-        return EnqueueOutcome::Reject("Already importing this file".into());
+        return EnqueueOutcome::Reject("Already in queue".into());
     }
     EnqueueOutcome::Accept(kind, canonical)
 }
@@ -426,19 +426,41 @@ async fn ensure_file_import_folder(inner: &ImportQueueInner) -> Result<String, S
         .workspace
         .create_node(None, "document", FILE_IMPORT_FOLDER, "📁")
         .await?;
-    sync_workspace_document_to_vault(inner, &folder).await;
+    if let Err(e) = sync_workspace_document_to_vault(inner, &folder).await {
+        // Folder write failure isn't fatal here; child notes will retry their own
+        // ancestor-chain computation, and the folder still exists in the DB.
+        // Log and proceed.
+        warn!("Imported Files folder vault sync failed: {e}");
+    }
     Ok(folder.id)
 }
 
-async fn sync_workspace_document_to_vault(inner: &ImportQueueInner, node: &WorkspaceNode) {
+async fn sync_workspace_document_to_vault(
+    inner: &ImportQueueInner,
+    node: &WorkspaceNode,
+) -> Result<(), String> {
     if node.node_type != "document" || node.deleted_at.is_some() {
-        return;
+        return Ok(());
     }
-    if let Ok(rel_path) = inner.workspace.write_node_to_vault(&inner.app, node, None).await {
-        if let Err(e) = inner.workspace.update_vault_rel_path(&node.id, &rel_path).await {
-            error!("Failed to update vault_rel_path during import for node {}: {}", node.id, e);
-        }
+    let rel_path = inner
+        .workspace
+        .write_node_to_vault(&inner.app, node, None)
+        .await
+        .map_err(|e| {
+            error!(
+                "write_node_to_vault failed during import for node {} ('{}'): {}",
+                node.id, node.name, e
+            );
+            format!("Vault write failed: {e}")
+        })?;
+    if let Err(e) = inner.workspace.update_vault_rel_path(&node.id, &rel_path).await {
+        error!(
+            "Failed to update vault_rel_path during import for node {}: {}",
+            node.id, e
+        );
+        return Err(format!("Vault path index update failed: {e}"));
     }
+    Ok(())
 }
 
 async fn emit_workspace_import_synced(inner: &ImportQueueInner, node_id: &str) {
@@ -830,7 +852,11 @@ async fn run_import_media(
         emit_workspace_import_synced(inner, &note_id).await;
         return Ok(());
     }
-    sync_workspace_document_to_vault(inner, &finalized_node).await;
+    if let Err(e) = sync_workspace_document_to_vault(inner, &finalized_node).await {
+        update_job_state(inner, job_id, ImportJobState::Error, Some(e)).await;
+        emit_workspace_import_synced(inner, &note_id).await;
+        return Ok(());
+    }
 
     patch_job(inner, job_id, |j| {
         j.state = ImportJobState::Done;
@@ -1289,7 +1315,11 @@ async fn finalize_web_media_no_transcript(
         emit_workspace_import_synced(inner, &note_id).await;
         return Ok(());
     }
-    sync_workspace_document_to_vault(inner, &finalized_node).await;
+    if let Err(e) = sync_workspace_document_to_vault(inner, &finalized_node).await {
+        update_job_state(inner, job_id, ImportJobState::Error, Some(e)).await;
+        emit_workspace_import_synced(inner, &note_id).await;
+        return Ok(());
+    }
 
     patch_job(inner, job_id, |j| {
         j.state = ImportJobState::Done;
@@ -1828,7 +1858,11 @@ impl ImportQueueService {
                 return Ok(());
             }
         };
-        sync_workspace_document_to_vault(inner, &note).await;
+        if let Err(e) = sync_workspace_document_to_vault(inner, &note).await {
+            update_job_state(inner, job_id, ImportJobState::Error, Some(e)).await;
+            emit_workspace_import_synced(inner, &note.id).await;
+            return Ok(());
+        }
         if let Err(e) = inner.workspace.finalize_node_search_index(&note.id).await {
             update_job_state(inner, job_id, ImportJobState::Error, Some(e)).await;
             emit_workspace_import_synced(inner, &note.id).await;
@@ -2008,8 +2042,8 @@ mod enqueue_urls_unit_tests {
         active.insert(canonical);
         match classify_for_enqueue(&mp3, &active) {
             EnqueueOutcome::Reject(reason) => assert!(
-                reason.to_lowercase().contains("already"),
-                "expected 'already' mention, got: {reason}",
+                reason.to_lowercase().contains("queue"),
+                "expected 'queue' mention, got: {reason}",
             ),
             _ => panic!("duplicate should be rejected"),
         }
