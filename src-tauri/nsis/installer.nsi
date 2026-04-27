@@ -587,17 +587,20 @@ Function .onInit
 
 
   ; --- PORTABLE MODE --- Auto-detect portable mode during updates.
-  ; Preserve portable installs that use either the current magic-string marker
-  ; or the legacy empty marker created by older Handy releases. Require Data/
-  ; for the legacy empty-marker case so stale scoop side-effect files do not
-  ; accidentally opt an updater run into portable mode.
+  ; Preserve portable installs that use the current Infield magic-string marker,
+  ; the legacy Handy magic-string marker (older releases pre-rebrand), or the
+  ; legacy empty marker created by even older releases. Require Data/ for the
+  ; legacy empty-marker case so stale scoop side-effect files do not accidentally
+  ; opt an updater run into portable mode.
   ${If} $PortableMode <> 1
   ${AndIf} $UpdateMode = 1
   ${AndIf} ${FileExists} "$INSTDIR\portable"
     FileOpen $1 "$INSTDIR\portable" r
     FileRead $1 $2
     FileClose $1
-    ${If} $2 == "Handy Portable Mode"
+    ${If} $2 == "Infield Portable Mode"
+      StrCpy $PortableMode 1
+    ${OrIf} $2 == "Handy Portable Mode"
       StrCpy $PortableMode 1
     ${OrIf} $2 == ""
     ${AndIf} ${FileExists} "$INSTDIR\Data"
@@ -768,7 +771,7 @@ Section Install
   ; --- PORTABLE MODE --- Create portable marker and Data directory
   ${If} $PortableMode = 1
     FileOpen $0 "$INSTDIR\portable" w
-    FileWrite $0 "Handy Portable Mode"
+    FileWrite $0 "Infield Portable Mode"
     FileClose $0
     CreateDirectory "$INSTDIR\Data"
     DetailPrint "Portable mode: created marker file and Data directory."
