@@ -337,9 +337,13 @@ impl BuddyManager {
         let inv = Self::read_inventory(&conn)?;
         let team_power = Self::compute_team_power(&roster, &inv);
 
-        let activity_bonus = (overflow / 100.0).floor().min(20.0) as i32;
+        // Activity bonus is uncapped — high-activity players are meant to show up on the
+        // leaderboard. Drop-quality saturates naturally inside `shift_rarity_table` once
+        // common-rarity probability hits zero (≈34 bonus points), so an unbounded bonus
+        // doesn't break gear math.
+        let activity_bonus = (overflow / 100.0).floor() as i32;
         let team_bonus = ((team_power + 1.0).log10() * 8.0).floor().clamp(0.0, 30.0) as i32;
-        let total_bonus = (activity_bonus + team_bonus).min(50);
+        let total_bonus = activity_bonus + team_bonus;
 
         let mut rng: rand::rngs::StdRng = match seed {
             Some(s) => rand::rngs::StdRng::seed_from_u64(s),
@@ -369,8 +373,9 @@ impl BuddyManager {
         }
 
         let xp_awarded = claimable.floor() as i64;
-        // Spec/test expectation: chest balance only, NOT overflow. Overflow continues
-        // accumulating across claims as the activity bonus stream.
+        // points_claimed is the chest balance (the time-drip pool). Overflow is
+        // consumed alongside it: the activity bonus rewards activity-since-last-claim,
+        // so resetting it on claim keeps the incentive loop fresh.
         let points_claimed = balance;
 
         let tx = conn
@@ -398,8 +403,10 @@ impl BuddyManager {
         }
 
         tx.execute(
-            "UPDATE buddy_state SET points_balance = 0, last_drip_ms = ?, last_claim_ms = ?, updated_at_ms = ?
-               WHERE id = 1",
+            "UPDATE buddy_state
+                SET points_balance = 0, points_overflow = 0,
+                    last_drip_ms = ?, last_claim_ms = ?, updated_at_ms = ?
+              WHERE id = 1",
             params![now_ms, now_ms, now_ms],
         )
         .map_err(|e| format!("buddy::claim_chest: reset balance: {e}"))?;
@@ -1030,7 +1037,8 @@ mod tests {
 
         let s = mgr.get_state(1_000_000).await.expect("get");
         assert_eq!(s.points_balance, 0.0);
-        assert_eq!(s.points_overflow, 200.0);
+        // Overflow resets on claim — activity bonus rewards recent activity only.
+        assert_eq!(s.points_overflow, 0.0);
         assert_eq!(s.inventory.len(), result.gear_dropped.len());
     }
 
