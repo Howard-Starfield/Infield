@@ -1449,9 +1449,25 @@ async createRow(databaseId: string) : Promise<Result<Row, string>> {
     else return { status: "error", error: e  as any };
 }
 },
-async updateCell(rowId: string, fieldId: string, fieldType: FieldType, data: CellData) : Promise<Result<null, string>> {
+async deleteRow(rowId: string) : Promise<Result<null, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("update_cell", { rowId, fieldId, fieldType, data }) };
+    return { status: "ok", data: await TAURI_INVOKE("delete_row", { rowId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async deleteDatabase(databaseId: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("delete_database", { databaseId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async updateCell(databaseId: string, rowId: string, fieldId: string, fieldType: FieldType, data: CellData, lastSeenMtimeSecs: number | null) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("update_cell", { databaseId, rowId, fieldId, fieldType, data, lastSeenMtimeSecs }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -1521,9 +1537,9 @@ async createDateField(databaseId: string, fieldName: string) : Promise<Result<Fi
     else return { status: "error", error: e  as any };
 }
 },
-async updateRowDate(rowId: string, fieldId: string, timestamp: number | null) : Promise<Result<null, string>> {
+async updateRowDate(databaseId: string, rowId: string, fieldId: string, timestamp: number | null, lastSeenMtimeSecs: number | null) : Promise<Result<null, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("update_row_date", { rowId, fieldId, timestamp }) };
+    return { status: "ok", data: await TAURI_INVOKE("update_row_date", { databaseId, rowId, fieldId, timestamp, lastSeenMtimeSecs }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -1569,6 +1585,22 @@ async runWorkspaceMigration() : Promise<Result<number, string>> {
     else return { status: "error", error: e  as any };
 }
 },
+async listDatabases(prefix: string | null) : Promise<Result<DatabaseSummary[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("list_databases", { prefix }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async getCellsForRows(databaseId: string, rowIds: string[]) : Promise<Result<RowCellsBatch[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_cells_for_rows", { databaseId, rowIds }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async getOnboardingState() : Promise<Result<OnboardingState, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_onboarding_state") };
@@ -1588,6 +1620,86 @@ async updateOnboardingState(patch: OnboardingStatePatch) : Promise<Result<Onboar
 async resetOnboarding() : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("reset_onboarding") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async claimChest() : Promise<Result<ClaimResult, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("claim_chest") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async equipGear(gearId: string, slot: string, buddyId: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("equip_gear", { gearId, slot, buddyId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async getBuddyState() : Promise<Result<BuddyState, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_buddy_state") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async recordActivityBatch(events: ActivityEvent[]) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("record_activity_batch", { events }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async setCapTotal(cap: number) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("set_cap_total", { cap }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async setOverlayHidden(hidden: boolean) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("set_overlay_hidden", { hidden }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async setOverlayPosition(x: number, y: number, anchor: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("set_overlay_position", { x, y, anchor }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async switchActiveBuddy(buddyId: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("switch_active_buddy", { buddyId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async tickMilestone(milestoneId: string, delta: number) : Promise<Result<MilestoneTickResult, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("tick_milestone", { milestoneId, delta }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async unequipGear(slot: string, buddyId: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("unequip_gear", { slot, buddyId }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -2131,6 +2243,7 @@ historyUpdatePayload: "history-update-payload"
 
 /** user-defined types **/
 
+export type ActivityEvent = { kind: string; weight: number }
 export type AlreadyImportedHit = { node_id: string; imported_at: string; vault_path: string }
 export type AppSettings = { bindings: Partial<{ [key in string]: ShortcutBinding }>; push_to_talk: boolean; audio_feedback: boolean; audio_feedback_volume?: number; sound_theme?: SoundTheme; start_hidden?: boolean; autostart_enabled?: boolean; update_checks_enabled?: boolean; selected_model?: string; always_on_microphone?: boolean; selected_microphone?: string | null; clamshell_microphone?: string | null; selected_output_device?: string | null; translate_to_english?: boolean; selected_language?: string; overlay_position?: OverlayPosition; debug_mode?: boolean; log_level?: LogLevel; custom_words?: string[]; model_unload_timeout?: ModelUnloadTimeout; word_correction_threshold?: number; history_limit?: number; recording_retention_period?: RecordingRetentionPeriod; paste_method?: PasteMethod; clipboard_handling?: ClipboardHandling; auto_submit?: boolean; auto_submit_key?: AutoSubmitKey; auto_create_note?: boolean; post_process_enabled?: boolean; post_process_provider_id?: string; post_process_providers?: PostProcessProvider[]; post_process_api_keys?: SecretMap; post_process_models?: Partial<{ [key in string]: string }>; post_process_prompts?: LLMPrompt[]; post_process_selected_prompt_id?: string | null; import_post_process_prompt_id?: string | null; local_llm_num_ctx?: number; note_prompts?: LLMPrompt[]; llm_model_path?: string | null; llm_gpu_enabled?: boolean; auto_tag_enabled?: boolean; mute_while_recording?: boolean; append_trailing_space?: boolean; app_language?: string; experimental_enabled?: boolean; lazy_stream_close?: boolean; keyboard_implementation?: KeyboardImplementation; show_tray_icon?: boolean; paste_delay_ms?: number; typing_tool?: TypingTool; external_script_path: string | null; custom_filler_words?: string[] | null; whisper_accelerator?: WhisperAcceleratorSetting; ort_accelerator?: OrtAcceleratorSetting; embedding_model?: EmbeddingModel; whisper_gpu_device?: number; extra_recording_buffer_ms?: number; capture_mode?: CaptureMode; loopback_device?: string | null; loopback_audio_source?: LoopbackAudioSource; system_audio_max_chunk_secs?: number; 
 /**
@@ -2170,6 +2283,8 @@ export type AudioDevice = { index: string; name: string; is_default: boolean }
 export type AutoSubmitKey = "enter" | "ctrl_enter" | "cmd_enter"
 export type AvailableAccelerators = { whisper: string[]; ort: string[]; gpu_devices: GpuDeviceOption[] }
 export type BindingResponse = { success: boolean; binding: ShortcutBinding | null; error: string | null }
+export type BuddyState = { points_balance: number; points_overflow: number; cap_total: number; active_buddy_id: string; roster: BuddyUnlock[]; inventory: GearItem[]; milestones: Milestone[]; overlay: OverlayState; team_power: number }
+export type BuddyUnlock = { buddy_id: string; unlocked_at_ms: number; xp_total: number; level: number; shiny: boolean; equipped_hat_id: string | null; equipped_aura_id: string | null; equipped_charm_id: string | null }
 export type CaptureMode = "microphone" | "system_audio"
 /**
  * Strongly-typed cell content. The `type` tag is used in JSON so the
@@ -2241,12 +2356,17 @@ export type ChatSystemPromptMode =
  * Only the user's instructions are used as the system prompt (no default Handy template).
  */
 "replace"
+export type ClaimResult = { points_claimed: number; xp_awarded: number; gear_dropped: GearItem[] }
 export type ClipboardHandling = "dont_modify" | "copy_to_clipboard"
 export type CustomSounds = { start: boolean; stop: boolean }
 /**
  * Lightweight metadata returned when a database is created.
  */
 export type DatabaseMeta = { id: string; name: string }
+/**
+ * Lightweight database listing entry returned by list_databases.
+ */
+export type DatabaseSummary = { id: string; title: string; icon: string; row_count: number }
 export type DatabaseView = { id: string; database_id: string; name: string; layout: DbViewLayout; position: number }
 export type DbViewLayout = "board" | "grid" | "calendar" | "chart" | "list"
 /**
@@ -2319,6 +2439,7 @@ export type FilterInner = { kind: "data"; field_id: string; field_type: FieldTyp
  * health probing ever lands, add `workspace_db_healthy` alongside.
  */
 export type FooterSystemStatus = { embedding_available: boolean; embedding_summary: string | null }
+export type GearItem = { gear_id: string; slot: string; species: string; rarity: string; shiny: boolean; power_bonus: number; speed_bonus: number; charm_bonus: number; acquired_at_ms: number }
 export type GpuDeviceOption = { id: number; name: string; total_vram_mb: number }
 export type HistoryEntry = { id: number; file_name: string; timestamp: number; saved: boolean; title: string; transcription_text: string; post_processed_text: string | null; post_process_prompt: string | null; post_process_requested: boolean }
 export type HistoryUpdatePayload = { action: "added"; entry: HistoryEntry } | { action: "updated"; entry: HistoryEntry } | { action: "deleted"; id: number } | { action: "toggled"; id: number }
@@ -2342,6 +2463,8 @@ export type LogLevel = "trace" | "debug" | "info" | "warn" | "error"
 export type LoopbackAudioSource = "system_only"
 export type Memory = { id: string; content: string; category: string; source: string; importance: number; created_at: number; last_accessed: number }
 export type MemoryChunk = { id: string; session_id: string; content: string; created_at: number; distance: number }
+export type Milestone = { milestone_id: string; progress: number; target: number; completed_at_ms: number | null; reward_buddy_id: string | null }
+export type MilestoneTickResult = { progress: number; target: number; completed: boolean; unlocked_buddy_id: string | null }
 export type ModelCategory = "Transcription" | "Embedding" | "Llm"
 export type ModelInfo = { id: string; name: string; description: string; 
 /**
@@ -2379,6 +2502,7 @@ export type OnboardingStatePatch = { current_step: OnboardingStep | null; mic_pe
 export type OnboardingStep = "mic" | "accessibility" | "models" | "vault" | "extensions" | "done"
 export type OrtAcceleratorSetting = "auto" | "cpu" | "cuda" | "directml" | "rocm"
 export type OverlayPosition = "none" | "top" | "bottom"
+export type OverlayState = { x: number; y: number; anchor: string; hidden: boolean }
 export type PaginatedHistory = { entries: HistoryEntry[]; has_more: boolean }
 export type PasteMethod = "ctrl_v" | "direct" | "none" | "shift_insert" | "ctrl_shift_v" | "external_script"
 export type PermissionAccess = "allowed" | "denied" | "unknown"
@@ -2450,6 +2574,14 @@ export type RerankerStatus = { model_info: RerankerModelInfo; is_available: bool
  * A database row, returned by get_rows / create_row.
  */
 export type Row = { id: string; database_id: string }
+/**
+ * Per-row cells batch returned by `get_cells_for_rows`. `last_modified_secs`
+ * carries the row's vault-file mtime (seconds since UNIX epoch) so the
+ * frontend can populate `lastSeenMtimeSecs` and feed the Rule 13 conflict
+ * guard on subsequent `update_cell` calls. `None` when the vault file does
+ * not yet exist (e.g. row created in this session, no cells written).
+ */
+export type RowCellsBatch = { row_id: string; cells: ([string, CellData])[]; last_modified_secs: number | null }
 export type SecretMap = Partial<{ [key in string]: string }>
 export type SelectColor = "purple" | "pink" | "light_pink" | "orange" | "yellow" | "lime" | "green" | "aqua" | "blue"
 export type SelectOption = { id: string; name: string; color: SelectColor }
@@ -2538,7 +2670,7 @@ politeness_sleep_max?: number;
  * When true, yt-dlp binary is checked for updates on each queue run.
  */
 yt_dlp_auto_check_updates?: boolean }
-export type WebMediaFormat = { kind: "mp3_audio" } | { kind: "mp4_video"; max_height: number }
+export type WebMediaFormat = { kind: "mp_3_audio" } | { kind: "mp_4_video"; max_height: number }
 export type WebMediaImportOpts = { keep_media: boolean; format: WebMediaFormat; parent_folder_node_id: string | null; playlist_source: PlaylistSource | null }
 export type WebMediaMetadata = { url: string; source_id: string; title: string; thumbnail_url?: string | null; duration_seconds?: number | null; channel?: string | null; platform: string; published_at?: string | null; available_video_heights: number[]; is_live: boolean }
 export type WhisperAcceleratorSetting = "auto" | "cpu" | "gpu"
