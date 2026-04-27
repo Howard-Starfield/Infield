@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { createDebouncedSaver } from '../autosavePlugin'
+import { EditorState } from '@codemirror/state'
+import { EditorView } from '@codemirror/view'
+import { createDebouncedSaver, autosavePlugin } from '../autosavePlugin'
 
 describe('createDebouncedSaver', () => {
   beforeEach(() => vi.useFakeTimers())
@@ -58,5 +60,47 @@ describe('createDebouncedSaver', () => {
     vi.advanceTimersByTime(300)
     await vi.runAllTimersAsync()
     expect(onSave).not.toHaveBeenCalled()
+  })
+})
+
+describe('autosavePlugin: pending:// pause guard', () => {
+  it('does NOT call saver.schedule when doc contains pending://', async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined)
+    const saver = createDebouncedSaver(onSave, 10)
+    const dirtyChange = vi.fn()
+
+    const state = EditorState.create({
+      doc: '![Saving image…](pending://abc123)\n',
+      extensions: [autosavePlugin(saver, dirtyChange)],
+    })
+    const view = new EditorView({ state, parent: document.createElement('div') })
+
+    view.dispatch({
+      changes: { from: view.state.doc.length, insert: 'x' },
+      userEvent: 'input.type',
+    })
+
+    await new Promise((r) => setTimeout(r, 30))
+    expect(onSave).not.toHaveBeenCalled()
+  })
+
+  it('calls saver.schedule once doc no longer contains pending://', async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined)
+    const saver = createDebouncedSaver(onSave, 10)
+    const dirtyChange = vi.fn()
+
+    const state = EditorState.create({
+      doc: '![](attachments/2026/04/foo.png)\n',
+      extensions: [autosavePlugin(saver, dirtyChange)],
+    })
+    const view = new EditorView({ state, parent: document.createElement('div') })
+
+    view.dispatch({
+      changes: { from: view.state.doc.length, insert: 'x' },
+      userEvent: 'input.type',
+    })
+
+    await new Promise((r) => setTimeout(r, 30))
+    expect(onSave).toHaveBeenCalledTimes(1)
   })
 })

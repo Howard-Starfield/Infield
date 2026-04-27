@@ -4,6 +4,8 @@ import { LayoutProvider } from './contexts/LayoutContext';
 import { VaultProvider, useVault } from './contexts/VaultContext';
 import { Toaster } from 'sonner';
 import { celebrationService } from './services/CelebrationService';
+import { commands } from '@/bindings';
+import { platform } from '@tauri-apps/plugin-os';
 
 import { Lock as LockIcon, Key, ArrowRight, Eye, EyeOff, Fingerprint, Loader } from 'lucide-react';
 
@@ -140,6 +142,22 @@ function AppContent() {
       showWin();
     }
   }, [isBooting]);
+
+  // Boot-time hotkey backend init. The Rust `initialize_shortcuts` command
+  // is gated behind a frontend invoke (so macOS can defer it past the
+  // accessibility-permission dialog). On Windows/Linux there is no such
+  // dialog, and the existing call site (AccessibilityOnboarding) only runs
+  // on the macOS branch — leaving returning Windows/Linux users with no
+  // registered global hotkeys (Ctrl+Space did nothing). The command is
+  // idempotent via a `ShortcutsInitialized` marker, so calling it once at
+  // boot is safe.
+  React.useEffect(() => {
+    const current = platform();
+    if (current === 'macos') return;
+    Promise.all([commands.initializeEnigo(), commands.initializeShortcuts()]).catch(
+      (e) => console.warn('Failed to initialize hotkeys at boot:', e)
+    );
+  }, []);
 
   return (
     <HerOSViewport>

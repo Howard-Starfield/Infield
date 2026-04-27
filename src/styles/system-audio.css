@@ -154,6 +154,17 @@
   padding-right: 2px;
 }
 
+.system-audio-settings-modal,
+.system-audio-speaker-modal {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.system-audio-settings-modal .system-audio-side-card {
+  flex-shrink: 0;
+}
+
 .system-audio-side-card {
   flex-shrink: 0;
   background: rgba(7, 9, 18, 0.58);
@@ -210,9 +221,9 @@
     padding: 0 12px 12px 12px !important;
   }
 
-  .system-audio-side {
-    display: grid !important;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+  .system-audio-settings-modal {
+    width: min(720px, calc(100vw - 24px)) !important;
+    max-height: calc(100% - 24px) !important;
   }
 }
 
@@ -221,7 +232,9 @@
     padding-inline: 18px !important;
   }
 
-  .system-audio-side {
-    grid-template-columns: 1fr !important;
+  .system-audio-settings-modal,
+  .system-audio-speaker-modal {
+    width: calc(100vw - 24px) !important;
+    max-height: calc(100% - 24px) !important;
   }
 }

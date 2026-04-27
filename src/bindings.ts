@@ -1604,38 +1604,6 @@ async updateRowDate(databaseId: string, rowId: string, fieldId: string, timestam
     else return { status: "error", error: e  as any };
 }
 },
-async exportDatabaseTemplate(databaseId: string) : Promise<Result<TemplateEntry[], string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("export_database_template", { databaseId }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async saveDatabaseTemplate(databaseId: string, template: TemplateEntry) : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("save_database_template", { databaseId, template }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async deleteDatabaseTemplate(databaseId: string, templateId: string) : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("delete_database_template", { databaseId, templateId }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async listDatabaseTemplates(databaseId: string) : Promise<Result<TemplateEntry[], string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("list_database_templates", { databaseId }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
 async runWorkspaceMigration() : Promise<Result<number, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("run_workspace_migration") };
@@ -2605,8 +2573,6 @@ export type ShortcutBinding = { id: string; name: string; description: string; d
 export type Sort = { id: string; field_id: string; field_type: FieldType; condition: SortCondition }
 export type SortCondition = "ascending" | "descending"
 export type SoundTheme = "marimba" | "pop" | "custom"
-export type TemplateColumn = { name: string; color: string }
-export type TemplateEntry = { id: string; name: string; columns: TemplateColumn[] }
 export type TestResult = { ok: boolean; latency_ms: number; error: string | null }
 /**
  * Per-field configuration stored alongside the field definition.

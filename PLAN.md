@@ -585,6 +585,39 @@ Wires the dormant `ImportView` to a new URL-paste pipeline that downloads media 
   remove keys as part of the same commit that deletes the feature
   using them.
 
+### W10 — Vault Reconcile 📋 STUB DESIGNED 2026-04-26
+
+**Status:** Design stub captured at [docs/superpowers/specs/2026-04-26-vault-reconcile-design.md](docs/superpowers/specs/2026-04-26-vault-reconcile-design.md). Triggered by Howard noticing 2026-04-26 that wiping the app's DB does NOT repopulate `workspace_nodes` from existing vault `.md` files — direct contradiction of Invariant #1 ("vault is source of truth").
+
+**Why tractable:** every `.md` file in the vault carries full identity in YAML frontmatter (`id`, `parent_id`, `title`, `icon`, `created_at`, `updated_at`, `properties_json`, `vault_version`) per [workspace_manager.rs:1732](src-tauri/src/managers/workspace/workspace_manager.rs). UUIDs are stable across wipe → reconstruct cycles. Wikilinks (`node://uuid`) keep working. The parent-child tree is recoverable. No information loss on rebuild.
+
+**Architecture (two-tier):**
+
+```
+boot
+  ├─ count rows in workspace_nodes WHERE deleted_at IS NULL
+  │
+  ├─ if 0  → FULL SCAN  (wiped DB, fresh install with existing vault, restored backup)
+  │           walk vault, parse frontmatter, INSERT preserving all fields
+  │
+  └─ if >0 → DRIFT CHECK
+              cheap stat-hash comparison vs stored sentinel
+              ├─ matches → trust DB, no walk
+              └─ differs → reconcile only the drifted subset
+```
+
+**Reconcile rules:**
+- File present + DB row missing → INSERT preserving all frontmatter fields (UUID-stable)
+- File mtime > DB `updated_at` → mark `body_dirty`; next `get_node` re-reads
+- DB row present + file missing → soft-mark orphan; surface in "Vault issues" panel; never auto-delete (cloud-sync delays)
+- Skip dirs: `.git/`, `attachments/` (image-import), hidden, cloud-sync detritus
+
+**Doesn't block any current work.** Image-import (in flight 2026-04-26) works fine in the steady-state case. Vault reconcile makes the system robust to wipe/drift but isn't a prerequisite.
+
+**Open questions for the proper brainstorm round:** stat-hash algorithm (blake3 vs sum-of-mtimes), body-dirty vs eager re-read on drift, orphan UX shape (banner vs settings panel), boot-blocking decision (block on empty-DB, background on drift?). All listed in the design stub.
+
+**Trigger conditions for promotion to active phase:** any of — (a) Howard or another user loses notes confidence after a DB wipe (happened once 2026-04-26 — could happen again), (b) multi-device vault sync becomes a real feature, (c) "import existing vault from backup" needs to be a documented workflow.
+
 ---
 
 ## Previous plan (Phase A, superseded Phases B-I)

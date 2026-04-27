@@ -12,11 +12,19 @@ import { herosEditorTheme } from '../editor/herosTheme'
 import { slashCompletionSource } from '../editor/slashCompletion'
 import { allSlashCommands } from '../editor/slashCommands'
 import {
+  renderSlashAccent,
+  renderSlashIcon,
+  renderSlashShortcut,
+} from '../editor/slashRenderers'
+import {
   wikilinkCompletionSource,
   type WikilinkSearchFn,
 } from '../editor/wikilinkCompletion'
 import { voiceMemoPillPlugin } from '../editor/voiceMemoPill'
 import { nodeLinkClickPlugin } from '../editor/nodeLinkClick'
+import { livePreviewPlugin, vaultRootFacet } from '../editor/livePreview'
+import { imagePastePlugin } from '../editor/imagePastePlugin'
+import { nodeIdFacet } from '../editor/nodeIdFacet'
 import {
   autosavePlugin,
   createDebouncedSaver,
@@ -73,6 +81,18 @@ export function MarkdownEditor({
   } | null>(null)
   const [state, dispatch] = useReducer(conflictReducer, initialConflictState)
   const [node, setNode] = useState<WorkspaceNode | null>(null)
+  const [vaultRoot, setVaultRoot] = useState<string>('')
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      const res = await commands.getVaultRoot()
+      if (!cancelled && res.status === 'ok') {
+        setVaultRoot(res.data)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [])
   const stateRef = useRef(state)
   useEffect(() => {
     stateRef.current = state
@@ -170,6 +190,9 @@ export function MarkdownEditor({
       if (!saver) return
 
       const extensions = [
+        nodeIdFacet.of(nodeId),
+        vaultRootFacet.of(vaultRoot),
+        imagePastePlugin,
         tooltips({ parent: document.body }),
         EditorView.lineWrapping,
         history(),
@@ -190,8 +213,19 @@ export function MarkdownEditor({
           activateOnTyping: true,
           aboveCursor: false,
           tooltipClass: () => 'notes-editor-autocomplete',
+          addToOptions: [
+            { render: renderSlashAccent, position: 0 },
+            { render: renderSlashIcon, position: 10 },
+            // CM6 default label renderer at position 20; detail at 30.
+            { render: renderSlashShortcut, position: 40 },
+          ],
+          optionClass: (completion) =>
+            completion.type === '__section_header'
+              ? 'cm-md-slash-section'
+              : 'cm-md-slash-row',
         }),
         voiceMemoPillPlugin(),
+        livePreviewPlugin,
         nodeLinkClickPlugin((id, { meta }) => {
           if (meta) onOpenInNewTabRef.current(id)
           else onNodeLinkClickRef.current(id)
@@ -244,7 +278,7 @@ export function MarkdownEditor({
         prior.scrollDOM.removeEventListener('scroll', prior.__onScroll)
       }
     }
-  }, [nodeId])
+  }, [nodeId, vaultRoot])
 
   // Unmount cleanup.
   useEffect(() => {

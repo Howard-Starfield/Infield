@@ -4,14 +4,13 @@ import {
   Headphones,
   Square,
   Trash2,
-  Download,
   Volume2,
   SlidersHorizontal,
   RotateCcw,
-  Mic,
   Users,
   Radio,
   FileText,
+  X,
 } from 'lucide-react'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { toast } from 'sonner'
@@ -232,7 +231,13 @@ export function SystemAudioView() {
   const [nameError, setNameError] = useState<string | null>(null)
   const [isTransitioning, setIsTransitioning] = useState(false)
   const [streamUnavailable, setStreamUnavailable] = useState(false)
+  const [showSettingsPanel, setShowSettingsPanel] = useState(false)
+  const [showInterviewPrompt, setShowInterviewPrompt] = useState(false)
+  const [interviewDraftName, setInterviewDraftName] = useState('')
   const scrollRef = useRef<HTMLDivElement>(null)
+  const settingsPanelRef = useRef<HTMLDivElement>(null)
+  const settingsButtonRef = useRef<HTMLButtonElement>(null)
+  const interviewNameInputRef = useRef<HTMLInputElement>(null)
   const startRef = useRef<number | null>(null)
   const settingsLoadedRef = useRef(false)
   const dirtyKeysRef = useRef<Set<TuningKey>>(new Set())
@@ -390,6 +395,46 @@ export function SystemAudioView() {
     return () => cancelAnimationFrame(frame)
   }, [transcript])
 
+  useEffect(() => {
+    if (!showSettingsPanel) return
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node
+      if (settingsPanelRef.current?.contains(target)) return
+      if (settingsButtonRef.current?.contains(target)) return
+      setShowSettingsPanel(false)
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setShowSettingsPanel(false)
+      }
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [showSettingsPanel])
+
+  useEffect(() => {
+    if (!showInterviewPrompt) return
+    const frame = requestAnimationFrame(() => interviewNameInputRef.current?.focus())
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !isTransitioning) {
+        setShowInterviewPrompt(false)
+        setNameError(null)
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      cancelAnimationFrame(frame)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isTransitioning, showInterviewPrompt])
+
   // Display the default render device name. Full device list lands when
   // get_render_devices grows beyond the MVP single-entry surface.
   useEffect(() => {
@@ -434,18 +479,19 @@ export function SystemAudioView() {
     }
   }, [mode])
 
-  const startCapture = async () => {
+  const startCapture = async (participantOverride?: string) => {
     if (isTransitioning) return
     setIsTransitioning(true)
 
+    const interviewName =
+      mode === 'interview' ? (participantOverride ?? participantName).trim() : ''
     if (mode === 'interview') {
-      const name = participantName.trim()
-      if (!name) {
+      if (!interviewName) {
         setNameError('Participant name is required')
         setIsTransitioning(false)
         return
       }
-      if (name.toLowerCase() === 'you') {
+      if (interviewName.toLowerCase() === 'you') {
         setNameError("Participant name cannot be 'You'")
         setIsTransitioning(false)
         return
@@ -464,12 +510,15 @@ export function SystemAudioView() {
           return
         }
       } else {
-        const result = await commands.startInterviewSession(participantName.trim())
+        const result = await commands.startInterviewSession(interviewName)
         if (result.status !== 'ok') {
           toast.error('Could not start interview', { description: result.error })
           setStreamUnavailable(true)
           return
         }
+        setParticipantName(interviewName)
+        setInterviewDraftName(interviewName)
+        setShowInterviewPrompt(false)
       }
       startRef.current = Date.now()
       setIsCapturing(true)
@@ -502,6 +551,20 @@ export function SystemAudioView() {
     setTranscript([])
   }
 
+  const handleCaptureButton = () => {
+    if (isCapturing) {
+      void stopCapture()
+      return
+    }
+    if (mode === 'interview') {
+      setInterviewDraftName(participantName.trim())
+      setNameError(null)
+      setShowInterviewPrompt(true)
+      return
+    }
+    void startCapture()
+  }
+
   const saveLabel =
     saveState === 'saving'
       ? 'Saving...'
@@ -519,12 +582,11 @@ export function SystemAudioView() {
       : { kicker: 'System Audio', title: 'Capture what you', highlight: 'hear', subtitle: "Transcribe anything playing through your speakers — podcasts, calls, videos. Paragraphs append to today's System Audio doc." }
   const headlineAccent = modeAccent(mode)
   const isInterview = mode === 'interview'
-  const participantLabel = participantName.trim() || 'Guest'
   const methodLabel = isInterview ? 'Mic + loopback' : 'WASAPI loopback'
   const destinationLabel = isInterview ? 'Interviews/' : "Today's System Audio"
   const emptyTitle = isInterview ? 'Ready for a two-speaker transcript' : 'Ready to capture system audio'
   const emptyDescription = isInterview
-    ? 'Name the other speaker, start the session, and the feed will interleave you and them by timestamp.'
+    ? 'Start the session, name the other speaker, and the feed will interleave you and them by timestamp.'
     : "Start capture and live paragraphs will appear here while the saved note updates in today's System Audio doc."
 
   return (
@@ -685,55 +747,6 @@ export function SystemAudioView() {
                 })}
               </div>
 
-              {mode === 'interview' && (
-                <div
-                  style={{
-                    width: '100%',
-                    maxWidth: 520,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 12,
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: 10,
-                      fontWeight: 800,
-                      letterSpacing: '0.2em',
-                      textTransform: 'uppercase',
-                      color: 'rgba(255,255,255,0.4)',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    Speaker
-                  </span>
-                  <input
-                    placeholder="Participant name (e.g. Alice)"
-                    value={participantName}
-                    onChange={(e) => {
-                      setParticipantName(e.currentTarget.value)
-                      setNameError(null)
-                    }}
-                    disabled={isCapturing || isTransitioning}
-                    style={{
-                      flex: 1,
-                      padding: '8px 12px',
-                      fontSize: 13,
-                      background: 'rgba(255,255,255,0.04)',
-                      border: `1px solid ${nameError ? '#ff7a7a' : 'rgba(255,255,255,0.08)'}`,
-                      borderRadius: 8,
-                      color: '#fff',
-                      fontFamily: 'inherit',
-                      outline: 'none',
-                    }}
-                  />
-                  {nameError && (
-                    <span style={{ color: '#ff7a7a', fontSize: 11, whiteSpace: 'nowrap' }}>
-                      {nameError}
-                    </span>
-                  )}
-                </div>
-              )}
             </div>
           </motion.section>
         )}
@@ -744,8 +757,9 @@ export function SystemAudioView() {
         className="system-audio-workbench"
         style={{
           display: 'grid',
-          gridTemplateColumns: 'minmax(560px, 980px) minmax(280px, 340px)',
+          gridTemplateColumns: 'minmax(0, 1fr)',
           justifyContent: 'center',
+          position: 'relative',
           flex: 1,
           minHeight: 0,
           gap: 16,
@@ -818,7 +832,10 @@ export function SystemAudioView() {
             flexDirection: 'column',
           }}
         >
-          <ScrollShadow containerRef={scrollRef} style={{ flex: 1, padding: '36px 44px 150px 44px' }}>
+          <ScrollShadow
+            containerRef={scrollRef as React.RefObject<HTMLDivElement>}
+            style={{ flex: 1, padding: '36px 44px 150px 44px' }}
+          >
             <div
               style={{
                 display: 'flex',
@@ -1038,21 +1055,24 @@ export function SystemAudioView() {
             }}
           >
             <button
+              ref={settingsButtonRef}
+              onClick={() => setShowSettingsPanel((open) => !open)}
               className="icon-btn"
               style={{
                 padding: 12,
-                background: 'rgba(255,255,255,0.03)',
-                opacity: 0.5,
-                cursor: 'not-allowed',
+                background: showSettingsPanel ? 'rgba(255,255,255,0.09)' : 'rgba(255,255,255,0.03)',
+                borderColor: showSettingsPanel ? modeAccent(mode) : 'rgba(255,255,255,0.08)',
+                boxShadow: showSettingsPanel ? `0 0 0 1px ${modeGlow(mode)}` : 'none',
               }}
-              disabled
-              title="Export — coming in W6"
+              aria-expanded={showSettingsPanel}
+              aria-label={showSettingsPanel ? 'Close system audio settings' : 'Open system audio settings'}
+              title={showSettingsPanel ? 'Close system audio settings' : 'Open system audio settings'}
             >
-              <Download size={20} />
+              <SlidersHorizontal size={20} />
             </button>
 
             <button
-              onClick={() => void (isCapturing ? stopCapture() : startCapture())}
+              onClick={handleCaptureButton}
               disabled={isTransitioning || streamUnavailable}
               style={{
                 width: 80,
@@ -1099,251 +1119,429 @@ export function SystemAudioView() {
           </div>
         </div>
       </section>
-
-      {/* Info Column */}
-      <aside className="system-audio-side" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <section className="heros-glass-card system-audio-side-card system-audio-mode-card" style={{ padding: '22px' }}>
-          <div
-            style={{
-              fontSize: '10px',
-              fontWeight: 800,
-              color: 'rgba(255,255,255,0.3)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.2em',
-              marginBottom: 16,
-            }}
-          >
-            Session
-          </div>
-          <div
-            style={{
-              padding: '16px',
-              borderRadius: 12,
-              background:
-                mode === 'interview' ? 'rgba(255,127,80,0.08)' : 'rgba(62,184,255,0.08)',
-              border: `1px solid ${
-                mode === 'interview' ? 'rgba(255,127,80,0.22)' : 'rgba(62,184,255,0.18)'
-              }`,
-            }}
-          >
-            <div
+      <AnimatePresence>
+        {showSettingsPanel && (
+          <>
+            <motion.div
+              key="settings-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18 }}
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                color: modeAccent(mode),
-                fontSize: '12px',
-                fontWeight: 700,
-                marginBottom: 8,
+                position: 'absolute',
+                inset: 0,
+                zIndex: 30,
+                background: 'rgba(0,0,0,0.34)',
+                backdropFilter: 'blur(8px)',
               }}
-            >
-              {isInterview ? <Users size={14} /> : <Headphones size={14} />}
-              {isInterview ? 'Interview mode' : 'System audio mode'}
-            </div>
-            <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.7)', lineHeight: 1.6 }}>
-              {headline.subtitle}
-            </p>
-            <div className="system-audio-session-grid">
-              <div>
-                <span>Status</span>
-                <strong>{isCapturing ? 'Live' : 'Ready'}</strong>
-              </div>
-              <div>
-                <span>Elapsed</span>
-                <strong>{formatTime(timer)}</strong>
-              </div>
-              <div>
-                <span>Lines</span>
-                <strong>{transcript.length}</strong>
-              </div>
-              <div>
-                <span>Saved to</span>
-                <strong>{destinationLabel}</strong>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="heros-glass-card system-audio-side-card" style={{ padding: '22px' }}>
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              gap: 12,
-              marginBottom: 18,
-            }}
-          >
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                fontSize: '10px',
-                fontWeight: 800,
-                color: 'rgba(255,255,255,0.3)',
-                textTransform: 'uppercase',
-                letterSpacing: '0.2em',
-              }}
-            >
-              <SlidersHorizontal size={14} /> Tuning
-            </div>
-            <div
-              style={{
-                color:
-                  saveState === 'error'
-                    ? '#ff7a7a'
-                    : mode === 'interview'
-                      ? 'rgba(255,127,80,0.9)'
-                      : 'rgba(62,184,255,0.8)',
-                fontSize: '10px',
-                fontWeight: 800,
-                textTransform: 'uppercase',
-                letterSpacing: '0.12em',
-              }}
-            >
-              {saveLabel}
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-            <SystemAudioTuningSlider
-              label="Max chunk"
-              description="Force transcribe long speech before VAD sees a pause."
-              settingKey="system_audio_max_chunk_secs"
-              value={tuning.system_audio_max_chunk_secs}
-              defaultValue={defaultTuning.system_audio_max_chunk_secs}
-              isCapturing={isCapturing}
-              live={false}
-              accentColor={mode === 'interview' ? '#ff7f50' : '#3eb8ff'}
-              onChange={updateTuning}
             />
-            <SystemAudioTuningSlider
-              label="VAD hangover"
-              description="Trailing silence before a spoken segment is cut."
-              settingKey="system_audio_vad_hangover_secs"
-              value={tuning.system_audio_vad_hangover_secs}
-              defaultValue={defaultTuning.system_audio_vad_hangover_secs}
-              isCapturing={isCapturing}
-              live={false}
-              accentColor={mode === 'interview' ? '#ff7f50' : '#3eb8ff'}
-              onChange={updateTuning}
-            />
-            <SystemAudioTuningSlider
-              label="Paragraph gap"
-              description="Silence between chunks that starts a new timestamp."
-              settingKey="system_audio_paragraph_silence_secs"
-              value={tuning.system_audio_paragraph_silence_secs}
-              defaultValue={defaultTuning.system_audio_paragraph_silence_secs}
-              isCapturing={isCapturing}
-              live
-              accentColor={mode === 'interview' ? '#ff7f50' : '#3eb8ff'}
-              onChange={updateTuning}
-            />
-          </div>
-
-          <div
-            style={{
-              marginTop: 18,
-              paddingTop: 16,
-              borderTop: '1px solid rgba(255,255,255,0.08)',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              gap: 12,
-            }}
-          >
-            <p style={{ margin: 0, color: 'rgba(255,255,255,0.42)', fontSize: '11px', lineHeight: 1.45 }}>
-              Paragraph gap updates immediately. Max chunk and VAD hangover apply to the next
-              capture to avoid mutating the audio thread mid-stream.
-            </p>
-            <button
-              className="icon-btn"
-              onClick={resetTuning}
-              title="Reset system audio tuning to defaults"
-              style={{ padding: 10, background: 'rgba(255,255,255,0.03)', flexShrink: 0 }}
-            >
-              <RotateCcw size={16} />
-            </button>
-          </div>
-        </section>
-
-        <section className="heros-glass-card system-audio-side-card system-audio-device-card" style={{ padding: '22px', flex: 1 }}>
-          <div
-            style={{
-              fontSize: '10px',
-              fontWeight: 800,
-              color: 'rgba(255,255,255,0.3)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.2em',
-              marginBottom: 16,
-            }}
-          >
-            Device
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div
+            <motion.aside
+              key="settings-panel"
+              ref={settingsPanelRef}
+              className="system-audio-side system-audio-settings-modal"
+              initial={{ opacity: 0, y: 16, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 16, scale: 0.98 }}
+              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
               style={{
+                position: 'absolute',
+                left: '50%',
+                top: '50%',
+                width: 'min(720px, calc(100vw - 48px))',
+                maxHeight: 'min(760px, calc(100% - 48px))',
+                translate: '-50% -50%',
                 display: 'flex',
-                justifyContent: 'space-between',
-                fontSize: '12px',
-                color: 'rgba(255,255,255,0.5)',
+                flexDirection: 'column',
+                gap: 12,
+                zIndex: 31,
               }}
             >
-              <span>Render output</span>
-              <span style={{ color: '#fff' }}>{renderDevice}</span>
-            </div>
-            <div
+              <section className="heros-glass-card system-audio-side-card system-audio-mode-card" style={{ padding: '22px' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 12,
+                    marginBottom: 16,
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: '10px',
+                      fontWeight: 800,
+                      color: 'rgba(255,255,255,0.3)',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.2em',
+                    }}
+                  >
+                    Session
+                  </div>
+                  <button
+                    className="icon-btn"
+                    onClick={() => setShowSettingsPanel(false)}
+                    style={{ padding: 8, background: 'rgba(255,255,255,0.03)' }}
+                    title="Close settings"
+                    aria-label="Close settings"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+                <div
+                  style={{
+                    padding: '16px',
+                    borderRadius: 12,
+                    background:
+                      mode === 'interview' ? 'rgba(255,127,80,0.08)' : 'rgba(62,184,255,0.08)',
+                    border: `1px solid ${
+                      mode === 'interview' ? 'rgba(255,127,80,0.22)' : 'rgba(62,184,255,0.18)'
+                    }`,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      color: modeAccent(mode),
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      marginBottom: 8,
+                    }}
+                  >
+                    {isInterview ? <Users size={14} /> : <Headphones size={14} />}
+                    {isInterview ? 'Interview mode' : 'System audio mode'}
+                  </div>
+                  <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.7)', lineHeight: 1.6 }}>
+                    {headline.subtitle}
+                  </p>
+                  <div className="system-audio-session-grid">
+                    <div>
+                      <span>Status</span>
+                      <strong>{isCapturing ? 'Live' : 'Ready'}</strong>
+                    </div>
+                    <div>
+                      <span>Elapsed</span>
+                      <strong>{formatTime(timer)}</strong>
+                    </div>
+                    <div>
+                      <span>Lines</span>
+                      <strong>{transcript.length}</strong>
+                    </div>
+                    <div>
+                      <span>Saved to</span>
+                      <strong>{destinationLabel}</strong>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section className="heros-glass-card system-audio-side-card" style={{ padding: '22px' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: 12,
+                    marginBottom: 18,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      fontSize: '10px',
+                      fontWeight: 800,
+                      color: 'rgba(255,255,255,0.3)',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.2em',
+                    }}
+                  >
+                    <SlidersHorizontal size={14} /> Tuning
+                  </div>
+                  <div
+                    style={{
+                      color:
+                        saveState === 'error'
+                          ? '#ff7a7a'
+                          : mode === 'interview'
+                            ? 'rgba(255,127,80,0.9)'
+                            : 'rgba(62,184,255,0.8)',
+                      fontSize: '10px',
+                      fontWeight: 800,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.12em',
+                    }}
+                  >
+                    {saveLabel}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+                  <SystemAudioTuningSlider
+                    label="Max chunk"
+                    description="Force transcribe long speech before VAD sees a pause."
+                    settingKey="system_audio_max_chunk_secs"
+                    value={tuning.system_audio_max_chunk_secs}
+                    defaultValue={defaultTuning.system_audio_max_chunk_secs}
+                    isCapturing={isCapturing}
+                    live={false}
+                    accentColor={mode === 'interview' ? '#ff7f50' : '#3eb8ff'}
+                    onChange={updateTuning}
+                  />
+                  <SystemAudioTuningSlider
+                    label="VAD hangover"
+                    description="Trailing silence before a spoken segment is cut."
+                    settingKey="system_audio_vad_hangover_secs"
+                    value={tuning.system_audio_vad_hangover_secs}
+                    defaultValue={defaultTuning.system_audio_vad_hangover_secs}
+                    isCapturing={isCapturing}
+                    live={false}
+                    accentColor={mode === 'interview' ? '#ff7f50' : '#3eb8ff'}
+                    onChange={updateTuning}
+                  />
+                  <SystemAudioTuningSlider
+                    label="Paragraph gap"
+                    description="Silence between chunks that starts a new timestamp."
+                    settingKey="system_audio_paragraph_silence_secs"
+                    value={tuning.system_audio_paragraph_silence_secs}
+                    defaultValue={defaultTuning.system_audio_paragraph_silence_secs}
+                    isCapturing={isCapturing}
+                    live
+                    accentColor={mode === 'interview' ? '#ff7f50' : '#3eb8ff'}
+                    onChange={updateTuning}
+                  />
+                </div>
+
+                <div
+                  style={{
+                    marginTop: 18,
+                    paddingTop: 16,
+                    borderTop: '1px solid rgba(255,255,255,0.08)',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: 12,
+                  }}
+                >
+                  <p style={{ margin: 0, color: 'rgba(255,255,255,0.42)', fontSize: '11px', lineHeight: 1.45 }}>
+                    Paragraph gap updates immediately. Max chunk and VAD hangover apply to the next
+                    capture to avoid mutating the audio thread mid-stream.
+                  </p>
+                  <button
+                    className="icon-btn"
+                    onClick={resetTuning}
+                    title="Reset system audio tuning to defaults"
+                    style={{ padding: 10, background: 'rgba(255,255,255,0.03)', flexShrink: 0 }}
+                  >
+                    <RotateCcw size={16} />
+                  </button>
+                </div>
+              </section>
+
+              <section className="heros-glass-card system-audio-side-card system-audio-device-card" style={{ padding: '22px', flex: 1 }}>
+                <div
+                  style={{
+                    fontSize: '10px',
+                    fontWeight: 800,
+                    color: 'rgba(255,255,255,0.3)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.2em',
+                    marginBottom: 16,
+                  }}
+                >
+                  Device
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      fontSize: '12px',
+                      color: 'rgba(255,255,255,0.5)',
+                    }}
+                  >
+                    <span>Render output</span>
+                    <span style={{ color: '#fff' }}>{renderDevice}</span>
+                  </div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      fontSize: '12px',
+                      color: 'rgba(255,255,255,0.5)',
+                    }}
+                  >
+                    <span>Method</span>
+                    <span
+                      style={{
+                        color: mode === 'interview' ? 'rgba(255,127,80,0.95)' : 'rgba(62,184,255,0.9)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 4,
+                      }}
+                    >
+                      <Volume2 size={12} /> {methodLabel}
+                    </span>
+                  </div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      fontSize: '12px',
+                      color: 'rgba(255,255,255,0.5)',
+                    }}
+                  >
+                    <span>Destination</span>
+                    <span style={{ color: '#fff', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <FileText size={12} /> {destinationLabel}
+                    </span>
+                  </div>
+                </div>
+              </section>
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {showInterviewPrompt && (
+          <>
+            <motion.div
+              key="interview-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18 }}
+              onClick={() => {
+                if (isTransitioning) return
+                setShowInterviewPrompt(false)
+                setNameError(null)
+              }}
               style={{
+                position: 'absolute',
+                inset: 0,
+                zIndex: 40,
+                background: 'rgba(0,0,0,0.38)',
+                backdropFilter: 'blur(8px)',
+              }}
+            />
+            <motion.form
+              key="interview-speaker"
+              initial={{ opacity: 0, y: 16, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 16, scale: 0.98 }}
+              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+              onClick={(event) => event.stopPropagation()}
+              onSubmit={(event) => {
+                event.preventDefault()
+                void startCapture(interviewDraftName)
+              }}
+              className="heros-glass-card system-audio-speaker-modal"
+              style={{
+                position: 'absolute',
+                left: '50%',
+                top: '50%',
+                translate: '-50% -50%',
+                zIndex: 41,
+                width: 'min(440px, calc(100vw - 48px))',
+                padding: 24,
                 display: 'flex',
-                justifyContent: 'space-between',
-                fontSize: '12px',
-                color: 'rgba(255,255,255,0.5)',
+                flexDirection: 'column',
+                gap: 18,
               }}
             >
-              <span>Method</span>
-              <span
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: '50%',
+                      display: 'grid',
+                      placeItems: 'center',
+                      color: 'var(--heros-brand)',
+                      background: 'rgba(255,127,80,0.1)',
+                      border: '1px solid rgba(255,127,80,0.18)',
+                    }}
+                  >
+                    <Users size={18} />
+                  </div>
+                  <div>
+                    <div style={{ color: '#fff', fontSize: 15, fontWeight: 800 }}>
+                      Interview speaker
+                    </div>
+                    <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: 12 }}>
+                      Name the other participant.
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="icon-btn"
+                  onClick={() => {
+                    setShowInterviewPrompt(false)
+                    setNameError(null)
+                  }}
+                  disabled={isTransitioning}
+                  style={{ padding: 8, background: 'rgba(255,255,255,0.03)' }}
+                  aria-label="Close interview speaker prompt"
+                  title="Close"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <input
+                  ref={interviewNameInputRef}
+                  placeholder="Participant name"
+                  value={interviewDraftName}
+                  onChange={(event) => {
+                    setInterviewDraftName(event.currentTarget.value)
+                    setNameError(null)
+                  }}
+                  disabled={isTransitioning}
+                  style={{
+                    padding: '12px 14px',
+                    fontSize: 14,
+                    background: 'rgba(255,255,255,0.05)',
+                    border: `1px solid ${nameError ? '#ff7a7a' : 'rgba(255,255,255,0.1)'}`,
+                    borderRadius: 8,
+                    color: '#fff',
+                    fontFamily: 'inherit',
+                    outline: 'none',
+                  }}
+                />
+                {nameError && (
+                  <div style={{ color: '#ff7a7a', fontSize: 12 }}>{nameError}</div>
+                )}
+              </div>
+
+              <button
+                type="submit"
+                disabled={isTransitioning}
                 style={{
-                  color: mode === 'interview' ? 'rgba(255,127,80,0.95)' : 'rgba(62,184,255,0.9)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 4,
+                  height: 42,
+                  border: 'none',
+                  borderRadius: 999,
+                  background: 'var(--heros-brand)',
+                  color: '#fff',
+                  fontSize: 12,
+                  fontWeight: 800,
+                  letterSpacing: '0.12em',
+                  textTransform: 'uppercase',
+                  cursor: isTransitioning ? 'not-allowed' : 'pointer',
+                  opacity: isTransitioning ? 0.55 : 1,
                 }}
               >
-                <Volume2 size={12} /> {methodLabel}
-              </span>
-            </div>
-            {isInterview && (
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  fontSize: '12px',
-                  color: 'rgba(255,255,255,0.5)',
-                }}
-              >
-                <span>Speaker</span>
-                <span style={{ color: '#fff', display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <Mic size={12} /> {participantLabel}
-                </span>
-              </div>
-            )}
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                fontSize: '12px',
-                color: 'rgba(255,255,255,0.5)',
-              }}
-            >
-              <span>Destination</span>
-              <span style={{ color: '#fff', display: 'flex', alignItems: 'center', gap: 4 }}>
-                <FileText size={12} /> {destinationLabel}
-              </span>
-            </div>
-          </div>
-        </section>
-      </aside>
+                {isTransitioning ? 'Starting...' : 'Start interview'}
+              </button>
+            </motion.form>
+          </>
+        )}
+      </AnimatePresence>
     </div>
     </div>
   )

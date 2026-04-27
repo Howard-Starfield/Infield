@@ -804,49 +804,6 @@ pub async fn ensure_default_view(
 }
 
 // ------------------------------------------------------------------ //
-//  Template CRUD commands
-// ------------------------------------------------------------------ //
-
-#[tauri::command]
-#[specta::specta]
-pub async fn export_database_template(
-    db_mgr: State<'_, Arc<DatabaseManager>>,
-    database_id: String,
-) -> Result<Vec<crate::managers::database::json_store::TemplateEntry>, String> {
-    // Return templates for this database (from JSON vault)
-    Ok(vec![])
-}
-
-#[tauri::command]
-#[specta::specta]
-pub async fn save_database_template(
-    db_mgr: State<'_, Arc<DatabaseManager>>,
-    database_id: String,
-    template: crate::managers::database::json_store::TemplateEntry,
-) -> Result<(), String> {
-    Ok(())
-}
-
-#[tauri::command]
-#[specta::specta]
-pub async fn delete_database_template(
-    db_mgr: State<'_, Arc<DatabaseManager>>,
-    database_id: String,
-    template_id: String,
-) -> Result<(), String> {
-    Ok(())
-}
-
-#[tauri::command]
-#[specta::specta]
-pub async fn list_database_templates(
-    db_mgr: State<'_, Arc<DatabaseManager>>,
-    database_id: String,
-) -> Result<Vec<crate::managers::database::json_store::TemplateEntry>, String> {
-    Ok(vec![])
-}
-
-// ------------------------------------------------------------------ //
 //  Migration command
 // ------------------------------------------------------------------ //
 

@@ -143,6 +143,16 @@ const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
         });
 
         if (microphoneGranted) {
+          // Windows has no accessibility-permission gate, so it's safe (and
+          // necessary) to start the hotkey backend now. Idempotent.
+          try {
+            await Promise.all([
+              commands.initializeEnigo(),
+              commands.initializeShortcuts(),
+            ]);
+          } catch (e) {
+            console.warn("Failed to initialize hotkeys on Windows:", e);
+          }
           await completeOnboarding();
         }
       } catch (error) {
@@ -175,6 +185,14 @@ const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
               pollingRef.current = null;
             }
 
+            try {
+              await Promise.all([
+                commands.initializeEnigo(),
+                commands.initializeShortcuts(),
+              ]);
+            } catch (e) {
+              console.warn("Failed to initialize hotkeys on Windows:", e);
+            }
             await completeOnboarding();
           }
 

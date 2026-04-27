@@ -459,6 +459,7 @@ Stored as `[display title](node://uuid)` in markdown.
 | `src/styles/heros.css` | Verbatim port from `copy/src/app.css` — don't refactor or aggressively re-tokenize |
 | `src/styles/blobs.css` | Same constraint |
 | `translation.json` `database.calendar.*` keys | Used by `CalendarToolbar` — renaming breaks calendar |
+| `src/i18n/locales/**` | **Live infrastructure**, not dormant. `useTranslation` is called in ~30 `src/` files (114 occurrences). i18n plumbing came from the upstream `cjpais/handy` port and is in-progress wiring for W-phase surfaces. Never bulk-delete locale entries — many keys are referenced via dynamic `t(\`prefix.${var}\`)` patterns that grep won't catch. Remove keys only in the same commit that deletes the feature using them. Audit/gap-fill is a W9 task. |
 
 ---
 

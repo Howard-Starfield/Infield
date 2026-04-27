@@ -140,6 +140,7 @@ zip = { version = "2.2", default-features = false, features = ["deflate"] }
 encoding_rs = "0.8"
 base64 = "0.22"
 fs2 = "0.4"
+infer = "0.16"
 # Used for a single pre-Tauri-init native message dialog when the vault
 # process lock (Rule 15 / D11) is already held by another instance. rfd is
 # already linked via `tauri-plugin-dialog` — declaring it here is zero new

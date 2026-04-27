@@ -68,11 +68,18 @@ export function autosavePlugin(
         // Only user-initiated edits count as dirty (not programmatic
         // replace-body dispatches during node load).
         const userEdit = u.transactions.some(
-          (tr) => tr.isUserEvent('input') || tr.isUserEvent('delete') || tr.isUserEvent('move'),
+          (tr) =>
+            tr.isUserEvent('input') ||
+            tr.isUserEvent('delete') ||
+            tr.isUserEvent('move'),
         )
         if (!userEdit) return
+        // Pause while a pending:// placeholder is in the doc — imageInsert
+        // resolves it and dirty-marks again, resuming autosave naturally.
+        const body = u.state.doc.toString()
+        if (body.includes('pending://')) return
         onDirtyChange(true)
-        saver.schedule(u.state.doc.toString())
+        saver.schedule(body)
       }
     },
   )

@@ -2,6 +2,7 @@ import type { EditorView } from '@codemirror/view'
 
 import { todayCommand } from './commands/today'
 import { linkCommand } from './commands/link'
+import { imageCommand } from './commands/image'
 
 export type SlashCategory = 'block' | 'handy' | 'code'
 
@@ -108,17 +109,6 @@ export const tier1SlashCommands: SlashCommand[] = [
       replaceAndMoveCaret(view, from, to, insert, 4)
     },
   },
-  {
-    id: 'table',
-    label: 'Table',
-    aliases: ['table', 'grid'],
-    description: '2x2 markdown table',
-    category: 'block',
-    run: (view, from, to) => {
-      const insert = '|     |     |\n| --- | --- |\n|     |     |\n'
-      replaceAndMoveCaret(view, from, to, insert, 2)
-    },
-  },
 ]
 
 /** Commands shipping in W2 — Tier 1 (block primitives) plus the two
@@ -126,6 +116,7 @@ export const tier1SlashCommands: SlashCommand[] = [
  *  /embed stay deferred to W2.5 per PLAN.md. */
 export const allSlashCommands: SlashCommand[] = [
   ...tier1SlashCommands,
+  imageCommand,
   linkCommand,
   todayCommand,
 ]

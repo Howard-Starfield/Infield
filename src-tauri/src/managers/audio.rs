@@ -509,27 +509,4 @@ impl AudioRecordingManager {
         }
     }
 
-    /// Dispatch recording start based on capture source.
-    /// For SystemAudio, the actual capture is handled by SystemAudioManager;
-    /// AudioRecordingManager does not participate. This method is the dispatch
-    /// point so callers can use a unified API.
-    pub fn start_recording_with_source(
-        &self,
-        source: CaptureSource,
-        binding_id: &str,
-    ) -> Result<(), String> {
-        match source {
-            CaptureSource::Microphone => self.try_start_recording(binding_id),
-            CaptureSource::SystemAudio => {
-                // System audio is handled by SystemAudioManager via TranscriptionCoordinator.
-                Ok(())
-            }
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum CaptureSource {
-    Microphone,
-    SystemAudio,
 }

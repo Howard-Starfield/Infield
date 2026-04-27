@@ -1,3 +1,4 @@
+pub mod attachments;
 pub mod audio;
 pub mod chat;
 pub mod database;

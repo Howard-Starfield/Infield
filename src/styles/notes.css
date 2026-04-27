@@ -196,15 +196,19 @@
   box-shadow: none;
 }
 
-.tree-row--active {
-  background: transparent;
-  color: rgba(248, 250, 255, 0.96);
-  box-shadow: none;
+/* Multi-select (Cmd/Shift+click): subtle neutral tint + slim left accent.
+   Defined before --active so a single click (selected + active) shows the
+   active state, not the selection tint. */
+.tree-row--selected {
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(248, 250, 255, 0.92);
+  box-shadow: inset 2px 0 0 0 rgba(255, 255, 255, 0.22);
 }
 
-.tree-row--selected {
-  background: rgba(204, 76, 43, 0.12);
-  color: rgba(248, 250, 255, 0.94);
+.tree-row--active {
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(248, 250, 255, 0.96);
+  box-shadow: none;
 }
 
 .tree-row__branch {
@@ -846,12 +850,12 @@
 }
 
 .tree-row {
-  min-height: 32px;
+  min-height: 26px;
   position: relative;
   gap: 8px;
-  padding-top: 5px;
-  padding-bottom: 5px;
-  border-radius: 9px;
+  padding-top: 2px;
+  padding-bottom: 2px;
+  border-radius: 7px;
   color: rgba(205, 211, 232, 0.74);
   font-size: 13px;
   font-weight: 560;
@@ -863,8 +867,22 @@
   color: rgba(244, 246, 255, 0.9);
 }
 
+.tree-row--selected {
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(248, 250, 255, 0.92);
+  box-shadow: inset 2px 0 0 0 rgba(255, 255, 255, 0.22);
+}
+
+/* Selected rows are already marked — fully suppress hover so the
+   selection highlight reads as intentional, not accidental. */
+.tree-row--selected:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(248, 250, 255, 0.92);
+  box-shadow: inset 2px 0 0 0 rgba(255, 255, 255, 0.22);
+}
+
 .tree-row--active {
-  background: transparent;
+  background: rgba(255, 255, 255, 0.07);
   color: rgba(248, 250, 255, 0.96);
   box-shadow: none;
 }
@@ -1186,4 +1204,461 @@
   .notes-backlinks {
     display: none;
   }
+}
+
+/* ── Trash section ──────────────────────────────────────────────────────── */
+.notes-trash-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 5px 8px;
+  margin-top: 4px;
+  background: none;
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 0;
+  cursor: pointer;
+  color: rgba(205, 211, 232, 0.38);
+  font-size: 12px;
+  font-weight: 520;
+  text-align: left;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.notes-trash-toggle:hover {
+  color: rgba(205, 211, 232, 0.65);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.notes-trash-toggle__label {
+  flex: 1;
+}
+
+.notes-trash-toggle__badge {
+  font-size: 10px;
+  background: rgba(255, 255, 255, 0.07);
+  border-radius: 8px;
+  padding: 1px 5px;
+  line-height: 1.4;
+}
+
+.notes-trash-panel {
+  flex-shrink: 0;
+  padding-bottom: 4px;
+}
+
+.notes-trash-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: rgba(205, 211, 232, 0.45);
+  cursor: default;
+}
+
+.notes-trash-item:hover {
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(205, 211, 232, 0.65);
+}
+
+.notes-trash-item__icon {
+  flex-shrink: 0;
+  color: rgba(183, 192, 221, 0.4);
+}
+
+.notes-trash-item__name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notes-trash-item__actions {
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  flex-shrink: 0;
+}
+
+.notes-trash-item:hover .notes-trash-item__actions {
+  opacity: 1;
+}
+
+.notes-trash-item__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: rgba(205, 211, 232, 0.5);
+  padding: 2px 3px;
+  border-radius: 4px;
+  line-height: 1;
+}
+
+.notes-trash-item__btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(205, 211, 232, 0.9);
+}
+
+.notes-trash-item__btn--danger:hover {
+  background: rgba(220, 60, 40, 0.18);
+  color: rgba(255, 110, 90, 0.9);
+}
+
+.notes-trash-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 4px 8px 2px;
+  margin-top: 2px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.notes-trash-footer__empty-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: rgba(205, 211, 232, 0.35);
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.notes-trash-footer__empty-btn:hover {
+  background: rgba(220, 60, 40, 0.16);
+  color: rgba(255, 110, 90, 0.85);
+}
+
+/* ── Drag-drop indicators ───────────────────────────────────────────────── */
+.tree-drop-line {
+  height: 2px;
+  border-radius: 2px;
+  background: var(--heros-brand);
+  pointer-events: none;
+  flex-shrink: 0;
+  margin: 1px 4px;
+}
+
+/* Over a nest target: brand-tinted ring */
+.tree-row--drop-target {
+  background: rgba(204, 76, 43, 0.08) !important;
+  box-shadow: inset 0 0 0 1px rgba(204, 76, 43, 0.28) !important;
+}
+
+/* ── Slash menu — W2.5a ────────────────────────────────────────── */
+/* The autocompletion popup is positioned by CM6 and themed in
+ * herosTheme.ts (background, border, radius, padding). This block
+ * styles only the per-row layout and the four cells our renderers
+ * inject (accent, icon, [CM6-label+detail], shortcut). */
+
+/* Real-command rows: 4-column grid. */
+.cm-tooltip-autocomplete > ul > li.cm-md-slash-row {
+  display: grid;
+  grid-template-columns: var(--space-1) var(--space-6) 1fr auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+/* Section-header rows: full-width text label, no hover, no cursor. */
+.cm-tooltip-autocomplete > ul > li.cm-md-slash-section {
+  display: block;
+  padding: var(--space-3) var(--space-3) var(--space-1);
+  margin-top: var(--space-1);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--heros-text-faint);
+  cursor: default;
+  pointer-events: none;
+  /* Override CM6 hover bg from herosTheme.ts — header is non-selectable */
+  background: transparent !important;
+}
+
+/* First section header has no top margin. */
+.cm-tooltip-autocomplete > ul > li.cm-md-slash-section:first-child {
+  margin-top: 0;
+}
+
+/* Accent bar — only the selected real row gets it. */
+.cm-md-slash-accent {
+  width: var(--space-1);
+  height: var(--space-5);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  transition: background var(--transition-fast);
+}
+
+li.cm-md-slash-row[aria-selected] .cm-md-slash-accent {
+  background: var(--heros-brand);
+}
+
+.cm-md-slash-accent--empty {
+  display: none;
+}
+
+/* Icon cell — 18x18 lucide SVG slot. */
+.cm-md-slash-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--space-6);
+  height: var(--space-6);
+  color: var(--heros-text-dim);
+}
+
+li.cm-md-slash-row[aria-selected] .cm-md-slash-icon {
+  color: var(--heros-text-premium);
+}
+
+.cm-md-slash-icon svg {
+  width: var(--space-5);
+  height: var(--space-5);
+}
+
+.cm-md-slash-icon--empty {
+  display: none;
+}
+
+/* Shortcut chip — right-aligned, monospace, kbd-like. */
+.cm-md-slash-shortcut {
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--surface-container);
+  border: 1px solid var(--border-subtle);
+  color: var(--heros-text-dim);
+  letter-spacing: 0.02em;
+}
+
+.cm-md-slash-shortcut--empty {
+  display: none;
+}
+
+/* Two-line label/description: CM6 emits .cm-completionLabel and
+ * .cm-completionDetail in sequence — herosTheme.ts already styles them
+ * as block elements. Nothing to do here beyond the row grid. */
+
+/* ── Live Preview — W2.5b inline marks ─────────────────────────── */
+.cm-md-hidden {
+  display: none;
+}
+
+.cm-md-marker {
+  color: var(--heros-text-faint);
+}
+
+.cm-md-bold {
+  font-weight: 700;
+  color: var(--heros-text-premium);
+}
+
+.cm-md-italic {
+  font-style: italic;
+}
+
+.cm-md-strike {
+  text-decoration: line-through;
+  text-decoration-thickness: var(--border-hairline);
+  color: var(--heros-text-dim);
+}
+
+.cm-md-code-inline {
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+  font-size: 0.92em;
+  background: var(--surface-container);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-1);
+}
+
+/* ── Live Preview — W2.5b line-class decorations ───────────────── */
+
+/* Heading scale per spec contract table.
+ * em values (not px) — they multiply the inherited --text-base, so
+ * Rule 20 webview zoom + --ui-scale propagate correctly. */
+.cm-md-h1 {
+  font-size: 1.9em;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--heros-text-premium);
+  margin-top: var(--space-3);
+}
+.cm-md-h2 {
+  font-size: 1.55em;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--heros-text-premium);
+  margin-top: var(--space-3);
+}
+.cm-md-h3 {
+  font-size: 1.3em;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--heros-text-premium);
+  margin-top: var(--space-2);
+}
+.cm-md-h4,
+.cm-md-h5,
+.cm-md-h6 {
+  font-size: 1.15em;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--heros-text-premium);
+}
+
+/* Blockquote: left-border bar + dim text. */
+.cm-md-blockquote {
+  border-left: var(--border-thick) solid var(--heros-brand);
+  padding-left: var(--space-3);
+  color: var(--heros-text-dim);
+  font-style: italic;
+}
+
+/* Bullet marker — render the `-` muted-bold. */
+.cm-md-bullet {
+  color: var(--heros-text-dim);
+  font-weight: 700;
+}
+
+/* Link inline mark — replaces the visible `[text]` portion. */
+.cm-md-link {
+  color: var(--heros-brand);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* ── Live Preview — W2.5b widgets ──────────────────────────────── */
+
+.cm-md-task-checkbox {
+  appearance: none;
+  -webkit-appearance: none;
+  width: var(--space-4);
+  height: var(--space-4);
+  margin: 0 var(--space-2) 0 0;
+  /* Half-step optical nudge to align with the line baseline. */
+  vertical-align: calc(var(--space-1) * -0.5);
+  border: var(--border-hairline) solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface-container);
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.cm-md-task-checkbox:hover {
+  border-color: var(--heros-brand);
+}
+
+.cm-md-task-checkbox:checked {
+  background: var(--heros-brand);
+  border-color: var(--heros-brand);
+}
+
+.cm-md-task-checkbox:checked::after {
+  content: '';
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    -45deg,
+    transparent 0% 40%,
+    var(--heros-text-premium) 40% 50%,
+    transparent 50% 100%
+  );
+}
+
+.cm-md-hr {
+  border: none;
+  height: var(--border-hairline);
+  background: var(--border-subtle);
+  margin: var(--space-4) 0;
+}
+
+.cm-md-code-block {
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+  font-size: 0.92em;
+  background: var(--surface-container-low);
+  padding: 0 var(--space-3);
+}
+
+/* ── Image embeds (Task 13) ───────────────────────────────────── */
+
+.cm-md-image-wrap {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  margin: var(--space-2) 0;
+}
+
+.cm-md-image {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-container);
+  box-shadow: var(--shadow-sm);
+}
+
+.cm-md-image-handle {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background: var(--surface-container);
+  border: 1px solid var(--heros-rim);
+  border-radius: 50%;
+  opacity: 0;
+  transition: opacity 120ms ease;
+  z-index: 2;
+}
+
+.cm-md-image-handle--right {
+  right: -6px;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: ew-resize;
+}
+
+.cm-md-image-handle--bottom-right {
+  bottom: -6px;
+  right: -6px;
+  cursor: nwse-resize;
+}
+
+.cm-md-image-wrap:hover .cm-md-image-handle {
+  opacity: 0.85;
+}
+
+.cm-md-image-pending {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 80px;
+  min-height: 80px;
+  padding: var(--space-3);
+  border-radius: var(--radius-container);
+  background: var(--surface-container);
+  border: 1px dashed var(--heros-rim);
+  margin: var(--space-2) 0;
+}
+
+.cm-md-image-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--heros-rim);
+  border-top-color: var(--heros-brand);
+  border-radius: 50%;
+  animation: cm-md-image-spin 800ms linear infinite;
+}
+
+@keyframes cm-md-image-spin {
+  to { transform: rotate(360deg); }
 }

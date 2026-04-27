@@ -250,15 +250,6 @@ pub async fn update_node(
             log::error!("Failed to update vault_rel_path for renamed row {}: {}", node.id, e);
         }
     }
-    // P0-5: board card write-back for row nodes (separate from rows/<slug>.md
-    // written above — the board.md aggregate file still uses cards/<id>.md).
-    if node.node_type == "row" && node.deleted_at.is_none() {
-        let vault_root = resolve_vault_root(&app);
-        let vm = crate::managers::workspace::VaultManager::new(vault_root);
-        if let Err(e) = vm.write_card_for_row(&node.id, &state.workspace_manager).await {
-            log::debug!("[board-writeback] update_node skipped {}: {}", node.id, e);
-        }
-    }
     if node.node_type == "document" && node.deleted_at.is_none() {
         let old_rel_path = node.vault_rel_path.clone();
         if let Ok(new_rel_path) = state.workspace_manager.write_node_to_vault(&app, &node, last_seen_mtime_secs).await {
@@ -577,13 +568,10 @@ pub async fn ws_update_cell(
         .workspace_manager
         .update_cell(&row_id, &field_id, &cell_type, value, extras)
         .await?;
-    // P0-5: write board card file after any cell mutation
-    let vault_root = resolve_vault_root(&app);
-    let vm = crate::managers::workspace::VaultManager::new(vault_root);
-    if let Err(e) = vm.write_card_for_row(&row_id, &state.workspace_manager).await {
-        // Not all rows are board rows — this error is expected for grid/calendar rows
-        log::debug!("[board-writeback] skipped {}: {}", row_id, e);
-    }
+    // Note: vault writeback for cell mutations runs through commands::database::update_cell
+    // (the live W4 path). This ws_* command path is dead frontend-side; if revived,
+    // route it through the bridge — don't reintroduce a layout-specific writer here.
+    let _ = app;
     Ok(())
 }
 
@@ -600,12 +588,10 @@ pub async fn ws_create_row_in_group(
     let row = state.workspace_manager
         .create_row_in_group(&database_id, &field_id, &option_id, &name)
         .await?;
-    // P0-5: write card file for the new board row
-    let vault_root = resolve_vault_root(&app);
-    let vm = crate::managers::workspace::VaultManager::new(vault_root);
-    if let Err(e) = vm.write_card_for_row(&row.id, &state.workspace_manager).await {
-        log::debug!("[board-writeback] create_row_in_group skipped {}: {}", row.id, e);
-    }
+    // Note: vault writeback for row-in-group creation runs through
+    // commands::database::create_row_in_group (the live W4 path). This ws_* path
+    // is dead frontend-side; revive only via the bridge.
+    let _ = app;
     Ok(row)
 }
 

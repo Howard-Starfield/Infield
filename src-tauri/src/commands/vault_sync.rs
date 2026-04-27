@@ -19,7 +19,9 @@ pub async fn export_database_to_vault(
     db_id: String,
 ) -> Result<Vec<String>, String> {
     let vm = vault_manager(&app);
-    let paths = vm.export_database(&db_id, &state.workspace_manager).await?;
+    let paths = vm
+        .export_database(&db_id, &state.workspace_manager, &state.database_manager)
+        .await?;
     Ok(paths.into_iter().map(|p| p.to_string_lossy().replace('\\', "/")).collect())
 }
 
@@ -48,5 +50,6 @@ pub async fn export_all_databases_to_vault(
     state: State<'_, Arc<AppState>>,
 ) -> Result<Vec<ExportedDatabase>, String> {
     let vm = vault_manager(&app);
-    vm.export_all_databases(&state.workspace_manager).await
+    vm.export_all_databases(&state.workspace_manager, &state.database_manager)
+        .await
 }
