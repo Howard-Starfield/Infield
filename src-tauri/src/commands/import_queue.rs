@@ -1,4 +1,4 @@
-use crate::import::{ImportQueueService, ImportQueueSnapshot};
+use crate::import::{ImportQueueService, ImportQueueSnapshot, EnqueuePathsResult};
 use tauri::State;
 
 #[tauri::command]
@@ -6,7 +6,7 @@ use tauri::State;
 pub async fn enqueue_import_paths(
     service: State<'_, ImportQueueService>,
     paths: Vec<String>,
-) -> Result<Vec<String>, String> {
+) -> Result<EnqueuePathsResult, String> {
     service.enqueue_paths(paths).await
 }
 

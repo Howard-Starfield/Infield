@@ -98,6 +98,22 @@ pub struct ImportJobDto {
     pub download_speed_human: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct EnqueuePathRejection {
+    pub path: String,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct EnqueuePathsResult {
+    /// Job IDs for files that successfully entered the queue.
+    pub accepted: Vec<String>,
+    /// Files rejected before being queued (unsupported type, cloud-sync placeholder,
+    /// duplicate of an in-flight import, missing file). Each entry has the original
+    /// path string and a user-readable reason for the toast.
+    pub rejected: Vec<EnqueuePathRejection>,
+}
+
 struct ImportJob {
     id: String,
     file_name: String,
@@ -177,6 +193,68 @@ struct ImportJobMetaFile {
 struct WorkspaceImportSyncedPayload {
     node_id: String,
     source: String,
+}
+
+/// Detect filenames that look like cloud-sync placeholders or scratch files we should
+/// never enqueue. Aligned with CLAUDE.md Rule 13a (vault path normalization).
+fn is_cloud_sync_placeholder(path: &Path) -> bool {
+    let name = match path.file_name().and_then(|n| n.to_str()) {
+        Some(n) => n.to_ascii_lowercase(),
+        None => return false,
+    };
+    name.ends_with(".icloud")
+        || name.ends_with(".tmp")
+        || name.ends_with(".conflicted.md")
+        || name.contains(" (conflict ")
+        || name == ".ds_store"
+        || name == "thumbs.db"
+        || name == "desktop.ini"
+}
+
+/// Result of pre-flight validation for a single path before enqueueing.
+/// Pure (no `&self`, no async) so tests can drive it without a service harness.
+/// `Accept` carries the canonicalized path alongside the kind so `enqueue_paths`
+/// can avoid a second `canonicalize` syscall and the inconsistency window between
+/// the two calls (relevant on cloud-sync mounts / network drives).
+#[derive(Debug)]
+pub(super) enum EnqueueOutcome {
+    Accept(ImportJobKind, PathBuf),
+    Reject(String),
+}
+
+/// Pre-flight validation: missing-file, cloud-sync placeholder, unsupported type,
+/// or duplicate-of-active. Returns `Accept(kind, canonical_path)` for queue-eligible
+/// paths, otherwise `Reject(reason)`. Caller is responsible for inserting the
+/// returned canonical path into `active` after a successful Accept (this function
+/// does NOT mutate `active`).
+pub(super) fn classify_for_enqueue(
+    path: &Path,
+    active: &std::collections::HashSet<PathBuf>,
+) -> EnqueueOutcome {
+    if !path.exists() {
+        return EnqueueOutcome::Reject("File not found".into());
+    }
+    if !path.is_file() {
+        return EnqueueOutcome::Reject("Not a file (directories are not supported)".into());
+    }
+    if is_cloud_sync_placeholder(path) {
+        return EnqueueOutcome::Reject(
+            "Cloud-sync placeholder — wait for download to complete".into(),
+        );
+    }
+    let kind = classify_path(path);
+    if kind == ImportJobKind::Unknown {
+        let ext = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("?");
+        return EnqueueOutcome::Reject(format!("Unsupported type: .{}", ext));
+    }
+    let canonical = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+    if active.contains(&canonical) {
+        return EnqueueOutcome::Reject("Already importing this file".into());
+    }
+    EnqueueOutcome::Accept(kind, canonical)
 }
 
 fn classify_path(path: &Path) -> ImportJobKind {
@@ -1384,20 +1462,51 @@ impl ImportQueueService {
         Self { inner }
     }
 
-    pub async fn enqueue_paths(&self, paths: Vec<String>) -> Result<Vec<String>, String> {
-        let mut ids = Vec::new();
-        for p in paths {
-            let path = PathBuf::from(p.trim());
-            if !path.is_file() {
-                return Err(format!("Not a file or missing: {}", path.display()));
-            }
-            let kind = classify_path(&path);
-            if kind == ImportJobKind::Unknown {
-                return Err(format!(
-                    "Unsupported type: {}",
-                    path.file_name().and_then(|n| n.to_str()).unwrap_or("?")
-                ));
-            }
+    /// Snapshot of source paths currently queued or in-flight (non-terminal states),
+    /// excluding `WebMedia` jobs whose `source_path` is a synthetic URL string. Used
+    /// by `enqueue_paths` to dedupe concurrent imports of the same file.
+    ///
+    /// Filesystem syscalls (`canonicalize`) run AFTER releasing the jobs mutex —
+    /// keeps the critical section short per CLAUDE.md mutex-discipline guidance.
+    async fn active_source_paths(&self) -> std::collections::HashSet<PathBuf> {
+        let raw_paths: Vec<PathBuf> = {
+            let jobs = self.inner.jobs.lock().await;
+            jobs.iter()
+                .filter(|j| !matches!(
+                    j.state,
+                    ImportJobState::Done | ImportJobState::Error | ImportJobState::Cancelled
+                ))
+                .filter(|j| j.kind != ImportJobKind::WebMedia)
+                .map(|j| j.source_path.clone())
+                .collect()
+        }; // mutex released here
+        raw_paths
+            .into_iter()
+            .map(|p| p.canonicalize().unwrap_or(p))
+            .collect()
+    }
+
+    pub async fn enqueue_paths(&self, paths: Vec<String>) -> Result<EnqueuePathsResult, String> {
+        let mut accepted = Vec::new();
+        let mut rejected = Vec::new();
+        let mut active = self.active_source_paths().await;
+
+        for raw in paths {
+            let path_str = raw.trim().to_string();
+            let path = PathBuf::from(&path_str);
+
+            let (kind, canonical) = match classify_for_enqueue(&path, &active) {
+                EnqueueOutcome::Accept(k, c) => (k, c),
+                EnqueueOutcome::Reject(reason) => {
+                    rejected.push(EnqueuePathRejection { path: path_str, reason });
+                    continue;
+                }
+            };
+
+            // Use the canonical path classify_for_enqueue already computed — avoids
+            // a second canonicalize syscall and the inconsistency window between calls.
+            active.insert(canonical);
+
             let file_name = path
                 .file_name()
                 .and_then(|n| n.to_str())
@@ -1427,11 +1536,14 @@ impl ImportQueueService {
                 media_dir: None,
             };
             self.inner.jobs.lock().await.push(job);
-            ids.push(id);
+            accepted.push(id);
         }
-        emit_snapshot(&self.inner).await;
-        self.inner.wake.notify_one();
-        Ok(ids)
+
+        if !accepted.is_empty() {
+            emit_snapshot(&self.inner).await;
+            self.inner.wake.notify_one();
+        }
+        Ok(EnqueuePathsResult { accepted, rejected })
     }
 
     /// Enqueue one WebMedia import job per URL. Each job is in-memory only;
@@ -1809,6 +1921,98 @@ mod enqueue_urls_unit_tests {
         assert!(opts.playlist_source.is_none());
         // format is Mp3Audio by default
         assert!(matches!(opts.format, crate::import::web_media::WebMediaFormat::Mp3Audio));
+    }
+
+    #[test]
+    fn is_cloud_sync_placeholder_recognizes_known_patterns() {
+        use std::path::Path;
+        assert!(is_cloud_sync_placeholder(Path::new("foo.mp3.icloud")));
+        assert!(is_cloud_sync_placeholder(Path::new("paper.pdf.tmp")));
+        assert!(is_cloud_sync_placeholder(Path::new("note (conflict 2026-04-26).md")));
+        assert!(is_cloud_sync_placeholder(Path::new("note.conflicted.md")));
+        assert!(is_cloud_sync_placeholder(Path::new(".DS_Store")));
+        assert!(is_cloud_sync_placeholder(Path::new("Thumbs.db")));
+        assert!(is_cloud_sync_placeholder(Path::new("desktop.ini")));
+        assert!(!is_cloud_sync_placeholder(Path::new("normal.mp3")));
+        assert!(!is_cloud_sync_placeholder(Path::new("paper.pdf")));
+    }
+
+    #[test]
+    fn classify_for_enqueue_partial_success() {
+        use std::collections::HashSet;
+        use std::io::Write;
+        let tmp = tempfile::TempDir::new().unwrap();
+        let valid_mp3 = tmp.path().join("valid.mp3");
+        std::fs::File::create(&valid_mp3).unwrap().write_all(b"fake").unwrap();
+        let invalid = tmp.path().join("invalid.docx");
+        std::fs::File::create(&invalid).unwrap().write_all(b"fake").unwrap();
+        let valid_pdf = tmp.path().join("valid.pdf");
+        std::fs::File::create(&valid_pdf).unwrap().write_all(b"fake").unwrap();
+
+        let active: HashSet<PathBuf> = HashSet::new();
+
+        assert!(matches!(
+            classify_for_enqueue(&valid_mp3, &active),
+            EnqueueOutcome::Accept(ImportJobKind::Audio, _),
+        ));
+        match classify_for_enqueue(&invalid, &active) {
+            EnqueueOutcome::Reject(reason) => {
+                assert!(
+                    reason.to_lowercase().contains("unsupported"),
+                    "expected 'unsupported', got: {reason}",
+                );
+            }
+            _ => panic!(".docx should be rejected"),
+        }
+        assert!(matches!(
+            classify_for_enqueue(&valid_pdf, &active),
+            EnqueueOutcome::Accept(ImportJobKind::Pdf, _),
+        ));
+    }
+
+    #[test]
+    fn classify_for_enqueue_rejects_cloud_sync_placeholder() {
+        use std::collections::HashSet;
+        use std::io::Write;
+        let tmp = tempfile::TempDir::new().unwrap();
+        let placeholder = tmp.path().join("foo.mp3.icloud");
+        std::fs::File::create(&placeholder).unwrap().write_all(b"x").unwrap();
+        let active: HashSet<PathBuf> = HashSet::new();
+
+        match classify_for_enqueue(&placeholder, &active) {
+            EnqueueOutcome::Reject(reason) => assert!(
+                reason.to_lowercase().contains("cloud-sync"),
+                "expected cloud-sync mention, got: {reason}",
+            ),
+            _ => panic!("placeholder should be rejected"),
+        }
+    }
+
+    #[test]
+    fn classify_for_enqueue_dedupes_active() {
+        use std::collections::HashSet;
+        use std::io::Write;
+        let tmp = tempfile::TempDir::new().unwrap();
+        let mp3 = tmp.path().join("song.mp3");
+        std::fs::File::create(&mp3).unwrap().write_all(b"fake").unwrap();
+
+        // First call: empty active set → accepted.
+        let mut active: HashSet<PathBuf> = HashSet::new();
+        assert!(matches!(
+            classify_for_enqueue(&mp3, &active),
+            EnqueueOutcome::Accept(ImportJobKind::Audio, _),
+        ));
+
+        // Insert canonical path and re-check: should reject as duplicate.
+        let canonical = mp3.canonicalize().unwrap();
+        active.insert(canonical);
+        match classify_for_enqueue(&mp3, &active) {
+            EnqueueOutcome::Reject(reason) => assert!(
+                reason.to_lowercase().contains("already"),
+                "expected 'already' mention, got: {reason}",
+            ),
+            _ => panic!("duplicate should be rejected"),
+        }
     }
 }
 
