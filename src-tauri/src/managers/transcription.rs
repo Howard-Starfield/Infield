@@ -50,6 +50,15 @@ pub(crate) fn transcription_session_holds_model(app: &AppHandle) -> bool {
         .map_or(false, |m| m.is_running())
 }
 
+/// Pure predicate for `maybe_unload_immediately`'s skip-unload check.
+/// Either an active recording session OR a non-zero keepalive lease count
+/// (held by the import pipeline / long-running ASR via `acquire_keepalive`)
+/// must block the unload — otherwise segment N+1 of an import sees the model
+/// gone after segment N's `maybe_unload_immediately` ran.
+fn keepalive_blocks_immediate_unload(holds_session: bool, lease_count: usize) -> bool {
+    holds_session || lease_count > 0
+}
+
 #[derive(Clone, Debug, Serialize)]
 pub struct ModelStateEvent {
     pub event_type: String,
@@ -307,7 +316,10 @@ impl TranscriptionManager {
                         return;
                     }
 
-                    if transcription_session_holds_model(&manager.app_handle) {
+                    if keepalive_blocks_immediate_unload(
+                        transcription_session_holds_model(&manager.app_handle),
+                        manager.active_leases.load(Ordering::SeqCst),
+                    ) {
                         return;
                     }
 
@@ -324,7 +336,10 @@ impl TranscriptionManager {
 
             #[cfg(not(target_os = "windows"))]
             {
-                if transcription_session_holds_model(&self.app_handle) {
+                if keepalive_blocks_immediate_unload(
+                    transcription_session_holds_model(&self.app_handle),
+                    self.active_leases.load(Ordering::SeqCst),
+                ) {
                     return;
                 }
 
@@ -930,5 +945,44 @@ impl Drop for TranscriptionManager {
                 debug!("Idle watcher thread joined successfully");
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Regression guard: `maybe_unload_immediately` must skip unloading when an
+    /// `acquire_keepalive` lease is held (import / long-running ASR). The previous
+    /// guard only consulted `transcription_session_holds_model`, so segment-by-segment
+    /// imports under `model_unload_timeout = Immediately` unloaded the model after
+    /// segment 0 and failed every subsequent segment with "Model is not loaded".
+    #[test]
+    fn keepalive_lease_blocks_immediate_unload() {
+        // Lease held → block, regardless of session state.
+        assert!(keepalive_blocks_immediate_unload(false, 1));
+        assert!(keepalive_blocks_immediate_unload(false, 5));
+        assert!(keepalive_blocks_immediate_unload(true, 1));
+
+        // Active mic/system-audio session blocks unload (pre-existing behaviour).
+        assert!(keepalive_blocks_immediate_unload(true, 0));
+
+        // No session, no lease → safe to unload immediately.
+        assert!(!keepalive_blocks_immediate_unload(false, 0));
+    }
+
+    #[test]
+    fn keepalive_guard_increments_and_releases_lease_count() {
+        let leases: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+        assert_eq!(leases.load(Ordering::SeqCst), 0);
+
+        leases.fetch_add(1, Ordering::SeqCst);
+        let guard = KeepAliveGuard {
+            leases: leases.clone(),
+        };
+        assert_eq!(leases.load(Ordering::SeqCst), 1);
+
+        drop(guard);
+        assert_eq!(leases.load(Ordering::SeqCst), 0);
     }
 }
