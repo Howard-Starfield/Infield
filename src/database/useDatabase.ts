@@ -52,6 +52,9 @@ export interface UseDatabaseResult {
   moveRowGroup: (rowId: string, fieldId: string, optionId: string) => Promise<void>
   deleteRow: (rowId: string) => Promise<void>
   createField: (name: string, fieldType: FieldType) => Promise<void>
+  renameField: (fieldId: string, newName: string) => Promise<void>
+  deleteField: (fieldId: string) => Promise<void>
+  moveField: (fieldId: string, newPosition: number) => Promise<void>
 }
 
 const EMPTY_CELLS: Map<string, Map<string, CellData>> = new Map()
@@ -451,6 +454,92 @@ export function useDatabase(dbId: string | null): UseDatabaseResult {
     [dbId],
   )
 
+  const renameField = useCallback<UseDatabaseResult['renameField']>(
+    async (fieldId, newName) => {
+      const capturedDbId = dbIdRef.current
+      const trimmed = newName.trim()
+      if (!trimmed) {
+        toast.error('Column name required')
+        return
+      }
+      // Optimistic update — patch the local fields array so the header
+      // refreshes immediately. Reverted on backend error.
+      const prevFields = fields
+      setFields(prev => prev.map(f => (f.id === fieldId ? { ...f, name: trimmed } : f)))
+      try {
+        const res = await commands.renameField(fieldId, trimmed)
+        if (dbIdRef.current !== capturedDbId) return
+        if (res.status !== 'ok') throw new Error(res.error)
+      } catch (err) {
+        if (dbIdRef.current === capturedDbId) {
+          setFields(prevFields)
+          toast.error('Failed to rename column')
+        }
+        // eslint-disable-next-line no-console
+        console.error('[useDatabase] renameField failed', err)
+      }
+    },
+    [fields],
+  )
+
+  const deleteField = useCallback<UseDatabaseResult['deleteField']>(
+    async fieldId => {
+      const capturedDbId = dbIdRef.current
+      const prevFields = fields
+      setFields(prev => prev.filter(f => f.id !== fieldId))
+      try {
+        const res = await commands.deleteField(fieldId)
+        if (dbIdRef.current !== capturedDbId) return
+        if (res.status !== 'ok') throw new Error(res.error)
+        // Drop the cells we cached for this field — display would otherwise
+        // briefly leak the value into a refresh of `cells`.
+        for (const rowMap of cellsRef.current.values()) {
+          rowMap.delete(fieldId)
+        }
+        setCellsVersion(v => v + 1)
+      } catch (err) {
+        if (dbIdRef.current === capturedDbId) {
+          setFields(prevFields)
+          toast.error('Failed to delete column')
+        }
+        // eslint-disable-next-line no-console
+        console.error('[useDatabase] deleteField failed', err)
+      }
+    },
+    [fields],
+  )
+
+  const moveField = useCallback<UseDatabaseResult['moveField']>(
+    async (fieldId, newPosition) => {
+      const capturedDbId = dbIdRef.current
+      const prevFields = fields
+      // Optimistic reorder — splice locally and reassign positions, then
+      // call the backend. Visible drag-feedback without a round-trip.
+      setFields(prev => {
+        const idx = prev.findIndex(f => f.id === fieldId)
+        if (idx === -1) return prev
+        const next = [...prev]
+        const [moved] = next.splice(idx, 1)
+        const target = Math.max(0, Math.min(newPosition, next.length))
+        next.splice(target, 0, moved)
+        return next.map((f, i) => ({ ...f, position: i }))
+      })
+      try {
+        const res = await commands.moveField(fieldId, newPosition)
+        if (dbIdRef.current !== capturedDbId) return
+        if (res.status !== 'ok') throw new Error(res.error)
+      } catch (err) {
+        if (dbIdRef.current === capturedDbId) {
+          setFields(prevFields)
+          toast.error('Failed to reorder column')
+        }
+        // eslint-disable-next-line no-console
+        console.error('[useDatabase] moveField failed', err)
+      }
+    },
+    [fields],
+  )
+
   const deleteRow = useCallback<UseDatabaseResult['deleteRow']>(async rowId => {
     const capturedDbId = dbIdRef.current
     try {
@@ -489,6 +578,9 @@ export function useDatabase(dbId: string | null): UseDatabaseResult {
     moveRowGroup,
     deleteRow,
     createField,
+    renameField,
+    deleteField,
+    moveField,
   }
 }
 

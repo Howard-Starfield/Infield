@@ -650,6 +650,50 @@ pub async fn create_field(
         .map_err(|e| e.to_string())
 }
 
+/// Rename a column. Empty / whitespace-only names rejected at the manager
+/// layer.
+#[tauri::command]
+#[specta::specta]
+pub async fn rename_field(
+    db_mgr: State<'_, Arc<DatabaseManager>>,
+    field_id: String,
+    new_name: String,
+) -> Result<(), String> {
+    db_mgr
+        .rename_field(&field_id, &new_name)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Delete a column. Refuses to delete the primary field. CASCADE on
+/// db_cells removes the orphan cell rows.
+#[tauri::command]
+#[specta::specta]
+pub async fn delete_field(
+    db_mgr: State<'_, Arc<DatabaseManager>>,
+    field_id: String,
+) -> Result<(), String> {
+    db_mgr
+        .delete_field(&field_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Reorder a column to `new_position` within its database. Other fields
+/// are renumbered so positions stay contiguous.
+#[tauri::command]
+#[specta::specta]
+pub async fn move_field(
+    db_mgr: State<'_, Arc<DatabaseManager>>,
+    field_id: String,
+    new_position: i64,
+) -> Result<(), String> {
+    db_mgr
+        .move_field(&field_id, new_position)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn update_row_date(

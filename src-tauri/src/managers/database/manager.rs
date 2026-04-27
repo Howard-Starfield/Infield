@@ -586,6 +586,102 @@ impl DatabaseManager {
         })
     }
 
+    /// Rename a field. Returns Err if the new name is empty (after trimming)
+    /// or the field does not exist. Idempotent — calling with the same name
+    /// is a harmless UPDATE.
+    pub async fn rename_field(&self, field_id: &str, new_name: &str) -> Result<()> {
+        let trimmed = new_name.trim();
+        if trimmed.is_empty() {
+            return Err(anyhow!("Field name cannot be empty"));
+        }
+        let conn = self.conn.lock().await;
+        let updated = conn.execute(
+            "UPDATE db_fields SET name = ?1 WHERE id = ?2",
+            params![trimmed, field_id],
+        )?;
+        if updated == 0 {
+            return Err(anyhow!("Field '{}' not found", field_id));
+        }
+        Ok(())
+    }
+
+    /// Delete a field and all its cells. Refuses to delete the primary field
+    /// (every database needs at least one primary for the row title).
+    /// CASCADE on db_cells.field_id removes orphan cells automatically.
+    pub async fn delete_field(&self, field_id: &str) -> Result<()> {
+        let conn = self.conn.lock().await;
+        let is_primary: bool = conn
+            .query_row(
+                "SELECT is_primary FROM db_fields WHERE id = ?1",
+                [field_id],
+                |r| r.get::<_, i64>(0).map(|n| n != 0),
+            )
+            .optional()?
+            .ok_or_else(|| anyhow!("Field '{}' not found", field_id))?;
+        if is_primary {
+            return Err(anyhow!("Cannot delete the primary field"));
+        }
+        conn.execute("DELETE FROM db_fields WHERE id = ?1", params![field_id])?;
+        Ok(())
+    }
+
+    /// Move a field to a new ordinal position within its database. Other
+    /// fields are renumbered so positions stay contiguous (0..N-1). Idempotent
+    /// when `new_position` already matches; clamps `new_position` to the
+    /// valid range.
+    pub async fn move_field(&self, field_id: &str, new_position: i64) -> Result<()> {
+        let conn = self.conn.lock().await;
+        let (database_id, old_position): (String, i64) = conn
+            .query_row(
+                "SELECT database_id, position FROM db_fields WHERE id = ?1",
+                [field_id],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .optional()?
+            .ok_or_else(|| anyhow!("Field '{}' not found", field_id))?;
+
+        let count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM db_fields WHERE database_id = ?1",
+            [&database_id],
+            |r| r.get(0),
+        )?;
+        if count == 0 {
+            return Ok(());
+        }
+        let max_idx = count - 1;
+        let target = new_position.clamp(0, max_idx);
+        if target == old_position {
+            return Ok(());
+        }
+
+        // Shift the affected range. Moving down (target > old): rows in
+        // (old, target] slide left by 1. Moving up (target < old): rows in
+        // [target, old) slide right by 1. Park the moved row at -1 first to
+        // sidestep the unique-position invariant during the renumber.
+        conn.execute(
+            "UPDATE db_fields SET position = -1 WHERE id = ?1",
+            params![field_id],
+        )?;
+        if target > old_position {
+            conn.execute(
+                "UPDATE db_fields SET position = position - 1
+                 WHERE database_id = ?1 AND position > ?2 AND position <= ?3",
+                params![database_id, old_position, target],
+            )?;
+        } else {
+            conn.execute(
+                "UPDATE db_fields SET position = position + 1
+                 WHERE database_id = ?1 AND position >= ?2 AND position < ?3",
+                params![database_id, target, old_position],
+            )?;
+        }
+        conn.execute(
+            "UPDATE db_fields SET position = ?1 WHERE id = ?2",
+            params![target, field_id],
+        )?;
+        Ok(())
+    }
+
     /// Creates a date field on a database.
     pub async fn create_date_field(&self, database_id: &str, field_name: &str) -> Result<Field> {
         let conn = self.conn.lock().await;
@@ -1355,5 +1451,94 @@ mod tests {
         mgr.ensure_default_view(&db_id, super::super::field::DbViewLayout::Board).await.unwrap();
         let views = mgr.get_db_views(&db_id).await.unwrap();
         assert_eq!(views.len(), 1, "should not create duplicate default view");
+    }
+
+    #[tokio::test]
+    async fn rename_field_updates_name_and_rejects_empty() {
+        let mgr = make_manager().await;
+        let db_id = mgr.create_database("DB".into()).await.unwrap();
+        let new_field = mgr.create_field(&db_id, "Status", FieldType::RichText).await.unwrap();
+
+        mgr.rename_field(&new_field.id, "Stage").await.expect("rename ok");
+        let fields = mgr.get_fields(&db_id).await.unwrap();
+        let renamed = fields.iter().find(|f| f.id == new_field.id).unwrap();
+        assert_eq!(renamed.name, "Stage");
+
+        let empty = mgr.rename_field(&new_field.id, "   ").await;
+        assert!(empty.is_err(), "must reject whitespace-only name");
+    }
+
+    #[tokio::test]
+    async fn delete_field_refuses_primary_and_drops_others() {
+        let mgr = make_manager().await;
+        let db_id = mgr.create_database("DB".into()).await.unwrap();
+        let primary = &mgr.get_fields(&db_id).await.unwrap()[0];
+        let primary_id = primary.id.clone();
+
+        let blocked = mgr.delete_field(&primary_id).await;
+        assert!(blocked.is_err(), "primary field must not be deletable");
+
+        let extra = mgr.create_field(&db_id, "Extra", FieldType::Number).await.unwrap();
+        mgr.delete_field(&extra.id).await.expect("delete non-primary ok");
+        let after = mgr.get_fields(&db_id).await.unwrap();
+        assert!(!after.iter().any(|f| f.id == extra.id), "extra field gone");
+        assert!(after.iter().any(|f| f.id == primary_id), "primary survives");
+    }
+
+    #[tokio::test]
+    async fn move_field_renumbers_positions_contiguously() {
+        let mgr = make_manager().await;
+        let db_id = mgr.create_database("DB".into()).await.unwrap();
+        // Primary "Name" sits at position 0. Add three more.
+        let a = mgr.create_field(&db_id, "A", FieldType::RichText).await.unwrap();
+        let b = mgr.create_field(&db_id, "B", FieldType::RichText).await.unwrap();
+        let c = mgr.create_field(&db_id, "C", FieldType::RichText).await.unwrap();
+        // Order is now: Name(0), A(1), B(2), C(3).
+
+        // Move C to position 1 (right after Name).
+        mgr.move_field(&c.id, 1).await.expect("move down→up");
+        let positions: Vec<(String, i64)> = mgr
+            .get_fields(&db_id)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|f| (f.name, f.position))
+            .collect();
+        assert_eq!(
+            positions,
+            vec![
+                ("Name".to_string(), 0),
+                ("C".to_string(), 1),
+                ("A".to_string(), 2),
+                ("B".to_string(), 3),
+            ]
+        );
+
+        // Move A from 2 to the end (3).
+        mgr.move_field(&a.id, 3).await.expect("move up→down");
+        let positions: Vec<(String, i64)> = mgr
+            .get_fields(&db_id)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|f| (f.name, f.position))
+            .collect();
+        assert_eq!(
+            positions,
+            vec![
+                ("Name".to_string(), 0),
+                ("C".to_string(), 1),
+                ("B".to_string(), 2),
+                ("A".to_string(), 3),
+            ]
+        );
+
+        // Idempotent — moving to current position is a no-op.
+        mgr.move_field(&b.id, 2).await.expect("idempotent");
+
+        // Out-of-range clamps. Moving to 99 lands at the last index.
+        mgr.move_field(&c.id, 99).await.expect("clamp high");
+        let last = mgr.get_fields(&db_id).await.unwrap().pop().unwrap();
+        assert_eq!(last.id, c.id, "clamped move sends C to the end");
     }
 }

@@ -1560,6 +1560,42 @@ async createField(databaseId: string, fieldName: string, fieldType: FieldType) :
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Rename a column. Empty / whitespace-only names rejected at the manager
+ * layer.
+ */
+async renameField(fieldId: string, newName: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("rename_field", { fieldId, newName }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Delete a column. Refuses to delete the primary field. CASCADE on
+ * db_cells removes the orphan cell rows.
+ */
+async deleteField(fieldId: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("delete_field", { fieldId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Reorder a column to `new_position` within its database. Other fields
+ * are renumbered so positions stay contiguous.
+ */
+async moveField(fieldId: string, newPosition: number) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("move_field", { fieldId, newPosition }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async updateRowDate(databaseId: string, rowId: string, fieldId: string, timestamp: number | null, lastSeenMtimeSecs: number | null) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("update_row_date", { databaseId, rowId, fieldId, timestamp, lastSeenMtimeSecs }) };
@@ -2168,6 +2204,28 @@ async importQueuePauseState() : Promise<Result<boolean, string>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+async saveAttachment(input: SaveAttachmentInput) : Promise<Result<SaveAttachmentOutput, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("save_attachment", { input }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Returns the absolute path of the canonical vault root, e.g.
+ * `<app_data>/infield-vault/` on a typical install. Used by the frontend
+ * to populate the `vaultRootFacet` in MarkdownEditor so the live-preview
+ * Image widget can resolve vault-relative paths into asset:// URLs.
+ */
+async getVaultRoot() : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_vault_root") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -2517,6 +2575,17 @@ export type Row = { id: string; database_id: string }
  * not yet exist (e.g. row created in this session, no cells written).
  */
 export type RowCellsBatch = { row_id: string; cells: ([string, CellData])[]; last_modified_secs: number | null }
+export type SaveAttachmentInput = { source_node_id: string; bytes: number[]; mime: string; preferred_name: string | null }
+export type SaveAttachmentOutput = { 
+/**
+ * Vault-relative path with forward slashes.
+ * e.g. "attachments/2026/04/foo-a3b9c2f1.png"
+ */
+vault_rel_path: string; 
+/**
+ * Sanitized basename without UUID8 suffix or extension. e.g. "foo"
+ */
+display_name: string; bytes_written: number }
 export type SecretMap = Partial<{ [key in string]: string }>
 export type SelectColor = "purple" | "pink" | "light_pink" | "orange" | "yellow" | "lime" | "green" | "aqua" | "blue"
 export type SelectOption = { id: string; name: string; color: SelectColor }

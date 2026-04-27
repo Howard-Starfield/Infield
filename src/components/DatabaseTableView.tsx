@@ -16,7 +16,20 @@ import {
   type ColumnDef,
 } from '@tanstack/react-table'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { Plus } from 'lucide-react'
+import {
+  DndContext,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  horizontalListSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable'
+import { Plus, Trash2 } from 'lucide-react'
 import {
   CheckboxCell,
   DateCell,
@@ -55,7 +68,40 @@ interface ContextMenuState {
   rowId: string
 }
 
+interface ColumnMenuState {
+  x: number
+  y: number
+  fieldId: string
+  isPrimary: boolean
+}
+
 const ROW_HEIGHT = 36
+const DEFAULT_COL_WIDTH = 180
+const MIN_COL_WIDTH = 60
+const MAX_COL_WIDTH = 800
+
+/// Build the localStorage key for a database's column-width map. One key
+/// per database so widths don't leak across databases.
+const colWidthsKey = (dbId: string) => `db-col-widths-${dbId}`
+
+/// Read persisted column widths for a database (`Map<fieldId, px>`).
+/// Returns an empty map on any error so the UI always has a fallback.
+function loadColumnWidths(dbId: string): Record<string, number> {
+  try {
+    const raw = localStorage.getItem(colWidthsKey(dbId))
+    return raw ? JSON.parse(raw) as Record<string, number> : {}
+  } catch {
+    return {}
+  }
+}
+
+function saveColumnWidths(dbId: string, widths: Record<string, number>) {
+  try {
+    localStorage.setItem(colWidthsKey(dbId), JSON.stringify(widths))
+  } catch {
+    /* quota exceeded — non-fatal, widths just won't persist */
+  }
+}
 const OVERSCAN = 10
 
 export function DatabaseTableView({ dbId, onOpenRow }: Props) {
@@ -68,14 +114,52 @@ export function DatabaseTableView({ dbId, onOpenRow }: Props) {
     createRow,
     deleteRow,
     createField,
+    renameField,
+    deleteField,
+    moveField,
   } = useDatabase(dbId)
 
   const [menu, setMenu] = useState<ContextMenuState | null>(null)
+  const [colMenu, setColMenu] = useState<ColumnMenuState | null>(null)
   const [addColOpen, setAddColOpen] = useState(false)
   const [addColName, setAddColName] = useState('')
   const [addColType, setAddColType] = useState<FieldType>('rich_text')
+  const [colWidths, setColWidths] = useState<Record<string, number>>(() =>
+    loadColumnWidths(dbId),
+  )
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const addColInputRef = useRef<HTMLInputElement | null>(null)
+
+  // Reload width map when switching databases — each db has its own
+  // localStorage entry so user's table layout per database is preserved.
+  useEffect(() => {
+    setColWidths(loadColumnWidths(dbId))
+  }, [dbId])
+
+  const setColumnWidth = useCallback(
+    (fieldId: string, width: number) => {
+      const clamped = Math.max(MIN_COL_WIDTH, Math.min(MAX_COL_WIDTH, Math.round(width)))
+      setColWidths(prev => {
+        const next = { ...prev, [fieldId]: clamped }
+        saveColumnWidths(dbId, next)
+        return next
+      })
+    },
+    [dbId],
+  )
+
+  // Dismiss the column-header context menu on any outside click / Escape.
+  useEffect(() => {
+    if (!colMenu) return
+    const onDown = () => setColMenu(null)
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setColMenu(null) }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [colMenu])
 
   // Reset popover state whenever dbId changes — stale name/type from a
   // previous database would otherwise leak across the navigation.
@@ -106,11 +190,27 @@ export function DatabaseTableView({ dbId, onOpenRow }: Props) {
   cellsRef.current = cells
   mutateCellRef.current = mutateCell
 
+  // Resolve the column-width source so the header renderer can pull the
+  // current px width without rebuilding the columns array on every drag tick.
+  const colWidthsRef = useRef(colWidths)
+  colWidthsRef.current = colWidths
+
+  const primaryField = useMemo(() => fields.find(f => f.is_primary) ?? null, [fields])
+
   const columns = useMemo<ColumnDef<RowMeta>[]>(() => {
-    const cols: ColumnDef<RowMeta>[] = [
-      {
-        id: '__title',
-        header: 'Title',
+    const cols: ColumnDef<RowMeta>[] = []
+    if (primaryField) {
+      cols.push({
+        id: primaryField.id,
+        header: () => (
+          <ColumnHeader
+            field={primaryField}
+            width={colWidthsRef.current[primaryField.id] ?? DEFAULT_COL_WIDTH}
+            onRename={renameField}
+            onResize={setColumnWidth}
+            onOpenMenu={setColMenu}
+          />
+        ),
         cell: ({ row }) => (
           <span
             className="db-table__title-cell"
@@ -119,12 +219,22 @@ export function DatabaseTableView({ dbId, onOpenRow }: Props) {
             {row.original.title || 'Untitled'}
           </span>
         ),
-      },
-      ...fields
-        .filter(f => !f.is_primary)
-        .map<ColumnDef<RowMeta>>(field => ({
+      })
+    }
+    fields
+      .filter(f => !f.is_primary)
+      .forEach(field => {
+        cols.push({
           id: field.id,
-          header: field.name,
+          header: () => (
+            <ColumnHeader
+              field={field}
+              width={colWidthsRef.current[field.id] ?? DEFAULT_COL_WIDTH}
+              onRename={renameField}
+              onResize={setColumnWidth}
+              onOpenMenu={setColMenu}
+            />
+          ),
           cell: ({ row }) => {
             const cellValue = cellsRef.current.get(row.original.id)?.get(field.id)
             return (
@@ -136,14 +246,14 @@ export function DatabaseTableView({ dbId, onOpenRow }: Props) {
               />
             )
           },
-        })),
-    ]
+        })
+      })
     return cols
-    // Intentionally excluding `cells`, `cellsVersion`, and `mutateCell` from deps —
-    // ref-piped at render time so columns stay stable across keystrokes,
-    // avoiding a TanStack column-model rebuild per cell mutation.
+    // Intentionally excluding `cells`, `cellsVersion`, `mutateCell`, and
+    // `colWidths` from deps — ref-piped at render time so columns stay stable
+    // across keystrokes / resize drags.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fields, onOpenRow])
+  }, [fields, primaryField, onOpenRow, renameField, setColumnWidth])
 
   const table = useReactTable({
     data: rowIndex,
@@ -151,6 +261,43 @@ export function DatabaseTableView({ dbId, onOpenRow }: Props) {
     getCoreRowModel: getCoreRowModel(),
     getRowId: row => row.id,
   })
+
+  // dnd-kit sensors. activationConstraint: distance=4 lets a 4px drag start
+  // a sortable, while pointer-down on the resize handle (which stops
+  // propagation) bypasses it. Same threshold pattern as DatabaseBoardView.
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+  )
+
+  // Sortable order is the non-primary fields. Primary field is fixed in
+  // first position (not part of the sortable context).
+  const sortableFieldIds = useMemo(
+    () => fields.filter(f => !f.is_primary).map(f => f.id),
+    [fields],
+  )
+
+  const handleColumnDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event
+      if (!over || active.id === over.id) return
+      // moveField positions are 0-indexed across ALL fields including
+      // the primary. Add 1 to the non-primary index to leave the primary
+      // field anchored at position 0.
+      const newIndexInNonPrimary = sortableFieldIds.indexOf(String(over.id))
+      if (newIndexInNonPrimary === -1) return
+      const targetPosition = newIndexInNonPrimary + 1
+      void moveField(String(active.id), targetPosition)
+    },
+    [moveField, sortableFieldIds],
+  )
+
+  const handleDeleteColumn = useCallback(
+    (fieldId: string) => {
+      setColMenu(null)
+      void deleteField(fieldId)
+    },
+    [deleteField],
+  )
 
   const { rows: tableRows } = table.getRowModel()
 
@@ -230,6 +377,15 @@ export function DatabaseTableView({ dbId, onOpenRow }: Props) {
   return (
     <>
       <div ref={scrollRef} className="db-table-scroll">
+        <DndContext
+          sensors={dndSensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleColumnDragEnd}
+        >
+          <SortableContext
+            items={sortableFieldIds}
+            strategy={horizontalListSortingStrategy}
+          >
         <table className="db-table">
           <thead>
             {table.getHeaderGroups().map(headerGroup => (
@@ -332,7 +488,28 @@ export function DatabaseTableView({ dbId, onOpenRow }: Props) {
             )}
           </tbody>
         </table>
+          </SortableContext>
+        </DndContext>
       </div>
+
+      {colMenu && (
+        <div
+          className="db-context-menu"
+          style={{ left: colMenu.x, top: colMenu.y }}
+          onClick={e => e.stopPropagation()}
+          onMouseDown={e => e.stopPropagation()}
+        >
+          <button
+            type="button"
+            className="db-context-menu__item db-context-menu__item--danger"
+            disabled={colMenu.isPrimary}
+            title={colMenu.isPrimary ? 'The primary column cannot be deleted' : 'Delete this column'}
+            onClick={() => handleDeleteColumn(colMenu.fieldId)}
+          >
+            <Trash2 size={12} /> Delete column
+          </button>
+        </div>
+      )}
 
       <div className="db-footer">
         <span>{rowIndex.length} rows</span>
@@ -508,3 +685,134 @@ const CellDispatcher = memo(
     prev.cellValue === next.cellValue &&
     prev.field.field_type === next.field.field_type,
 )
+
+// ─── ColumnHeader ──────────────────────────────────────────────────────────
+// Sortable column header with three behaviours:
+//   - Double-click → inline rename (Enter saves, Escape cancels)
+//   - Right-click → context menu with "Delete column" (primary disabled)
+//   - Drag right edge → resize, persisted via setColumnWidth
+// The whole header is a dnd-kit sortable item so dragging the body of the
+// header reorders the column. The resize handle on the right edge stops
+// pointerdown propagation so resize and reorder don't conflict.
+
+interface ColumnHeaderProps {
+  field: Field
+  width: number
+  onRename: (fieldId: string, newName: string) => Promise<void>
+  onResize: (fieldId: string, width: number) => void
+  onOpenMenu: (state: ColumnMenuState) => void
+}
+
+function ColumnHeader({ field, width, onRename, onResize, onOpenMenu }: ColumnHeaderProps) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(field.name)
+  const inputRef = useRef<HTMLInputElement | null>(null)
+
+  // dnd-kit sortable wiring. Disabled while editing/resizing so those
+  // interactions don't trigger an accidental drag.
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: field.id,
+    disabled: editing || field.is_primary,
+  })
+
+  useEffect(() => {
+    if (editing) {
+      inputRef.current?.focus()
+      inputRef.current?.select()
+    } else {
+      setDraft(field.name)
+    }
+  }, [editing, field.name])
+
+  const submit = useCallback(async () => {
+    setEditing(false)
+    const trimmed = draft.trim()
+    if (trimmed && trimmed !== field.name) {
+      await onRename(field.id, trimmed)
+    }
+  }, [draft, field.id, field.name, onRename])
+
+  const onContextMenu = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      e.preventDefault()
+      e.stopPropagation()
+      const x = Math.min(e.clientX, window.innerWidth - 200)
+      const y = Math.min(e.clientY, window.innerHeight - 80)
+      onOpenMenu({ x, y, fieldId: field.id, isPrimary: field.is_primary })
+    },
+    [field.id, field.is_primary, onOpenMenu],
+  )
+
+  // Resize handle: pointer-down captures the mouse and updates width on move.
+  // Stops propagation so it doesn't start a sortable drag.
+  const onResizeStart = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      e.preventDefault()
+      e.stopPropagation()
+      const startX = e.clientX
+      const startW = width
+      const onMove = (ev: PointerEvent) => {
+        onResize(field.id, startW + (ev.clientX - startX))
+      }
+      const onUp = () => {
+        document.removeEventListener('pointermove', onMove)
+        document.removeEventListener('pointerup', onUp)
+      }
+      document.addEventListener('pointermove', onMove)
+      document.addEventListener('pointerup', onUp)
+    },
+    [field.id, onResize, width],
+  )
+
+  const style: React.CSSProperties = {
+    width,
+    minWidth: width,
+    transform: transform ? `translate3d(${transform.x}px, 0, 0)` : undefined,
+    transition,
+    opacity: isDragging ? 0.5 : undefined,
+    cursor: editing ? 'text' : field.is_primary ? 'default' : 'grab',
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      className="db-col-header"
+      style={style}
+      onDoubleClick={() => setEditing(true)}
+      onContextMenu={onContextMenu}
+      {...attributes}
+      {...listeners}
+    >
+      {editing ? (
+        <input
+          ref={inputRef}
+          type="text"
+          className="db-col-header__input"
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          onBlur={() => void submit()}
+          onKeyDown={e => {
+            if (e.key === 'Enter') void submit()
+            else if (e.key === 'Escape') {
+              setDraft(field.name)
+              setEditing(false)
+            }
+          }}
+          // Don't let the inline input bubble pointer events to the
+          // sortable wrapper.
+          onPointerDown={e => e.stopPropagation()}
+        />
+      ) : (
+        <span className="db-col-header__label" title="Double-click to rename, right-click for menu">
+          {field.name}
+        </span>
+      )}
+      <div
+        className="db-col-header__resize"
+        onPointerDown={onResizeStart}
+        onClick={e => e.stopPropagation()}
+        onDoubleClick={e => e.stopPropagation()}
+      />
+    </div>
+  )
+}
