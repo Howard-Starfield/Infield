@@ -2723,3 +2723,20 @@ function __makeEvents__<T extends Record<string, any>>(
 		},
 	);
 }
+
+// ---------------------------------------------------------------------------
+// Buddy System types — manually appended at merge time because regenerating
+// via `bun run tauri dev` was blocked by a transient Windows linker lock on
+// C:\ht\debug\deps\cxxbridge_macro-*.dll. These shapes mirror specta output
+// from src-tauri/src/managers/buddy.rs exactly. Next successful tauri dev
+// run will rewrite this whole file and these duplicates will go away.
+// ---------------------------------------------------------------------------
+
+export type ActivityEvent = { kind: string; weight: number }
+export type BuddyState = { points_balance: number; points_overflow: number; cap_total: number; active_buddy_id: string; roster: BuddyUnlock[]; inventory: GearItem[]; milestones: Milestone[]; overlay: OverlayState; team_power: number }
+export type BuddyUnlock = { buddy_id: string; unlocked_at_ms: number; xp_total: number; level: number; shiny: boolean; equipped_hat_id: string | null; equipped_aura_id: string | null; equipped_charm_id: string | null }
+export type ClaimResult = { points_claimed: number; xp_awarded: number; gear_dropped: GearItem[] }
+export type GearItem = { gear_id: string; slot: string; species: string; rarity: string; shiny: boolean; power_bonus: number; speed_bonus: number; charm_bonus: number; acquired_at_ms: number }
+export type Milestone = { milestone_id: string; progress: number; target: number; completed_at_ms: number | null; reward_buddy_id: string | null }
+export type MilestoneTickResult = { progress: number; target: number; completed: boolean; unlocked_buddy_id: string | null }
+export type OverlayState = { x: number; y: number; anchor: string; hidden: boolean }
