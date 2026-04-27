@@ -606,10 +606,24 @@ impl BuddyManager {
             return Err(format!("buddy::set_cap_total: cap out of range: {cap}"));
         }
         let conn = self.conn.lock().await;
-        // Re-anchor last_drip_ms so the rate change applies from now forward, never destroying points.
+        // Materialize the lazy-drifted balance against the OLD cap before re-anchoring,
+        // otherwise raising the cap silently destroys whatever points the user had drifted
+        // into via lazy compute since `last_drip_ms`.
+        let (cur_balance, cur_cap, last_drip_ms): (f64, f64, i64) = conn
+            .query_row(
+                "SELECT points_balance, cap_total, last_drip_ms FROM buddy_state WHERE id = 1",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .map_err(|e| format!("buddy::set_cap_total: read state: {e}"))?;
+        let elapsed_sec = ((now_ms - last_drip_ms) as f64 / 1000.0).max(0.0);
+        let rate = cur_cap / DRIP_DURATION_SEC;
+        let drifted = (cur_balance + elapsed_sec * rate).min(cur_cap);
         conn.execute(
-            "UPDATE buddy_state SET cap_total = ?, last_drip_ms = ?, updated_at_ms = ? WHERE id = 1",
-            params![cap, now_ms, now_ms],
+            "UPDATE buddy_state
+                SET points_balance = ?, cap_total = ?, last_drip_ms = ?, updated_at_ms = ?
+              WHERE id = 1",
+            params![drifted, cap, now_ms, now_ms],
         ).map_err(|e| format!("buddy::set_cap_total: update: {e}"))?;
         Ok(())
     }
@@ -907,6 +921,25 @@ mod tests {
         // now < last_drip_ms → no growth, no destruction
         let s = mgr.get_state(1_000_000).await.expect("get");
         assert_eq!(s.points_balance, 500.0);
+    }
+
+    #[tokio::test]
+    async fn set_cap_total_persists_drifted_balance() {
+        let conn = Arc::new(Mutex::new(setup()));
+        let mgr = BuddyManager::new(conn.clone());
+        {
+            let c = conn.lock().await;
+            c.execute("UPDATE buddy_state SET last_drip_ms = 0", []).unwrap();
+        }
+        // After 1 hour at cap=1000 → balance ≈ 125 via lazy compute.
+        let pre = mgr.get_state(3_600_000).await.expect("get");
+        assert!((pre.points_balance - 125.0).abs() < 1.0, "got {}", pre.points_balance);
+
+        // Raise the cap mid-flight; drifted points must survive.
+        mgr.set_cap_total(2000.0, 3_600_000).await.expect("set_cap");
+        let post = mgr.get_state(3_600_000).await.expect("get");
+        assert!((post.points_balance - 125.0).abs() < 1.0, "lost drifted points: {}", post.points_balance);
+        assert_eq!(post.cap_total, 2000.0);
     }
 
     #[tokio::test]
