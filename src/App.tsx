@@ -4,6 +4,7 @@ import { LayoutProvider } from './contexts/LayoutContext';
 import { VaultProvider, useVault } from './contexts/VaultContext';
 import { Toaster } from 'sonner';
 import { celebrationService } from './services/CelebrationService';
+import { BuddyProvider } from './contexts/BuddyContext';
 
 import { Lock as LockIcon, Key, ArrowRight, Eye, EyeOff, Fingerprint, Loader } from 'lucide-react';
 
@@ -330,7 +331,9 @@ export default function App() {
   return (
     <LayoutProvider>
       <VaultProvider>
-        <AppContent />
+        <BuddyProvider>
+          <AppContent />
+        </BuddyProvider>
       </VaultProvider>
     </LayoutProvider>
   );
