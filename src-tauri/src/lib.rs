@@ -284,13 +284,15 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     // already exist. WorkspaceManager::migrate() is idempotent (user_version
     // marker) and we call it again below for any future dev-time migrations,
     // but the real work happens here.
+    // Workspace migrations are the single source of truth for the shared
+    // workspace.db user_version. Buddy tables are folded into this list as
+    // migrations 9-10 (see workspace_manager.rs). BuddyManager::migrations()
+    // remains for in-memory test setup but must not be called against the
+    // real connection — it would panic with DatabaseTooFarAhead because
+    // user_version is shared, not namespaced per manager.
     managers::workspace::WorkspaceManager::migrations()
         .to_latest(&mut ws_conn)
         .expect("Failed to run workspace migrations");
-
-    crate::managers::buddy::BuddyManager::migrations()
-        .to_latest(&mut ws_conn)
-        .expect("Failed to run buddy migrations");
 
     // Rule 19: compare the current model.onnx hash (cached in a side-file
     // keyed by mtime) against the row in `embedding_model_info`. Mismatch
