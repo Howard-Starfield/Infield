@@ -149,6 +149,7 @@ function inputDateTimeToTs(value: string): number | null {
 }
 
 export function DateCell({ value, onChange, readOnly, mode }: DateCellProps) {
+  const inputRef = useRef<HTMLInputElement | null>(null)
   const isDateTime = mode === 'date_time'
   const inputValue = isDateTime ? tsToInputDateTime(value) : tsToInputDate(value)
   const placeholder = isDateTime ? 'Pick date & time' : 'Pick date'
@@ -165,10 +166,26 @@ export function DateCell({ value, onChange, readOnly, mode }: DateCellProps) {
         })
       : inputValue
     : placeholder
+  // WebView2 doesn't reliably open the native picker for an opacity:0
+  // overlay input on label click — sometimes the focus lands but the
+  // picker never opens. Explicitly call showPicker() on cell click; this
+  // is the same mechanism Chromium browsers use internally.
+  const openPicker = (e: React.MouseEvent) => {
+    if (readOnly) return
+    e.preventDefault()
+    const el = inputRef.current
+    if (!el) return
+    try {
+      el.showPicker?.()
+    } catch {
+      el.focus()
+    }
+  }
   return (
-    <label className="db-cell-date">
+    <div className="db-cell-date" onClick={openPicker}>
       <span className="db-cell-date__pill">{displayLabel}</span>
       <input
+        ref={inputRef}
         className="db-cell-date__input"
         type={isDateTime ? 'datetime-local' : 'date'}
         value={inputValue}
@@ -181,7 +198,7 @@ export function DateCell({ value, onChange, readOnly, mode }: DateCellProps) {
           onChange(next, 'immediate')
         }}
       />
-    </label>
+    </div>
   )
 }
 
