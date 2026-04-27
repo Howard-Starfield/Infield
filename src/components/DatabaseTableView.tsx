@@ -219,25 +219,41 @@ export function DatabaseTableView({ dbId, onOpenRow }: Props) {
   const columns = useMemo<ColumnDef<RowMeta>[]>(() => {
     const cols: ColumnDef<RowMeta>[] = []
     if (primaryField) {
+      const primaryFieldId = primaryField.id
       cols.push({
-        id: primaryField.id,
+        id: primaryFieldId,
         header: () => (
           <ColumnHeader
             field={primaryField}
-            width={colWidthsRef.current[primaryField.id] ?? DEFAULT_COL_WIDTH}
+            width={colWidthsRef.current[primaryFieldId] ?? DEFAULT_COL_WIDTH}
             onRename={renameField}
             onResize={setColumnWidth}
             onOpenMenu={setColMenu}
           />
         ),
-        cell: ({ row }) => (
-          <span
-            className="db-table__title-cell"
-            onClick={() => onOpenRow(row.original.id)}
-          >
-            {row.original.title || 'Untitled'}
-          </span>
-        ),
+        // Row title is derived from the primary RichText field's cell value
+        // (see useDatabase decorateRow). Render the SAME TextCell renderer
+        // here so users can edit titles inline; mutating the cell updates
+        // the row title everywhere it's surfaced.
+        cell: ({ row }) => {
+          const cellValue = cellsRef.current.get(row.original.id)?.get(primaryFieldId)
+          const text = cellValue && cellValue.type === 'rich_text' ? cellValue.value : ''
+          return (
+            <TextCell
+              fieldId={primaryFieldId}
+              rowId={row.original.id}
+              value={text}
+              onChange={(next, kind) =>
+                void mutateCellRef.current(
+                  row.original.id,
+                  primaryFieldId,
+                  { type: 'rich_text', value: next },
+                  kind,
+                )
+              }
+            />
+          )
+        },
       })
     }
     fields
