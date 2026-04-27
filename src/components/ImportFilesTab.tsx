@@ -175,7 +175,7 @@ export function ImportFilesTab({ onNavigate }: ImportFilesTabProps) {
           </button>
           <button
             className="heros-btn heros-btn-brand"
-            onClick={pickFiles}
+            onClick={() => void pickFiles()}
             style={{ padding: '10px 20px', borderRadius: 12, fontSize: '13px' }}
           >
             <Plus size={15} /> New Knowledge Batch
@@ -204,7 +204,7 @@ export function ImportFilesTab({ onNavigate }: ImportFilesTabProps) {
           }}
         >
           <div
-            onClick={pickFiles}
+            onClick={() => void pickFiles()}
             role="button"
             tabIndex={0}
             onKeyDown={(e) => {

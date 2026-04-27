@@ -62,6 +62,12 @@ export function jobStatusLine(job: ImportJobDto): string {
       return job.segment_count > 0
         ? `Transcribing · ${job.segment_index} / ${job.segment_count}`
         : 'Transcribing…';
+    case 'draft_created':
+      return 'Draft created…';
+    case 'extracting_text':
+      return 'Extracting text…';
+    case 'creating_note':
+      return 'Creating note…';
     case 'post_processing':
     case 'finalizing':
       return 'Finalizing…';
