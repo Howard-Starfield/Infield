@@ -22,7 +22,7 @@ use crate::settings::get_settings;
 use crate::transcription_workspace::emit_workspace_node_body_updated_immediate;
 use encoding_rs::UTF_8;
 use hound::WavReader;
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::borrow::Cow;
@@ -635,18 +635,27 @@ async fn run_import_media(
             .and_then(|r| r.map_err(|e| format!("Transcribe: {e}")))
         };
 
-        let (piece, ok_segment) = match &transcribe_result {
-            Ok(t) if !t.trim().is_empty() => (t.trim().to_string(), true),
-            Ok(_) => ("[inaudible]".to_string(), false),
-            Err(e) => {
-                warn!("segment {} transcribe: {}", i, e);
+        // Distinguish "whisper succeeded but found no speech" (Ok("")) from
+        // "transcription failed" (Err). Only Err counts toward the
+        // consecutive-error bail-out; an empty Ok is whisper telling us this
+        // chunk had nothing to decode (e.g. its "single timestamp ending —
+        // skip entire chunk" path on quiet/short utterances). The post-loop
+        // MIN_MEANINGFUL_TRANSCRIPT_CHARS guard handles a fully-empty result.
+        let (piece, hard_error) = match &transcribe_result {
+            Ok(t) if !t.trim().is_empty() => (t.trim().to_string(), false),
+            Ok(_) => {
+                debug!("segment {i}: whisper returned empty (no speech)");
                 ("[inaudible]".to_string(), false)
             }
+            Err(e) => {
+                warn!("segment {} transcribe: {}", i, e);
+                ("[inaudible]".to_string(), true)
+            }
         };
-        if ok_segment {
-            consecutive_errors = 0;
-        } else {
+        if hard_error {
             consecutive_errors += 1;
+        } else {
+            consecutive_errors = 0;
         }
 
         if consecutive_errors >= 3 {
