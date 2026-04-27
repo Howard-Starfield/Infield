@@ -1,13 +1,12 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import {
-  Link2, Clock, CheckCircle2, FileText, Globe, ChevronDown, ChevronUp, Download,
-} from 'lucide-react';
+import { Link2, FileText, Globe, Download } from 'lucide-react';
 import { commands } from '../bindings';
 import { useImportQueue } from '../hooks/useImportQueue';
 import { useYtDlpPlugin } from '../hooks/useYtDlpPlugin';
 import { PlaylistSelectorModal } from './PlaylistSelectorModal';
-import { ScrollShadow } from './ScrollShadow';
+import { ImportProcessingList, ImportCompletedList } from './ImportQueueLists';
+import { TERMINAL_STATES, formatDuration } from '../utils/importJobs';
 import type {
   ImportJobDto,
   UrlMetadataResult,
@@ -18,7 +17,6 @@ import type {
 } from '../bindings';
 import '../styles/import.css';
 
-const TERMINAL_STATES = new Set<ImportJobDto['state']>(['done', 'error', 'cancelled']);
 const PLAYLIST_RE = /[?&]list=|playlist\?list=/;
 
 // ── Helpers ────────────────────────────────────────────────────
@@ -28,68 +26,6 @@ export function detectUrls(text: string): string[] {
       .map(s => s.trim())
       .filter(s => /^https?:\/\/\S+\.\S+/.test(s))
   ));
-}
-
-function formatDuration(seconds: number): string {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = Math.floor(seconds % 60);
-  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-  return `${m}:${String(s).padStart(2, '0')}`;
-}
-
-function jobProgress(job: ImportJobDto): number {
-  if (job.state === 'done') return 100;
-  if (job.state === 'fetching_meta') return 5;
-  if (job.state === 'downloading') {
-    const t = job.download_total_bytes ?? 0;
-    const b = job.download_bytes ?? 0;
-    if (t > 0) return Math.min(50, 10 + Math.round((b / t) * 40));
-    return 20;
-  }
-  if (job.state === 'preparing' || job.state === 'segmenting') return 55;
-  if (job.state === 'transcribing') {
-    if (job.segment_count > 0) {
-      return 60 + Math.round((job.segment_index / job.segment_count) * 30);
-    }
-    return 65;
-  }
-  if (job.state === 'post_processing' || job.state === 'finalizing') return 95;
-  return 0;
-}
-
-function jobStatusLine(job: ImportJobDto): string {
-  switch (job.state) {
-    case 'queued': return 'Queued';
-    case 'fetching_meta': return 'Fetching metadata…';
-    case 'downloading': {
-      const b = job.download_bytes ?? 0;
-      const t = job.download_total_bytes;
-      const sizeStr = t ? `${formatBytes(b)} / ${formatBytes(t)}` : formatBytes(b);
-      return `Downloading · ${sizeStr}${job.download_speed_human ? ` · ${job.download_speed_human}` : ''}`;
-    }
-    case 'preparing': case 'segmenting': return 'Preparing audio…';
-    case 'transcribing':
-      return job.segment_count > 0
-        ? `Transcribing · ${job.segment_index} / ${job.segment_count}`
-        : 'Transcribing…';
-    case 'post_processing': case 'finalizing': return 'Finalizing…';
-    case 'done': return 'Saved';
-    case 'error': return job.message ?? 'Error';
-    case 'cancelled': return 'Cancelled';
-    default: return job.state;
-  }
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
-}
-
-function jobTitle(job: ImportJobDto): string {
-  return job.web_meta?.title ?? job.file_name;
 }
 
 // ── Per-URL preview state ──────────────────────────────────────
@@ -226,13 +162,53 @@ export function ImportUrlTab() {
     setActivePlaylistUrl(null);
   }
 
-  const processing = jobs.filter(j => !TERMINAL_STATES.has(j.state));
-  const completed = jobs.filter(j => TERMINAL_STATES.has(j.state));
+  const processing = jobs.filter(
+    (j) => j.kind === 'web_media' && !TERMINAL_STATES.has(j.state),
+  );
+  const completed = jobs.filter(
+    (j) => j.kind === 'web_media' && TERMINAL_STATES.has(j.state),
+  );
 
   const previewEntries = Object.entries(previews);
   const readyCount = previewEntries.filter(([_, p]) =>
     p.kind === 'ready' && !(p as { alreadyImported: unknown }).alreadyImported
   ).length;
+
+  function renderUrlThumb(job: ImportJobDto) {
+    const thumb = job.web_meta?.thumbnail_url;
+    if (thumb) {
+      return (
+        <div
+          style={{
+            width: 32,
+            height: 32,
+            borderRadius: 9,
+            overflow: 'hidden',
+            background: 'rgba(255,255,255,0.08)',
+          }}
+        >
+          <img src={thumb} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        </div>
+      );
+    }
+    const platform = job.web_meta?.platform ?? '';
+    const Icon = platform.toLowerCase().includes('youtube') ? Globe : FileText;
+    return (
+      <div
+        style={{
+          width: 32,
+          height: 32,
+          borderRadius: 9,
+          background: 'rgba(255,255,255,0.08)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <Icon size={14} />
+      </div>
+    );
+  }
 
   return (
     <div className="heros-page-container" style={{ position: 'relative', zIndex: 5, height: '100%', overflowY: 'auto' }}>
@@ -404,8 +380,12 @@ export function ImportUrlTab() {
         }
 
         {/* Live progress + recent imports */}
-        <ProcessingPanel jobs={processing} />
-        <CompletedPanel jobs={completed} />
+        <ImportProcessingList jobs={processing} renderThumb={renderUrlThumb} />
+        <ImportCompletedList
+          jobs={completed}
+          renderThumb={renderUrlThumb}
+          onClear={() => commands.clearCompletedImports()}
+        />
       </div>
 
       {activePlaylistUrl && previews[activePlaylistUrl]?.kind === 'playlist' && (
@@ -660,235 +640,3 @@ function PluginMissingBanner({ plugin }: { plugin: ReturnType<typeof useYtDlpPlu
   );
 }
 
-// ── Processing panel ───────────────────────────────────────────
-function ProcessingPanel({ jobs }: { jobs: ImportJobDto[] }) {
-  if (jobs.length === 0) return null;
-  return (
-    <section className="heros-glass-card" style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 8, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '13px', fontWeight: 600 }}>
-          <Clock size={15} color="rgba(255,255,255,0.4)" />
-          Processing
-          <span style={{ padding: '3px 9px', fontSize: '10px', background: 'rgba(255,255,255,0.06)', borderRadius: 14, color: 'var(--heros-text-dim)' }}>
-            {jobs.length} active
-          </span>
-        </div>
-      </div>
-
-      <ScrollShadow style={{ maxHeight: 280 }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <AnimatePresence initial={false}>
-            {jobs.map((job, i) => (
-              <motion.div
-                key={job.id}
-                layout
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                transition={{ delay: i * 0.05 }}
-                className="import-row-hover"
-                style={{
-                  display: 'grid', gridTemplateColumns: '32px 1fr auto', gap: 12, alignItems: 'center',
-                  padding: '10px 12px', borderRadius: 12, background: 'rgba(0,0,0,0.14)',
-                  border: '1px solid rgba(255,255,255,0.04)', transition: 'all 0.2s',
-                }}
-              >
-                <JobThumb job={job} />
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: '12.5px', color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {jobTitle(job)}
-                  </div>
-                  <div style={{ fontSize: '10.5px', color: 'var(--heros-text-dim)', marginTop: 1, fontFamily: 'monospace' }}>
-                    {jobStatusLine(job)}
-                  </div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{ width: 80, height: 4, background: 'rgba(0,0,0,0.28)', borderRadius: 2, overflow: 'hidden', position: 'relative' }}>
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${jobProgress(job)}%` }}
-                      className="shimmer-bar"
-                      style={{ height: '100%', background: 'linear-gradient(90deg, #f0d8d0, #fff)', borderRadius: 2, boxShadow: '0 0 8px rgba(253,249,243,0.5)' }}
-                    />
-                  </div>
-                  <div style={{ fontSize: '10px', fontWeight: 700, padding: '4px 8px', borderRadius: 8, background: 'rgba(255,255,255,0.08)', color: 'var(--heros-text-dim)', fontFamily: 'monospace' }}>
-                    {jobProgress(job)}%
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </AnimatePresence>
-        </div>
-      </ScrollShadow>
-    </section>
-  );
-}
-
-// ── Completed panel — auto-expands on new arrival, hides 1s later ──
-function CompletedPanel({ jobs }: { jobs: ImportJobDto[] }) {
-  const [autoExpanded, setAutoExpanded] = useState(false);
-  const [manualExpanded, setManualExpanded] = useState(false);
-  const seenIdsRef = useRef<Set<string>>(new Set());
-  const initializedRef = useRef(false);
-  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const expanded = autoExpanded || manualExpanded;
-
-  const [recentIds, setRecentIds] = useState<Set<string>>(new Set());
-
-  useEffect(() => {
-    if (!initializedRef.current) {
-      jobs.forEach(j => seenIdsRef.current.add(j.id));
-      initializedRef.current = true;
-      return;
-    }
-    const newOnes = jobs.filter(j => !seenIdsRef.current.has(j.id));
-    if (newOnes.length === 0) return;
-
-    newOnes.forEach(j => seenIdsRef.current.add(j.id));
-    setRecentIds(prev => {
-      const next = new Set(prev);
-      newOnes.forEach(j => next.add(j.id));
-      return next;
-    });
-    setAutoExpanded(true);
-    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
-    hideTimerRef.current = setTimeout(() => {
-      setAutoExpanded(false);
-      setRecentIds(new Set());
-    }, 1000);
-  }, [jobs]);
-
-  useEffect(() => () => { if (hideTimerRef.current) clearTimeout(hideTimerRef.current); }, []);
-
-  const visibleJobs = useMemo(() => {
-    if (manualExpanded) return jobs;
-    if (autoExpanded) return jobs.filter(j => recentIds.has(j.id));
-    return [];
-  }, [jobs, manualExpanded, autoExpanded, recentIds]);
-
-  if (jobs.length === 0) return null;
-
-  return (
-    <motion.section
-      layout
-      className="heros-glass-card"
-      style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}
-    >
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={() => setManualExpanded(v => !v)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            setManualExpanded(v => !v);
-          }
-        }}
-        style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          paddingBottom: 8, borderBottom: '1px solid rgba(255,255,255,0.05)',
-          cursor: 'pointer', width: '100%',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '13px', fontWeight: 600 }}>
-          <CheckCircle2 size={15} color="#9cf0c9" />
-          Completed
-          <span style={{ padding: '3px 9px', fontSize: '10px', background: 'rgba(255,255,255,0.06)', borderRadius: 14, color: 'var(--heros-text-dim)' }}>
-            {jobs.length}
-          </span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); commands.clearCompletedImports(); }}
-            className="heros-btn"
-            style={{ fontSize: 10, padding: '3px 10px', borderRadius: 6, opacity: 0.7 }}
-            title="Clear completed history"
-          >
-            Clear
-          </button>
-          {manualExpanded ? <ChevronUp size={14} color="rgba(255,255,255,0.4)" /> : <ChevronDown size={14} color="rgba(255,255,255,0.4)" />}
-        </div>
-      </div>
-
-      <AnimatePresence initial={false}>
-        {expanded && (
-          <motion.div
-            key="completed-body"
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.25 }}
-            style={{ overflow: 'hidden' }}
-          >
-            <ScrollShadow style={{ maxHeight: 320 }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                <AnimatePresence initial={false}>
-                  {visibleJobs.map(job => {
-                    const isRecent = recentIds.has(job.id);
-                    return (
-                      <motion.div
-                        key={job.id}
-                        layout
-                        initial={{ opacity: 0, scale: 0.96 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.96 }}
-                        className="import-row-hover"
-                        style={{
-                          display: 'grid', gridTemplateColumns: '32px 1fr auto', gap: 12, alignItems: 'center',
-                          padding: '10px 12px', borderRadius: 12,
-                          background: isRecent ? 'rgba(16,185,129,0.10)' : 'rgba(0,0,0,0.14)',
-                          border: `1px solid ${isRecent ? 'rgba(16,185,129,0.3)' : 'rgba(255,255,255,0.04)'}`,
-                          opacity: isRecent ? 1 : 0.72,
-                          transition: 'background 200ms ease, border 200ms ease',
-                        }}
-                      >
-                        <JobThumb job={job} />
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ fontSize: '12.5px', color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {jobTitle(job)}
-                          </div>
-                          <div style={{ fontSize: '10.5px', color: 'var(--heros-text-dim)', marginTop: 1, fontFamily: 'monospace' }}>
-                            {jobStatusLine(job)}
-                          </div>
-                        </div>
-                        <div style={{
-                          fontSize: '10px', fontWeight: 700, padding: '4px 8px', borderRadius: 8,
-                          background: job.state === 'done' ? 'rgba(16,185,129,0.18)' : 'rgba(239,68,68,0.18)',
-                          color: job.state === 'done' ? '#9cf0c9' : '#ffb4b4',
-                          textTransform: 'uppercase', letterSpacing: '0.1em',
-                        }}>
-                          {job.state}
-                        </div>
-                      </motion.div>
-                    );
-                  })}
-                </AnimatePresence>
-              </div>
-            </ScrollShadow>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.section>
-  );
-}
-
-// ── Job thumbnail ──────────────────────────────────────────────
-function JobThumb({ job }: { job: ImportJobDto }) {
-  const thumb = job.web_meta?.thumbnail_url;
-  if (thumb) {
-    return (
-      <div style={{ width: 32, height: 32, borderRadius: 9, overflow: 'hidden', background: 'rgba(255,255,255,0.08)' }}>
-        <img src={thumb} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-      </div>
-    );
-  }
-  const platform = job.web_meta?.platform ?? '';
-  const Icon = platform.toLowerCase().includes('youtube') ? Globe : FileText;
-  return (
-    <div style={{ width: 32, height: 32, borderRadius: 9, background: 'rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <Icon size={14} />
-    </div>
-  );
-}
