@@ -125,7 +125,7 @@ export function ImportUrlTab() {
       const h = resolutionByUrl[url] ?? fallback;
       return {
         keep_media: keepMedia,
-        format: { kind: 'mp_4_video', max_height: h },
+        format: { kind: 'mp4_video', max_height: h },
         transcribe: transcribeMp4,
         parent_folder_node_id: null,
         playlist_source: null,
@@ -133,7 +133,7 @@ export function ImportUrlTab() {
     }
     return {
       keep_media: keepMedia,
-      format: { kind: 'mp_3_audio' },
+      format: { kind: 'mp3_audio' },
       transcribe: true,
       parent_folder_node_id: null,
       playlist_source: null,

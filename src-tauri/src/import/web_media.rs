@@ -262,10 +262,20 @@ mod parse_tests {
 
 // ── Task 13: Download with progress + cancellation ──────────────────────────
 
+// Wire format: serde produces "mp3_audio" / "mp4_video" (snake_case is byte-correct
+// here). specta-2.0.0-rc.22's snake_case algorithm inserts a spurious underscore at
+// the digit boundary and emits "mp_3_audio" / "mp_4_video" — wrong. Per-variant
+// `#[specta(rename = "...")]` pins the TS literal to the wire format. The
+// `format_serializes_with_kind_tag_and_snake_case` test below is the regression gate;
+// `bun run tsc --noEmit` is the frontend-side gate.
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(tag = "kind")]
 pub enum WebMediaFormat {
+    #[serde(rename = "mp3_audio")]
+    #[specta(rename = "mp3_audio")]
     Mp3Audio,
+    #[serde(rename = "mp4_video")]
+    #[specta(rename = "mp4_video")]
     Mp4Video { max_height: u32 },
 }
 

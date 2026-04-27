@@ -2605,7 +2605,7 @@ politeness_sleep_max?: number;
  * When true, yt-dlp binary is checked for updates on each queue run.
  */
 yt_dlp_auto_check_updates?: boolean }
-export type WebMediaFormat = { kind: "mp_3_audio" } | { kind: "mp_4_video"; max_height: number }
+export type WebMediaFormat = { kind: "mp3_audio" } | { kind: "mp4_video"; max_height: number }
 export type WebMediaImportOpts = { keep_media: boolean; format: WebMediaFormat; transcribe: boolean; parent_folder_node_id: string | null; playlist_source: PlaylistSource | null }
 export type WebMediaMetadata = { url: string; source_id: string; title: string; thumbnail_url?: string | null; duration_seconds?: number | null; channel?: string | null; platform: string; published_at?: string | null; available_video_heights: number[]; is_live: boolean }
 export type WhisperAcceleratorSetting = "auto" | "cpu" | "gpu"
