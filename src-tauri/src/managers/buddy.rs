@@ -454,7 +454,7 @@ impl BuddyManager {
                 |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
             ).map_err(|e| format!("buddy::tick_milestone: read milestone {milestone_id}: {e}"))?;
 
-        let new_progress = (cur_progress + delta).min(target);
+        let new_progress = (cur_progress + delta).clamp(0, target);
         tx.execute(
             "UPDATE buddy_milestones SET progress = ? WHERE milestone_id = ?",
             params![new_progress, milestone_id],

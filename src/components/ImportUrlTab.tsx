@@ -126,8 +126,13 @@ export function ImportUrlTab() {
   const urls = detectUrls(text);
 
   // Emit buddy:url-imported once per job transitioning into `done`.
+  // Prune ids no longer present in `jobs` so the Set doesn't grow forever.
   const reportedDoneRef = useRef<Set<string>>(new Set());
   useEffect(() => {
+    const liveIds = new Set(jobs.map(j => j.id));
+    for (const id of reportedDoneRef.current) {
+      if (!liveIds.has(id)) reportedDoneRef.current.delete(id);
+    }
     for (const job of jobs) {
       if (job.state === 'done' && !reportedDoneRef.current.has(job.id)) {
         reportedDoneRef.current.add(job.id);
