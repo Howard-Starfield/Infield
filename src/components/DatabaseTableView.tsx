@@ -75,6 +75,29 @@ interface ColumnMenuState {
   isPrimary: boolean
 }
 
+/// Active cell — the one with the fill-handle anchored to its bottom-right.
+/// Set by click on a cell; cleared when the active cell's value would be
+/// ambiguous to fill (e.g. unsupported field types) or when the user clicks
+/// outside the table body.
+interface ActiveCell {
+  rowId: string
+  fieldId: string
+}
+
+/// Field types whose values fill copies cleanly with no extra context.
+/// Other types (Media, Checklist, Url, complex formats) can be added later
+/// — for now they simply opt out of the fill handle.
+const FILLABLE_FIELD_TYPES: ReadonlySet<FieldType> = new Set<FieldType>([
+  'rich_text',
+  'number',
+  'checkbox',
+  'single_select',
+  'multi_select',
+  'date',
+  'date_time',
+  'url',
+])
+
 const ROW_HEIGHT = 36
 const DEFAULT_COL_WIDTH = 180
 const MIN_COL_WIDTH = 60
@@ -127,8 +150,17 @@ export function DatabaseTableView({ dbId, onOpenRow }: Props) {
   const [colWidths, setColWidths] = useState<Record<string, number>>(() =>
     loadColumnWidths(dbId),
   )
+  const [activeCell, setActiveCell] = useState<ActiveCell | null>(null)
+  const [fillEndRowIdx, setFillEndRowIdx] = useState<number | null>(null)
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const addColInputRef = useRef<HTMLInputElement | null>(null)
+  const tbodyRef = useRef<HTMLTableSectionElement | null>(null)
+
+  // Clear active cell when switching databases — the rowId/fieldId are stale.
+  useEffect(() => {
+    setActiveCell(null)
+    setFillEndRowIdx(null)
+  }, [dbId])
 
   // Reload width map when switching databases — each db has its own
   // localStorage entry so user's table layout per database is preserved.
@@ -299,6 +331,97 @@ export function DatabaseTableView({ dbId, onOpenRow }: Props) {
     [deleteField],
   )
 
+  // Activate a cell on plain click (skipping clicks that landed inside an
+  // editable surface — input, textarea, contenteditable — so cell editing
+  // continues to work without an extra "select first" step).
+  const activateCell = useCallback(
+    (e: React.MouseEvent<HTMLTableCellElement>, rowId: string, fieldId: string) => {
+      const target = e.target as HTMLElement
+      if (target.closest('input, textarea, [contenteditable="true"], .db-fill-handle')) return
+      setActiveCell({ rowId, fieldId })
+    },
+    [],
+  )
+
+  // Clear active cell when the user clicks outside the table body.
+  useEffect(() => {
+    if (!activeCell) return
+    const onClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null
+      if (!target) return
+      if (target.closest('.db-table-scroll')) return
+      setActiveCell(null)
+    }
+    document.addEventListener('mousedown', onClick)
+    return () => document.removeEventListener('mousedown', onClick)
+  }, [activeCell])
+
+  // Index of the currently active row in `tableRows` — used to compute the
+  // fill-preview range and the actual fill-write loop on pointer-up.
+  const tableRowIds = useMemo(() => rowIndex.map(r => r.id), [rowIndex])
+  const activeRowIdx = useMemo(() => {
+    if (!activeCell) return -1
+    return tableRowIds.indexOf(activeCell.rowId)
+  }, [activeCell, tableRowIds])
+
+  const activeField = useMemo(
+    () => (activeCell ? fields.find(f => f.id === activeCell.fieldId) ?? null : null),
+    [activeCell, fields],
+  )
+  const isActiveCellFillable =
+    !!activeField && FILLABLE_FIELD_TYPES.has(activeField.field_type)
+
+  // Pointerdown on the fill handle starts a drag. We track the cursor's
+  // y-position against rendered <tr> bounding rects to figure out which row
+  // is currently under the pointer; that becomes the inclusive end of the
+  // fill range. On pointerup, copy the active cell's value to every row
+  // between activeRowIdx+1 and endIdx (no-op if endIdx <= activeRowIdx).
+  const handleFillPointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!activeCell || activeRowIdx < 0 || !activeField) return
+      e.preventDefault()
+      e.stopPropagation()
+
+      const fieldId = activeCell.fieldId
+      const sourceValue = cellsRef.current.get(activeCell.rowId)?.get(fieldId)
+      if (!sourceValue) return // nothing to fill
+
+      const computeRowIdxFromPointer = (clientY: number): number => {
+        const tbody = tbodyRef.current
+        if (!tbody) return activeRowIdx
+        const trs = tbody.querySelectorAll<HTMLTableRowElement>('tr[data-row-idx]')
+        let best = activeRowIdx
+        for (const tr of trs) {
+          const r = tr.getBoundingClientRect()
+          if (clientY >= r.top) {
+            const idxAttr = tr.getAttribute('data-row-idx')
+            if (idxAttr !== null) best = parseInt(idxAttr, 10)
+          }
+        }
+        return best
+      }
+
+      const onMove = (ev: PointerEvent) => {
+        setFillEndRowIdx(Math.max(activeRowIdx, computeRowIdxFromPointer(ev.clientY)))
+      }
+      const onUp = (ev: PointerEvent) => {
+        document.removeEventListener('pointermove', onMove)
+        document.removeEventListener('pointerup', onUp)
+        const endIdx = Math.max(activeRowIdx, computeRowIdxFromPointer(ev.clientY))
+        setFillEndRowIdx(null)
+        if (endIdx <= activeRowIdx) return
+        // Fill rows (activeRowIdx, endIdx] with the source value.
+        const targets = tableRowIds.slice(activeRowIdx + 1, endIdx + 1)
+        for (const rowId of targets) {
+          void mutateCellRef.current(rowId, fieldId, sourceValue, 'immediate')
+        }
+      }
+      document.addEventListener('pointermove', onMove)
+      document.addEventListener('pointerup', onUp)
+    },
+    [activeCell, activeField, activeRowIdx, tableRowIds],
+  )
+
   const { rows: tableRows } = table.getRowModel()
 
   const virtualizer = useVirtualizer({
@@ -457,7 +580,7 @@ export function DatabaseTableView({ dbId, onOpenRow }: Props) {
               </tr>
             ))}
           </thead>
-          <tbody>
+          <tbody ref={tbodyRef}>
             {paddingTop > 0 && (
               <tr style={{ height: paddingTop }} aria-hidden="true">
                 <td colSpan={columns.length + 1} />
@@ -465,17 +588,43 @@ export function DatabaseTableView({ dbId, onOpenRow }: Props) {
             )}
             {virtualItems.map(virtualRow => {
               const row = tableRows[virtualRow.index]
+              const rowIdx = virtualRow.index
+              const isInFillRange =
+                fillEndRowIdx != null &&
+                activeRowIdx >= 0 &&
+                rowIdx > activeRowIdx &&
+                rowIdx <= fillEndRowIdx
               return (
                 <tr
                   key={row.id}
+                  data-row-idx={rowIdx}
+                  className={isInFillRange ? 'db-table__row--fill-preview' : undefined}
                   style={{ height: ROW_HEIGHT }}
                   onContextMenu={e => handleRowContextMenu(e, row.original.id)}
                 >
-                  {row.getVisibleCells().map(cell => (
-                    <td key={cell.id}>
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </td>
-                  ))}
+                  {row.getVisibleCells().map(cell => {
+                    const fieldId = cell.column.id
+                    const isActive =
+                      activeCell &&
+                      activeCell.rowId === row.original.id &&
+                      activeCell.fieldId === fieldId
+                    return (
+                      <td
+                        key={cell.id}
+                        className={isActive ? 'db-table__cell--active' : undefined}
+                        onClick={e => activateCell(e, row.original.id, fieldId)}
+                      >
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        {isActive && isActiveCellFillable && (
+                          <div
+                            className="db-fill-handle"
+                            onPointerDown={handleFillPointerDown}
+                            title="Drag to fill below"
+                          />
+                        )}
+                      </td>
+                    )
+                  })}
                   {/* Trailing cell aligned with the "+ Add column" header. */}
                   <td className="db-table__add-col-spacer" />
                 </tr>

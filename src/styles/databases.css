@@ -259,6 +259,37 @@
   cursor: not-allowed;
 }
 
+/* ── Active cell + fill handle (Tier 3) ──────────────────────────────────
+   `activeCell` gets a brand-coloured outline and a tiny square at its
+   bottom-right that the user grabs to fill values down the column. */
+.db-table__cell--active {
+  position: relative;
+  outline: 2px solid var(--heros-brand);
+  outline-offset: -2px;
+}
+.db-fill-handle {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  width: 8px;
+  height: 8px;
+  background: var(--heros-brand);
+  border: 1px solid var(--surface-container);
+  cursor: crosshair;
+  z-index: 4;
+}
+.db-fill-handle:hover {
+  /* Slight grow so the affordance reads as interactive. */
+  transform: scale(1.2);
+}
+
+/* Preview band — rows in (activeRow, dragEndRow] highlighted while the
+   fill drag is in progress. Subtle so it doesn't clash with the cell
+   outline. */
+.db-table__row--fill-preview td {
+  background: color-mix(in srgb, var(--heros-brand) 15%, transparent);
+}
+
 /* Popover anchored under the "+" header button. */
 .db-add-col-popover {
   position: absolute;
