@@ -145,7 +145,7 @@ export default function AppShell({ currentPage, onNavigate }: AppShellProps) {
               {currentPage === 'buddy' && <BuddyView />}
               {currentPage === 'about' && <AboutView />}
               {currentPage === 'search' && <SearchView />}
-              {currentPage === 'import' && <ImportView />}
+              {currentPage === 'import' && <ImportView onNavigate={onNavigate} />}
               {currentPage === 'audio' && <AudioView />}
               {currentPage === 'system-audio' && <SystemAudioView />}
               {currentPage === 'notes' && <NotesView />}

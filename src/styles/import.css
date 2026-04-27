@@ -228,3 +228,17 @@
 .plugin-banner > div { flex: 1; }
 .plugin-banner strong { display: block; }
 .plugin-banner p { color: var(--heros-text-muted); font-size: var(--text-sm); margin: var(--space-1) 0 0 0; }
+
+/* Disabled source chips (Notion / Obsidian / Readwise / Bear / Apple Notes / Browser).
+   Each connector is a separate brainstorm — chips are visible placeholders communicating
+   planned coverage, not interactive. */
+.import-source-chip--disabled {
+  opacity: 0.45;
+  cursor: default;
+  user-select: none;
+}
+.import-source-chip--disabled:hover {
+  /* defeat .heros-btn :hover lift — there is no functional hover for these chips */
+  background: rgba(255, 255, 255, 0.08) !important;
+  transform: none;
+}

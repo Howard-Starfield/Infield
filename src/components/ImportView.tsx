@@ -4,7 +4,11 @@ import { ImportUrlTab } from './ImportUrlTab';
 
 type Tab = 'files' | 'url';
 
-export function ImportView() {
+interface ImportViewProps {
+  onNavigate: (page: string) => void;
+}
+
+export function ImportView({ onNavigate }: ImportViewProps) {
   const [tab, setTab] = useState<Tab>('files');
 
   return (
@@ -60,7 +64,7 @@ export function ImportView() {
       </div>
 
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-        {tab === 'files' ? <ImportFilesTab /> : <ImportUrlTab />}
+        {tab === 'files' ? <ImportFilesTab onNavigate={onNavigate} /> : <ImportUrlTab />}
       </div>
     </div>
   );
